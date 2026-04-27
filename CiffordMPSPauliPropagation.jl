@@ -63,7 +63,11 @@ function QuantumClifford.PauliOperator(pstr::pp.PauliString)
   return PauliOperator(paulivec(pstr.term, pstr.nqubits); phase = phase)
 end
 
-# -- Running DisentangleCAMPS.evolve on pp.PauliStrings -----------------------
+# -- Extract pp.PauliStrings from pp.PauliRotations ---------------------------
+
+getpauli(rot::pp.PauliRotation, N::Integer) = pp.PauliString(N, rot.symbols, rot.qinds)
+
+# -- Running DisentangleCAMPS.evolve on pp objects -----------------------
 
 DisentangleCAMPS.evolve(ψ::cmps.CAMPS, 
                         t::Integer, 
@@ -71,3 +75,10 @@ DisentangleCAMPS.evolve(ψ::cmps.CAMPS,
                         phases::Vector{<:Real}; 
                         showprogress = false) = 
 evolve(ψ, t, PauliOperator.(paulistrings), phases; showprogress = showprogress)
+
+DisentangleCAMPS.evolve(ψ::cmps.CAMPS, 
+                        t::Integer, 
+                        paulirots::Vector{<:pp.PauliRotation},
+                        phases::Vector{<:Real}; 
+                        showprogress = false) = 
+evolve(ψ, t, getpauli.(paulirots, length(ψ)), phases; showprogress = showprogress)
