@@ -67,7 +67,21 @@ end
 
 getpauli(rot::pp.PauliRotation, N::Integer) = pp.PauliString(N, rot.symbols, rot.qinds)
 
-# -- Running DisentangleCAMPS.evolve on pp objects -----------------------
+# -- Evolving on pp objects ---------------------------------------------------
+
+DisentangleCAMPS.evolve_bonddim(ψ::cmps.CAMPS, 
+                        χ::Integer, 
+                        paulistrings::Vector{<:pp.PauliString},
+                        phases::Vector{<:Real}; 
+                        showprogress = false) = 
+DisentangleCAMPS.evolve_bonddim(ψ, χ, PauliOperator.(paulistrings), phases; showprogress = showprogress)
+
+DisentangleCAMPS.evolve_bonddim(ψ::cmps.CAMPS, 
+                        χ::Integer, 
+                        paulirots::Vector{<:pp.PauliRotation},
+                        phases::Vector{<:Real}; 
+                        showprogress = false) = 
+DisentangleCAMPS.evolve_bonddim(ψ, χ, getpauli.(paulirots, length(ψ)), phases; showprogress = showprogress)
 
 DisentangleCAMPS.evolve(ψ::cmps.CAMPS, 
                         t::Integer, 
