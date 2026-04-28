@@ -47,19 +47,10 @@ function paulivec(n::Integer, ndigits::Int=0)
     return reverse(digits)
 end
 
-function QuantumClifford.PauliOperator(pstr::pp.PauliString) # TODO: implement with Dict
-  coeff = pstr.coeff
-  if coeff == 1
-    phase = 0x0
-  elseif coeff == im
-    phase = 0x1
-  elseif coeff == -1
-    phase = 0x2
-  elseif coeff == -im
-    phase = 0x3
-  else 
-    throw(ArgumentError("QuantumClifford.PauliOperator only supports ±1 and ±i as phases"))
-  end
+function QuantumClifford.PauliOperator(pstr::pp.PauliString)
+  coeff_to_phase = Dict(1 => 0x0, im => 0x1, -1 => 0x2, -im => 0x3)
+  phase = get(coeff_to_phase, pstr.coeff, nothing)
+  isnothing(phase) && throw(ArgumentError("QuantumClifford.PauliOperator only supports ±1 and ±i as phases"))
   return PauliOperator(paulivec(pstr.term, pstr.nqubits); phase = phase)
 end
 

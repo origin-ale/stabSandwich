@@ -19,6 +19,8 @@ obs_string = pp.inttostring(observable.term, length(input_str))
 N = length(obs_string)
 t = length(ARGS) >= 3 ? parse(Int, ARGS[3]) : Int(2.5*N)
 ψ = cmps.CAMPS(N)
+
+# make these non-random for testing
 paulistrings = [pp.inttosymbol(rand(0:4^N-1), N) for _ in 1:t]
 qinds = [shuffle(1:N) for _ in 1:t]
 rotations = pp.PauliRotation.(paulistrings, qinds)
