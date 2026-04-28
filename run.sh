@@ -1,4 +1,4 @@
 clear
 clear
 # args: P χ t
-julia Sandwich.jl XX 16 1000
+julia --project=. Sandwich.jl XIYZXZXIZYYZ 16

@@ -7,7 +7,7 @@ using ProgressMeter
 using Plots
 using LaTeXStrings
 
-include("./CiffordMPSPauliPropagation.jl")
+using CampsPP
 
 Ns = length(ARGS) >= 1 ? parse.(Int, split(ARGS[1], ",")) : [12, 16, 24]
 n_samples = length(ARGS) >= 2 ? parse(Int, ARGS[2]) : 50

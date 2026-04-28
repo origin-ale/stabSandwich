@@ -1,3 +1,4 @@
+using CampsPP
 import CliffordMPS as cmps
 import PauliPropagation as pp
 using QuantumClifford
@@ -6,9 +7,6 @@ using ProgressMeter
 using Random
 
 Random.seed!(42)
-
-include("CiffordMPSPauliPropagation.jl")
-include("Interface.jl")
 
 input_str = length(ARGS) >= 1 ? ARGS[1] : "XXXXXXXXXXXX"
 χ = length(ARGS) >= 2 ? parse(Int, ARGS[2]) : 128
