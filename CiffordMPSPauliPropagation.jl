@@ -22,12 +22,12 @@ function cmps.PauliSum(psum::pp.PauliSum)
 end
 
 _inttopaulioperator(pstr_int::Integer, nqubits::Integer) = 
-cmps.PauliOperator([Int(getpauli(pstr_int, i)) for i in 1:nqubits])
+cmps.PauliOperator([Int(pp.getpauli(pstr_int, i)) for i in 1:nqubits])
 
 _inttostabilizer(pstr_int::Integer, nqubits::Integer) = 
 Stabilizer([_inttopaulioperator(pstr_int, nqubits)])
 
-_inttostabilizer(pstr_ints::Vector{UInt8}, nqubits::Integer) =
+_inttostabilizer(pstr_ints::Vector{<:Integer}, nqubits::Integer) =
 vcat(_inttostabilizer.(pstr_ints, nqubits)...)
 
 # -- pp.PauliString -> QuantumClifford.PauliOperator --------------------------
@@ -47,7 +47,7 @@ function paulivec(n::Integer, ndigits::Int=0)
     return reverse(digits)
 end
 
-function QuantumClifford.PauliOperator(pstr::pp.PauliString)
+function QuantumClifford.PauliOperator(pstr::pp.PauliString) # TODO: implement with Dict
   coeff = pstr.coeff
   if coeff == 1
     phase = 0x0
