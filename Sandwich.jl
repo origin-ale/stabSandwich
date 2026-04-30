@@ -15,7 +15,7 @@ observable = stringtopauli(input_str)
 obs_string = pp.inttostring(observable.term, length(input_str))
 
 N = length(obs_string)
-t = length(ARGS) >= 3 ? parse(Int, ARGS[3]) : Int(2.5*N)
+t = length(ARGS) >= 3 ? parse(Int, ARGS[3]) : Int(floor(2.5*N))
 ψ = cmps.CAMPS(N)
 
 # make these non-random for testing
