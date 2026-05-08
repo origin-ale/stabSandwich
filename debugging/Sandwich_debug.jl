@@ -9,13 +9,13 @@ using Revise
 
 N = 6
 input_str = join(rand(["I","X","Y","Z"], N))
-ss = collect(0:t)
 
 observable = stringtopauli(input_str)
 obs_string = pp.inttostring(observable.term, length(input_str))
 
 N = length(obs_string)
 t = Int(floor(2.5*N))
+ss = collect(0:t)
 
 paulistrings = [pp.inttosymbol(rand(0:4^N-1), N) for _ in 1:t]
 angles = 4π*rand(Float64, (t,)) # Rotation angles, i.e. 2* exponential phases
