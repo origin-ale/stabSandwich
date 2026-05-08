@@ -18,7 +18,7 @@ t = Int(floor(2.5*N))
 ss = collect(0:t)
 
 paulistrings = [pp.inttosymbol(rand(0:4^N-1), N) for _ in 1:t]
-angles = 4π*rand(Float64, (t,)) # Rotation angles, i.e. 2* exponential phases
+phases = 2π * rand(Float64, (t,)) # Exponential phases, ie. -1/2 * rotation angles
 
 qinds = [collect(1:N) for _ in paulistrings]
 rotations = pp.PauliRotation.(paulistrings, qinds)
@@ -34,10 +34,10 @@ for s in ss
   printstyled(repeat("-",16), " CAMPS until t = $s ", repeat("-",16), "\n"; color = :light_cyan)
   
   ψ = cmps.CAMPS(N)
-  ψ_evo, k = DisentangleCAMPS.evolve(ψ, s, rotations, angles; showprogress = true)
+  ψ_evo, k = DisentangleCAMPS.evolve(ψ, s, rotations, phases; showprogress = true)
 
   leftover_rotations = rotations[s+1:end]
-  leftover_phases = angles[s+1:end]
+  leftover_phases = -2 .* phases[s+1:end]
 
   sandwichstrings = pp.propagate(leftover_rotations, observable, leftover_phases)
 
