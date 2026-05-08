@@ -36,10 +36,9 @@ for s in ss
   ψ = cmps.CAMPS(N)
   ψ_evo, k = DisentangleCAMPS.evolve(ψ, s, rotations, phases; showprogress = true)
 
-  leftover_rotations = rotations[s+1:end]
-  leftover_phases = -2 .* phases[s+1:end]
+  leftover_rotations, leftover_angles = leftover_rotgates(s, rotations, phases)
 
-  sandwichstrings = pp.propagate(leftover_rotations, observable, leftover_phases)
+  sandwichstrings = pp.propagate(leftover_rotations, observable, leftover_angles)
 
   println("Converting $(length(sandwichstrings))-term sum…")
   sandwichsum, conversiontime, _... = @timed cmps.PauliSum(sandwichstrings)

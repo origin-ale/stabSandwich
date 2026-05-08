@@ -87,3 +87,6 @@ DisentangleCAMPS.evolve(ψ::cmps.CAMPS,
                         phases::Vector{<:Real}; 
                         showprogress = false) = 
 evolve(ψ, t, getpauli.(paulirots, length(ψ)), phases; showprogress = showprogress)
+
+# -- Get leftovers from CAMPS evo ---------------------------------------------
+leftover_rotgates(s::Integer, rotations, phases) = rotations[s+1:end], -2 .* phases[s+1:end]
