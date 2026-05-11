@@ -5,31 +5,26 @@ using QuantumClifford
 using DisentangleCAMPS
 using ProgressMeter
 using Random
+using Revise
 
-Random.seed!(42)
+# Random.seed!(42)
 
-input_str = length(ARGS) >= 1 ? ARGS[1] : "XXXXXXXXXXXX"
-χ = length(ARGS) >= 2 ? parse(Int, ARGS[2]) : 128
+N = 16
+observable = random_paulistring(N)
+obs_string = pp.inttostring(observable.term, N)
 
-observable = stringtopauli(input_str)
-obs_string = pp.inttostring(observable.term, length(input_str))
+χ = 128
 
-N = length(obs_string)
-t = length(ARGS) >= 3 ? parse(Int, ARGS[3]) : Int(floor(2.5*N))
+t = Int(floor(2.5N))
+rotations, phases = random_rotations(t, N)
+
 ψ = cmps.CAMPS(N)
-
-# make these non-random for testing
-paulistrings = [pp.inttosymbol(rand(0:4^N-1), N) for _ in 1:t]
-qinds = [shuffle(1:N) for _ in 1:t]
-rotations = pp.PauliRotation.(paulistrings, qinds)
-phases = 2π*rand(Float64, (t,))
 
 printstyled("Calculating expectation value of $(N)-qubit string $obs_string through $t random rotation layers.\n"; color = :cyan)
 
 ψ_evo, k, tstop = DisentangleCAMPS.evolve_bonddim(ψ, χ, rotations, phases; showprogress = true)
 
-leftover_rotations = rotations[tstop+1:end]
-leftover_phases = phases[tstop+1:end]
+leftover_rotations, leftover_angles = leftover_rotgates(tstop, rotations, phases)
 
 if tstop == t
   println("Maximum bond dimension $χ not reached before s=t=$(t).")
@@ -38,12 +33,7 @@ else
   println("Propagating Paulis over $(length(leftover_rotations)) gates…")
 end
 
-sandwichstrings = pp.propagate(leftover_rotations, observable, leftover_phases)
+sandwichstrings = pp.propagate(leftover_rotations, observable, leftover_angles)
 
-println("Converting $(length(sandwichstrings))-term sum…")
-sandwichsum, conversiontime, _... = @timed cmps.PauliSum(sandwichstrings)
-println("Done in $conversiontime s.")
-println("Calculating expectation value of $(length(sandwichstrings))-term sum on CAMPS with bond dims $(ψ_evo.mps)…")
-ev, evtime, _... = @timed cmps.expectation(ψ_evo, sandwichsum)
-println("Done in $evtime s.")
+ev = cmps.expectation(ψ, sandwichstrings; verbose = true)
 println("⟨$(obs_string)⟩ = $ev")
