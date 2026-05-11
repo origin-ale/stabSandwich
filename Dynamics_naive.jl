@@ -7,7 +7,7 @@ import CliffordMPS as cmps
 N = 13
 χ = 64
 thl = 1e-10
-Nmax = 100
+Nmax = 500
 
 ψ = cmps.CAMPS(N)
 Zs = [pp.PauliString(N, [:Z], [i], 1/N) for i = 1:N]
