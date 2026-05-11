@@ -10,4 +10,7 @@ export stringtopauli
 export rotation_circuit
 export random_paulistring
 
+include("TimeEvolution.jl")
+export camps_rndrotation_dynamics
+
 end

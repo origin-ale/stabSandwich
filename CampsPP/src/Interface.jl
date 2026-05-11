@@ -61,3 +61,11 @@ end
 Generate a random N-qubit Pauli string.
 """
 random_paulistring(N::Integer) = stringtopauli(join(rand(["I","X","Y","Z"], N)))
+
+"""```random_rotation(N)```
+Generate a random N-qubit Pauli rotation gate e^(iϕP), with ϕ returned separately."""
+function random_rotation(Nqubits)
+  gate = PauliOperator(random_paulistring(Nqubits))
+  phase = 2π * rand(Float64)
+  return gate, phase
+end
