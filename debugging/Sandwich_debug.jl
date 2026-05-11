@@ -13,7 +13,6 @@ input_str = join(rand(["I","X","Y","Z"], N))
 observable = stringtopauli(input_str)
 obs_string = pp.inttostring(observable.term, length(input_str))
 
-N = length(obs_string)
 t = Int(floor(2.5*N))
 ss = collect(0:t)
 
@@ -37,15 +36,9 @@ for s in ss
   ψ_evo, k = DisentangleCAMPS.evolve(ψ, s, rotations, phases; showprogress = true)
 
   leftover_rotations, leftover_angles = leftover_rotgates(s, rotations, phases)
-
   sandwichstrings = pp.propagate(leftover_rotations, observable, leftover_angles)
 
-  println("Converting $(length(sandwichstrings))-term sum…")
-  sandwichsum, conversiontime, _... = @timed cmps.PauliSum(sandwichstrings)
-  println("Done in $conversiontime s.")
-  println("Computing expectation value of $(length(sandwichstrings))-term sum on CAMPS with bond dims $(ψ_evo.mps)…")
-  ev, evtime, _... = @timed cmps.expectation(ψ_evo, sandwichsum)
-  println("Done in $evtime s.")
+  ev = cmps.expectation(ψ, sandwichstrings; verbose = false)
   println("⟨$(obs_string)⟩ = $ev")
   println("\n")
   push!(evs, ev)

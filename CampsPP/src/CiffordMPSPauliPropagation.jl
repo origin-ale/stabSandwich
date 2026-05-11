@@ -89,4 +89,16 @@ DisentangleCAMPS.evolve(ψ::cmps.CAMPS,
 evolve(ψ, t, getpauli.(paulirots, length(ψ)), phases; showprogress = showprogress)
 
 # -- Get leftovers from CAMPS evo ---------------------------------------------
+
 leftover_rotgates(s::Integer, rotations, phases) = rotations[s+1:end], -2 .* phases[s+1:end]
+
+# -- Compute expval of pp.PauliSum on CAMPS -----------------------------------
+function cmps.expectation(ψ::cmps.CAMPS, op::pp.PauliSum; verbose = false)
+  verbose && println("Converting $(length(op))-term sum…")
+  op_cmps, conversiontime, _... = @timed cmps.PauliSum(op)
+  verbose && println("Done in $conversiontime s.")
+  verbose && println("Computing expectation value of $(length(op_cmps))-term sum on CAMPS with bond dims $(ψ.mps)…")
+  ev, evtime, _... = @timed cmps.expectation(ψ, op_cmps)
+  verbose && println("Done in $evtime s.")
+  return ev
+end
