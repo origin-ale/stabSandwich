@@ -31,7 +31,9 @@ function camps_rndrotation_dynamics(ψ::cmps.CAMPS,
                             k = 0)
   N = length(ψ)                          
   s = 0
+  evs_camps = []
   ev = cmps.expectation(ψ, obs)
+  push!(evs_camps, ev)
   append_datapoint(output, s, real(ev))
   progress = ProgressUnknown(0; desc = "Evolving CAMPS… t =", enabled = showprogress)
   while DisentangleCAMPS.bonddim(ψ) < χ
@@ -39,11 +41,12 @@ function camps_rndrotation_dynamics(ψ::cmps.CAMPS,
     gate, phase = random_rotation(N, PauliOperator([1]))
     k = apply!(ψ, k, gate, phase)
     ev = cmps.expectation(ψ, obs)
+    push!(evs_camps, real(ev))
     append_datapoint(output, s, real(ev))
     next!(progress; showvalues = showvalues_χ(χ, DisentangleCAMPS.bonddim(ψ)))
   end
   finish!(progress)
-  return ψ, k, s
+  return ψ, k, s, evs_camps
 end
 
 function pauliprop_rndrotation_dynamics(ψ::cmps.CAMPS,
@@ -56,6 +59,7 @@ function pauliprop_rndrotation_dynamics(ψ::cmps.CAMPS,
   N = length(ψ)
   s = s0
   NP = 1
+  evs_pp = []
   gates_pp = []
   angles_pp = []
   progress = ProgressUnknown(dt = 0.05, desc = "Evolving with Pauli prop… t =", enabled = showprogress)
@@ -67,9 +71,10 @@ function pauliprop_rndrotation_dynamics(ψ::cmps.CAMPS,
     paulisum = pp.propagate(gates_pp, obs, angles_pp; min_abs_coeff = thl)
     NP = length(paulisum)
     ev = cmps.expectation(ψ, paulisum)
+    push!(evs_pp, real(ev))
     append_datapoint(output, s, real(ev))
     update!(progress, s; showvalues = showvalues_P(Nmax, NP))
   end
   finish!(progress)
-  return s
+  return s, evs_pp
 end
