@@ -12,7 +12,8 @@ function append_datapoint(filename::AbstractString, x::Number, y::Number)
     end
 end
 
-generate_showvalues(χ, bd) = () -> [("Bond dimension (max $χ)", bd)]
+showvalues_χ(χ, bd) = () -> [("Bond dimension (max $χ)", bd)]
+showvalues_P(Pmax, P) = () -> [("Pauli terms (max $Pmax)", P)]
 
 "```camps_rndrotation_dynamics(ψ, χ, obs, output; [showprogress], [k=0])```
 
@@ -30,15 +31,45 @@ function camps_rndrotation_dynamics(ψ::cmps.CAMPS,
                             k = 0)
   N = length(ψ)                          
   s = 0
-  progressthresh = ProgressUnknown(0; dt = 0.05, desc = "Evolving CAMPS… t =", enabled = showprogress)
+  ev = cmps.expectation(ψ, obs)
+  append_datapoint(output, s, real(ev))
+  progress = ProgressUnknown(0; desc = "Evolving CAMPS… t =", enabled = showprogress)
   while DisentangleCAMPS.bonddim(ψ) < χ
     s += 1
-    gate, phase = random_rotation(N)
+    gate, phase = random_rotation(N, PauliOperator([1]))
     k = apply!(ψ, k, gate, phase)
-    next!(progressthresh; showvalues = generate_showvalues(χ, DisentangleCAMPS.bonddim(ψ)))
     ev = cmps.expectation(ψ, obs)
     append_datapoint(output, s, real(ev))
+    next!(progress; showvalues = showvalues_χ(χ, DisentangleCAMPS.bonddim(ψ)))
   end
-  finish!(progressthresh)
+  finish!(progress)
   return ψ, k, s
+end
+
+function pauliprop_rndrotation_dynamics(ψ::cmps.CAMPS,
+                                        s0::Integer,
+                                        thl::Real,
+                                        Nmax::Integer,
+                                        obs::pp.PauliSum,
+                                        output::AbstractString;
+                                        showprogress = false)
+  N = length(ψ)
+  s = s0
+  NP = 1
+  gates_pp = []
+  angles_pp = []
+  progress = ProgressUnknown(dt = 0.05, desc = "Evolving with Pauli prop… t =", enabled = showprogress)
+  while NP < Nmax
+    s += 1
+    gate, angle = random_rotation(N, pp.PauliRotation([:X],[1]))
+    push!(gates_pp, gate)
+    push!(angles_pp, angle)
+    paulisum = pp.propagate(gates_pp, obs, angles_pp; min_abs_coeff = thl)
+    NP = length(paulisum)
+    ev = cmps.expectation(ψ, paulisum)
+    append_datapoint(output, s, real(ev))
+    update!(progress, s; showvalues = showvalues_P(Nmax, NP))
+  end
+  finish!(progress)
+  return s
 end
