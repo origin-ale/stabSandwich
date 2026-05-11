@@ -135,7 +135,6 @@ function pauliprop_circuit_dynamics(ψ::cmps.CAMPS,
                                     obs::pp.PauliSum,
                                     output::AbstractString;
                                     showprogress = false)
-  N = length(ψ)
   Tp = length(gates)
   s = s0
   NP = 1
@@ -158,4 +157,38 @@ function pauliprop_circuit_dynamics(ψ::cmps.CAMPS,
   end
   finish!(progress)
   return s, evs_pp
+end
+
+function campspp_circuit_dynamics(ψ::cmps.CAMPS,
+                                  χ::Integer,
+                                  thl::Real,
+                                  Nmax::Integer,
+                                  gates::Vector{<:pp.PauliRotation},
+                                  phases::Vector{<:Real},
+                                  obs::pp.PauliSum,
+                                  output::AbstractString;
+                                  showprogress = false,
+                                  k = 0,
+                                  obsname::AbstractString = "[unknown]")
+  N = length(ψ)
+  open(output, "w") do f
+    println(f, "# N=$N χ=$χ obs=$obsname")
+  end
+
+  ψ_evo, _, s, evs_camps = camps_circuit_dynamics(ψ, χ, gates, phases, obs, output; showprogress = showprogress, k = k)
+  open(output, "a") do f
+    println(f, "# CAMPS stopped at t = $s (χ ≥ $χ)")
+  end
+
+  leftover_gates, leftover_angles = leftover_rotgates(s, gates, phases)
+  s, evs_pp = pauliprop_circuit_dynamics(ψ_evo, s, thl, leftover_gates, leftover_angles, Nmax, obs, output; showprogress=showprogress)
+
+  open(output, "a") do f
+    println(f, "# Pauli prop. stopped at t = $s (N_pauli ≥ $Nmax)")
+  end
+
+  evs_tot = []
+  append!(evs_tot, evs_camps)
+  append!(evs_tot, evs_pp)
+  return evs_tot
 end

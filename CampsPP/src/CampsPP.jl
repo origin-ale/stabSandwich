@@ -15,5 +15,6 @@ export camps_rndrotation_dynamics
 export pauliprop_rndrotation_dynamics
 export camps_circuit_dynamics
 export pauliprop_circuit_dynamics
+export campspp_circuit_dynamics
 
 end
