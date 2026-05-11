@@ -97,7 +97,7 @@ function cmps.expectation(ψ::cmps.CAMPS, op::pp.PauliSum; verbose = false)
   verbose && println("Converting $(length(op))-term sum…")
   op_cmps, conversiontime, _... = @timed cmps.PauliSum(op)
   verbose && println("Done in $conversiontime s.")
-  verbose && println("Computing expectation value of $(length(op_cmps))-term sum on CAMPS with bond dims $(ψ.mps)…")
+  verbose && println("Computing expectation value of $(length(op))-term sum on CAMPS with bond dims $(ψ.mps)…")
   ev, evtime, _... = @timed cmps.expectation(ψ, op_cmps)
   verbose && println("Done in $evtime s.")
   return ev
