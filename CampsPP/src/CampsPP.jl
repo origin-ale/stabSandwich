@@ -13,5 +13,7 @@ export random_paulistring
 include("TimeEvolution.jl")
 export camps_rndrotation_dynamics
 export pauliprop_rndrotation_dynamics
+export camps_circuit_dynamics
+export pauliprop_circuit_dynamics
 
 end
