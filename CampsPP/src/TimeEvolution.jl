@@ -6,6 +6,8 @@ using DisentangleCAMPS
 import PauliPropagation as pp
 import CliffordMPS as cmps
 
+# -- Utility ------------------------------------------------------------------
+
 function append_datapoint(filename::AbstractString, x::Number, y::Number)
     open(filename, "a") do f
         println(f, "$x\t$y")
@@ -15,6 +17,8 @@ end
 showvalues_χ(χ, bd) = () -> [("Bond dimension (max $χ)", bd)]
 showvalues_P(Pmax, P) = () -> [("Pauli terms (max $Pmax)", P)]
 
+# -- Random evolution ---------------------------------------------------------
+
 "```camps_rndrotation_dynamics(ψ, χ, obs, output; [showprogress], [k=0])```
 
 Evolve the CAMPS ψ (with k initial magic qubits)
@@ -22,7 +26,7 @@ through a random Pauli rotation circuit until bond dim = χ.
 
 At each step, append the expectation value of obs to the output file.
 
-Return the evolved CAMPS and stopping time."
+Return the evolved CAMPS, stopping time and vector of expectation values."
 function camps_rndrotation_dynamics(ψ::cmps.CAMPS,
                             χ::Integer,
                             obs::pp.PauliSum,
@@ -49,6 +53,17 @@ function camps_rndrotation_dynamics(ψ::cmps.CAMPS,
   return ψ, k, s, evs_camps
 end
 
+"```pauliprop_rndrotation_dynamics(ψ, s0, thl, Nmax, obs, output; [showprogress])```
+
+Track evolution of the expectation value of obs starting at time s0,
+through a random Pauli rotation circuit until its Heisenberg evolution 
+contains Nmax Pauli terms.
+
+Use Pauli propagation with coefficient truncation at thl.
+
+At each step, append the expectation value to the output file.
+
+Return the stopping time and vector of expectation values."
 function pauliprop_rndrotation_dynamics(ψ::cmps.CAMPS,
                                         s0::Integer,
                                         thl::Real,
