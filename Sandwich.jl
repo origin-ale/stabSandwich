@@ -9,14 +9,14 @@ using Revise
 
 # Random.seed!(42)
 
-N = 16
+N = 12
 observable = random_paulistring(N)
 obs_string = pp.inttostring(observable.term, N)
 
 χ = 128
 
 t = Int(floor(2.5N))
-rotations, phases = random_rotations(t, N)
+rotations, phases = rotation_circuit(t, N)
 
 ψ = cmps.CAMPS(N)
 

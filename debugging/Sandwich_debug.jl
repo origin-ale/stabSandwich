@@ -12,7 +12,7 @@ observable = random_paulistring(N)
 
 t = Int(floor(2.5*N))
 ss = collect(0:t)
-rotations, phases = random_rotations(t, N)
+rotations, phases = rotation_circuit(t, N)
 
 printstyled(repeat("=",80), "\n\n"; color = :cyan)
 printstyled("DEBUGGING expectation value of $(N)-qubit string $obs_string through $t \

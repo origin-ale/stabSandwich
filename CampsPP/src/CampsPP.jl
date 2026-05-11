@@ -7,7 +7,7 @@ export leftover_rotgates
 
 include("Interface.jl")
 export stringtopauli
-export random_rotations
+export rotation_circuit
 export random_paulistring
 
 end
