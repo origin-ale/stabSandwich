@@ -8,7 +8,7 @@ using Printf
 
 # seed!(42)
 
-N = 13
+N = 15
 t = 30
 χ = 64
 thl = 1e-10
@@ -28,7 +28,7 @@ evs = campspp_circuit_dynamics(ψ, χ, thl, Nmax, gates, phases, obs, output; sh
 open(output, "a") do f
   println(f, "\n")
 end
-_ = camps_circuit_dynamics(ψ, χ, gates, phases, obs, output; showprogress = true)
+_ = camps_circuit_dynamics(ψ, 2*χ, gates, phases, obs, output; showprogress = true)
 
 ψ = cmps.CAMPS(N)
 angles = -2 .* phases
@@ -37,5 +37,5 @@ open(output, "a") do f
 end
 ev = cmps.expectation(ψ, obs)
 CampsPP.append_datapoint(output, 0, real(ev))
-_ = pauliprop_circuit_dynamics(ψ, 0, thl, gates, angles, Nmax, obs, output; showprogress = true)
+_ = pauliprop_circuit_dynamics(ψ, 0, thl, gates, angles, 2*Nmax, obs, output; showprogress = true)
 return
