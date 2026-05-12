@@ -25,7 +25,7 @@ end
 Generate t N-qubit random Pauli rotation gates e^(iϕP), with phases ϕ returned separately.
 """
 function rotation_circuit(t::Integer, Nqubits::Integer)
-  randstrings = [pp.inttosymbol(rand(0:4^Nqubits-1), Nqubits) for _ in 1:t]
+  randstrings = [pp.inttosymbol(rand(0:BigInt(4)^Nqubits-1), Nqubits) for _ in 1:t]
   return rotation_circuit(randstrings, Nqubits)
 end
 
