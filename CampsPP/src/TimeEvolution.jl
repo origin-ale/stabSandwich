@@ -142,10 +142,10 @@ function pauliprop_circuit_dynamics(ψ::cmps.CAMPS,
   gates_pp = []
   angles_pp = []
   progress = ProgressUnknown(dt = 0.05, desc = "Evolving with Pauli prop… t =", enabled = showprogress)
-  while NP < Nmax && s < Tp
+  while NP < Nmax && s-s0 < Tp
     s += 1
-    gate = gates[s]
-    angle = angles[s]
+    gate = gates[s-s0]
+    angle = angles[s-s0]
     push!(gates_pp, gate)
     push!(angles_pp, angle)
     paulisum = pp.propagate(gates_pp, obs, angles_pp; min_abs_coeff = thl)
@@ -172,7 +172,7 @@ function campspp_circuit_dynamics(ψ::cmps.CAMPS,
                                   obsname::AbstractString = "[unknown]")
   N = length(ψ)
   open(output, "w") do f
-    println(f, "# N=$N χ=$χ obs=$obsname")
+    println(f, "# N=$N χ=$χ Nmax=$Nmax obs=$obsname")
   end
 
   ψ_evo, _, s, evs_camps = camps_circuit_dynamics(ψ, χ, gates, phases, obs, output; showprogress = showprogress, k = k)
