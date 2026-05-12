@@ -115,12 +115,13 @@ function camps_circuit_dynamics(ψ_ext::cmps.CAMPS,
   push!(evs_camps, real(ev))
   append_datapoint(output, s, real(ev))
   progress = ProgressUnknown(0; desc = "Evolving CAMPS… t =", enabled = showprogress)
+  obs_cmps = cmps.PauliSum(obs)
   while DisentangleCAMPS.bonddim(ψ) < χ && s < T
     s += 1
     gate = PauliOperator(getpauli(gates[s], N))
     phase = phases[s]
     k = apply!(ψ, k, gate, phase)
-    ev = cmps.expectation(ψ, obs)
+    ev = cmps.expectation(ψ, obs_cmps)
     push!(evs_camps, real(ev))
     append_datapoint(output, s, real(ev))
     next!(progress; showvalues = showvalues_χ(χ, DisentangleCAMPS.bonddim(ψ)))
@@ -154,7 +155,11 @@ function pauliprop_circuit_dynamics(ψ_ext::cmps.CAMPS,
     push!(angles_pp, angle)
     paulisum = pp.propagate(gates_pp, obs, angles_pp; min_abs_coeff = thl)
     NP = length(paulisum)
-    ev = cmps.expectation(ψ, paulisum)
+    if s0 == 0
+      ev = pp.overlapwithzero(paulisum)
+    else
+      ev = cmps.expectation(ψ, paulisum)
+    end
     push!(evs_pp, real(ev))
     append_datapoint(output, s, real(ev))
     update!(progress, s; showvalues = showvalues_P(Nmax, NP))

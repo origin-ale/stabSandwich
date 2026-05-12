@@ -11,7 +11,7 @@ using Printf
 N = 21
 t = 50
 χ = 64
-thl = 1e-10
+thl = 1e-15
 Nmax = 200
 
 ψ = cmps.CAMPS(N)
@@ -35,5 +35,5 @@ open(output, "a") do f
 end
 ev = cmps.expectation(ψ, obs)
 CampsPP.append_datapoint(output, 0, real(ev))
-_ = pauliprop_circuit_dynamics(ψ, 0, thl, gates, angles, 2*Nmax, obs, output; showprogress = true)
+_ = pauliprop_circuit_dynamics(ψ, 0, thl, gates, angles, 10000*Nmax, obs, output; showprogress = true)
 return
