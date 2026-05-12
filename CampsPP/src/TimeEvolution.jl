@@ -27,12 +27,13 @@ through a random Pauli rotation circuit until bond dim = χ.
 At each step, append the expectation value of obs to the output file.
 
 Return the evolved CAMPS, stopping time and vector of expectation values."
-function camps_rndrotation_dynamics(ψ::cmps.CAMPS,
+function camps_rndrotation_dynamics(ψ_ext::cmps.CAMPS,
                             χ::Integer,
                             obs::pp.PauliSum,
                             output::AbstractString;
                             showprogress = false,
                             k = 0)
+  ψ = copy(ψ_ext)
   N = length(ψ)                          
   s = 0
   evs_camps = []
@@ -64,13 +65,14 @@ Use Pauli propagation with coefficient truncation at thl.
 At each step, append the expectation value to the output file.
 
 Return the stopping time and vector of expectation values."
-function pauliprop_rndrotation_dynamics(ψ::cmps.CAMPS,
+function pauliprop_rndrotation_dynamics(ψ_ext::cmps.CAMPS,
                                         s0::Integer,
                                         thl::Real,
                                         Nmax::Integer,
                                         obs::pp.PauliSum,
                                         output::AbstractString;
                                         showprogress = false)
+  ψ = copy(ψ_ext)
   N = length(ψ)
   s = s0
   NP = 1
@@ -96,7 +98,7 @@ end
 
 # -- Circuit evolution --------------------------------------------------------
 
-function camps_circuit_dynamics(ψ::cmps.CAMPS,
+function camps_circuit_dynamics(ψ_ext::cmps.CAMPS,
                                 χ::Integer,
                                 gates::Vector{<:pp.PauliRotation},
                                 phases::Vector{<:Real},
@@ -104,6 +106,7 @@ function camps_circuit_dynamics(ψ::cmps.CAMPS,
                                 output::AbstractString;
                                 showprogress = false,
                                 k = 0)
+  ψ = copy(ψ_ext)                              
   N = length(ψ)
   T = length(gates)
   s = 0
@@ -126,7 +129,7 @@ function camps_circuit_dynamics(ψ::cmps.CAMPS,
   return ψ, k, s, evs_camps
 end
 
-function pauliprop_circuit_dynamics(ψ::cmps.CAMPS,
+function pauliprop_circuit_dynamics(ψ_ext::cmps.CAMPS,
                                     s0::Integer,
                                     thl::Real,
                                     gates::Vector{<:pp.PauliRotation},
@@ -135,6 +138,7 @@ function pauliprop_circuit_dynamics(ψ::cmps.CAMPS,
                                     obs::pp.PauliSum,
                                     output::AbstractString;
                                     showprogress = false)
+  ψ = copy(ψ_ext)
   Tp = length(gates)
   s = s0
   NP = 1
@@ -159,7 +163,7 @@ function pauliprop_circuit_dynamics(ψ::cmps.CAMPS,
   return s, evs_pp
 end
 
-function campspp_circuit_dynamics(ψ::cmps.CAMPS,
+function campspp_circuit_dynamics(ψ_ext::cmps.CAMPS,
                                   χ::Integer,
                                   thl::Real,
                                   Nmax::Integer,
@@ -170,6 +174,7 @@ function campspp_circuit_dynamics(ψ::cmps.CAMPS,
                                   showprogress = false,
                                   k = 0,
                                   obsname::AbstractString = "[unknown]")
+  ψ = copy(ψ_ext)
   N = length(ψ)
   open(output, "w") do f
     println(f, "# N=$N χ=$χ Nmax=$Nmax obs=$obsname")

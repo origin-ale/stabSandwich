@@ -8,8 +8,8 @@ using Printf
 
 # seed!(42)
 
-N = 15
-t = 30
+N = 21
+t = 50
 χ = 64
 thl = 1e-10
 Nmax = 200
@@ -24,13 +24,11 @@ output = "output/CircuitDynamics.txt"
 
 evs = campspp_circuit_dynamics(ψ, χ, thl, Nmax, gates, phases, obs, output; showprogress = true, obsname = "magnetization")
 
-ψ = cmps.CAMPS(N)
 open(output, "a") do f
   println(f, "\n")
 end
 _ = camps_circuit_dynamics(ψ, 2*χ, gates, phases, obs, output; showprogress = true)
 
-ψ = cmps.CAMPS(N)
 angles = -2 .* phases
 open(output, "a") do f
   println(f, "\n")
