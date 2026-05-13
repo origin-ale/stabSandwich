@@ -48,8 +48,11 @@ progressbar = Progress(Ndiv*Nsamples; desc = "Computing…")
 
 times_camps = []
 times_pp = []
+Nrange = Int.(round.(logrange(2, 128, length=Ndiv)))
 
-for N in Int.(ceil.(logrange(2, 128, length=Ndiv)))
+println("Getting computation times for square circuits, N = $Nrange")
+
+for N in Nrange
   P = pp.PauliSum(pp.PauliString(N, [:Z], [1]))
   times_N_camps = Float64[N]
   times_N_pp = Float64[N]
