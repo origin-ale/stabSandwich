@@ -36,8 +36,8 @@ function paulivec(n::Integer, ndigits::Int=0)
     n >= 0 || throw(ArgumentError("n must be non-negative"))
     digits = Int[]
     while n > 0
-        pushfirst!(digits, n % 4)
-        n ÷= 4
+      pushfirst!(digits, n % 0x4)
+      n ÷= 0x4
     end
     if ndigits > 0
         prepend!(digits, zeros(Int, max(0, ndigits - length(digits))))
