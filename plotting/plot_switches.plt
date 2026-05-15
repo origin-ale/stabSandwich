@@ -1,14 +1,18 @@
 set term png size 850, 600 font ",16"
-N = "60"
+N = "100"
+M = "12"
 
-set output "output/switch_optimization_graph_".N.".png"
+set output "output/deep_switch_optimization_graph_total.png"
 
-set title "Computation times, ".N."-qubit square circuit" font ",24"
+set title "CAMPS-PP computation times, N×(N+12) circuit" font ",24"
 set logscale y
 set format y "%.1f"
 set xlabel "c"
 set ylabel "Time (s)"
 
-set xrange [0:12.5]
+set xrange [*:12.5]
+set key bottom
 
-plot 'output/switch_optimization_avgs_'.N.'.txt' using 1:2:3 with yerrorlines title "CAMPS-PP, switch at t=".N."-c"
+plot 'output/deep_switch_optimization_avgs_20.txt' using 1:2:3 with yerrorlines title "N=20, switch at t=32-c",\
+'output/deep_switch_optimization_avgs_50.txt' using 1:2:3 with yerrorlines title "N=50, switch at t=62-c",\
+'output/deep_switch_optimization_avgs_100.txt' using 1:2:3 with yerrorlines title "N=100, switch at t=112-c"

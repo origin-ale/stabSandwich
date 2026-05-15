@@ -48,13 +48,15 @@ function save_columns(filename, params, vals...)
   end
 end
 
-N = 60
-switchpoints = 0:1:12
+N = 100
+M = 12
+maxc = 5
+switchpoints = (M-maxc):1:M
 Nsamples = 50
-out_full = "output/switch_optimization_full_$(N).txt"
-out_avgs = "output/switch_optimization_avgs_$(N).txt"
+out_full = "output/deep_switch_optimization_full_$(N).txt"
+out_avgs = "output/deep_switch_optimization_avgs_$(N).txt"
 
-t = N
+t = N+M
 observable = pp.PauliString(N, [:Z], [1])
 obs_string = "Z₁"
 prog = Progress(length(switchpoints)*Nsamples; desc = "Computing…" )
