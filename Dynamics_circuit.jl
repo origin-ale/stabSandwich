@@ -8,14 +8,14 @@ using Printf
 
 # seed!(42)
 
-N = 50
-t = 200
-χ_campspp = 128
+N = 15
+t = 30
+χ_campspp = 64
 thl_campspp = 1e-15
 Nmax_campspp = 200
-χ_camps = 256
+χ_camps = χ_campspp
 thl_pp = thl_campspp
-Nmax_pp = 100000000
+Nmax_pp = Nmax_campspp
 
 ψ = cmps.CAMPS(N)
 Zs = [pp.PauliString(N, [:Z], [i], 1/N) for i = 1:N]
@@ -24,6 +24,8 @@ obs = pp.PauliSum(Zs)
 gates, phases = rotation_circuit(t, N)
 
 output = "output/CircuitDynamics.txt"
+
+printstyled("Running magnetization circuit dynamics until failure for N=$N, χ_campspp = $χ_campspp, Nmax_campspp = $Nmax_campspp.\n"; color = :cyan)
 
 evs = campspp_circuit_dynamics(ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs, output; showprogress = true, obsname = "magnetization")
 
