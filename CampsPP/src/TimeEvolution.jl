@@ -100,7 +100,7 @@ end
 
 function camps_circuit_dynamics(ψ_ext::cmps.CAMPS,
                                 χ::Integer,
-                                gates::Vector{<:pp.PauliRotation},
+                                gates::Vector{},
                                 phases::Vector{<:Real},
                                 obs::pp.PauliSum,
                                 output::AbstractString;
@@ -133,7 +133,7 @@ end
 function pauliprop_circuit_dynamics(ψ_ext::cmps.CAMPS,
                                     s0::Integer,
                                     thl::Real,
-                                    gates::Vector{<:pp.PauliRotation},
+                                    gates::Vector{},
                                     angles::Vector{<:Real},
                                     Nmax::Integer,
                                     obs::pp.PauliSum,
@@ -172,7 +172,7 @@ function campspp_circuit_dynamics(ψ_ext::cmps.CAMPS,
                                   χ::Integer,
                                   thl::Real,
                                   Nmax::Integer,
-                                  gates::Vector{<:pp.PauliRotation},
+                                  gates::Vector{},
                                   phases::Vector{<:Real},
                                   obs::pp.PauliSum,
                                   output::AbstractString;

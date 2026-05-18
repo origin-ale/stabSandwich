@@ -1,0 +1,45 @@
+using Revise
+using CampsPP
+using DisentangleCAMPS
+
+import PauliPropagation as pp
+import CliffordMPS as cmps
+
+using Printf
+
+# seed!(42)
+
+N = 10
+t = 100
+χ_campspp = 64
+thl_campspp = 1e-15
+Nmax_campspp = 200
+χ_camps = χ_campspp
+thl_pp = thl_campspp
+Nmax_pp = Nmax_campspp
+
+ψ = cmps.CAMPS(N)
+Zs = [pp.PauliString(N, [:Z], [i], 1/N) for i = 1:N]
+obs = pp.PauliSum(Zs)
+
+gates, phases = CampsPP.xxz_circuit(t, N)
+
+output = "output/XXZDynamics.txt"
+
+printstyled("Running magnetization circuit dynamics until failure for N=$N, χ_campspp = $χ_campspp, Nmax_campspp = $Nmax_campspp.\n"; color = :cyan)
+
+evs = campspp_circuit_dynamics(ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs, output; showprogress = true, obsname = "magnetization")
+
+open(output, "a") do f
+  println(f, "\n")
+end
+_ = camps_circuit_dynamics(ψ, 2*χ_camps, gates, phases, obs, output; showprogress = true)
+
+angles = -2 .* phases
+open(output, "a") do f
+  println(f, "\n")
+end
+ev = cmps.expectation(ψ, obs)
+CampsPP.append_datapoint(output, 0, real(ev))
+_ = pauliprop_circuit_dynamics(ψ, 0, thl_pp, gates, angles, Nmax_pp, obs, output; showprogress = true)
+return
