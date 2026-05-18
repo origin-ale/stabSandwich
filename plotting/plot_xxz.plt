@@ -2,7 +2,10 @@ set term png size 850, 600
 set output "output/XXZDynamics_graph.png"
 
 set key box width 2 height 1
-set title "π/4 XXZ magnetization dynamics, N = 10" font ",24"
+set title "T-doped π/4 XXZ magnetization dynamics" font ",24"
+
+set label "N = 50, p=.5" at graph .95,.75 right font ",20"
+
 set xlabel "Layer" font ",16"
 set ylabel "Magnetization" font ",16"
 set key font ",16"
