@@ -79,3 +79,14 @@ function random_rotation(Nqubits, ::pp.PauliRotation)
   angle = 2π * rand(Float64)
   return gate, angle
 end
+
+""" ```xxz_circuit(t, N)```
+
+Generate t layers of the N-qubit Floquet-trotterized XXZ circuit in Rosenberg et al., with ϕ=π/4 for each gate.
+"""
+
+function xxz_circuit(t, Nqubits)
+  rots = pp.heisenbergtrottercircuit(Nqubits, t)
+  ϕs = [π/4 for r in rots]
+  return rots, ϕs
+end
