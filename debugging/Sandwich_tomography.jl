@@ -10,7 +10,8 @@ using Revise
 N = 2
 
 paulistrings = [[:X, :Y], [:Y, :X]]
-phases = fill(-π/2, length(paulistrings))
+t = length(paulistrings)
+phases = fill(π/2, t)
 rotations, phases = rotation_circuit(paulistrings, phases, N)
 
 ppres = []
