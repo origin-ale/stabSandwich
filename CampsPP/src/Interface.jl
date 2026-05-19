@@ -82,11 +82,28 @@ end
 
 """ ```xxz_circuit(t, N)```
 
-Generate t layers of the N-qubit Floquet-trotterized XXZ circuit in Rosenberg et al., with ϕ=π/4 for each gate.
-"""
-
+Generate t layers of the N-qubit Floquet-trotterized XXZ circuit in Rosenberg et al., with ϕ=π/4 for each gate."""
 function xxz_circuit(t, Nqubits)
   rots = pp.heisenbergtrottercircuit(Nqubits, t)
   ϕs = [π/4 for r in rots]
   return rots, ϕs
+end
+
+""" ```dopeT!(gates, phases, p)````
+Dope the N-qubit circuit with T gates by adding one on a random index after each gate with probability p.\
+Also return the positions of T gates."""
+function dopeT(N, gates, phases, p)
+  newgates = copy(gates)
+  newphases = copy(phases)
+  magic_pos = []
+  os = 0
+  for i in eachindex(gates)
+    if rand() < p
+      insert!(newgates, i+os, pp.PauliRotation([:Z], rand(1:N)))
+      insert!(newphases, i+os, π/8)
+      push!(magic_pos, i+os)
+      os += 1
+    end
+  end
+  return newgates, newphases,magic_pos
 end

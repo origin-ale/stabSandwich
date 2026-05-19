@@ -24,22 +24,9 @@ magic_prob = .5
 Zs = [pp.PauliString(N, [:Z], [i], 1/N) for i = 1:N]
 obs = pp.PauliSum(Zs)
 
-magic_pos = []
-gates, phases = CampsPP.xxz_circuit(t, N)
+gates, phases = xxz_circuit(t, N)
 phases = [π/4 for g in gates]
-newgates = copy(gates)
-newphases = copy(phases)
-os = 0
-for i in eachindex(gates)
-  if rand() < magic_prob
-    insert!(newgates, i+os, pp.PauliRotation([:Z], rand(1:N)))
-    insert!(newphases, i+os, π/8)
-    push!(magic_pos, i+os)
-    global os += 1
-  end
-end
-gates = newgates
-phases = newphases
+gates, phases, magic_pos = dopeT(N, gates, phases, magic_prob)
 
 output = "output/XXZDynamics.txt"
 
