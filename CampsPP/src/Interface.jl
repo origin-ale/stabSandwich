@@ -82,7 +82,7 @@ end
 
 """ ```xxz_circuit(t, N)```
 
-Generate t layers of the N-qubit Floquet-trotterized XXZ circuit in Rosenberg et al., with ϕ=π/4 for each gate."""
+Generate t layers of a N-qubit Floquet-trotterized XXZ circuit with ϕ=π/4 for each gate."""
 function xxz_circuit(t, Nqubits)
   rots = pp.heisenbergtrottercircuit(Nqubits, t)
   ϕs = [π/4 for r in rots]
@@ -90,7 +90,8 @@ function xxz_circuit(t, Nqubits)
 end
 
 """ ```dopeT!(gates, phases, p)````
-Dope the N-qubit circuit with T gates by adding one on a random index after each gate with probability p.\
+Dope the N-qubit circuit with T gates by adding one on a random index \
+after each gate with probability p.\
 Also return the positions of T gates."""
 function dopeT(N, gates, phases, p)
   newgates = copy(gates)
@@ -106,4 +107,47 @@ function dopeT(N, gates, phases, p)
     end
   end
   return newgates, newphases,magic_pos
+end
+
+""" ```fSim(θ, ϕ, qinds)```
+
+Return rotations and phases corresponding to the gate \
+fSim(θ, ϕ) (Rosenberg 2024 supplementary material) acting on qinds."""
+function fSim(θ, ϕ, qinds)
+  rots = [pp.PauliRotation(p, qinds) for p in 
+    [[:X, :X], [:Y, :Y], [:I, :I], [:Z, :Z], [:I, :Z], [:Z, :I]]
+  ]
+  phases = [θ/2, θ/2, ϕ/4, ϕ/4, -ϕ/4, -ϕ/4]
+  return rots, phases
+end
+
+""" ```bricklayer_qinds(N)````
+
+Return a vector of pairs of indices corresponding to a bricklayer \
+(even-odd bond layers) N-qubit circuit structure."""
+function bricklayer_qinds(N::Integer)
+  even_bonds = [[i, i+1] for i in 1:2:N-1]
+  odd_bonds = [[i, i+1] for i in 2:2:N-1]
+  bonds = []
+  append!(bonds, even_bonds)
+  append!(bonds, odd_bonds)
+  return bonds
+end
+
+""" ```fSim_circuit(θ, ϕ, t, N)```
+
+Return rotations and phases for a t-cycle fSim Heisenberg-Trotter-like \
+N-qubit circuit (Rosenberg 2024) with the given θ and ϕ."""
+function fSim_circuit(θ, ϕ, t::Integer, N::Integer)
+  rots = []
+  phases = []
+  qinds = bricklayer_qinds(N)
+  for c in 1:t
+    for i in qinds
+    rots_i, phases_i = fSim(θ, ϕ, i)
+    append!(rots, rots_i)
+    append!(phases, phases_i)
+    end
+  end
+  return rots, phases
 end

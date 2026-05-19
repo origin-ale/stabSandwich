@@ -11,6 +11,7 @@ export rotation_circuit
 export random_paulistring
 export xxz_circuit
 export dopeT
+export fSim_circuit
 
 include("TimeEvolution.jl")
 export camps_rndrotation_dynamics
