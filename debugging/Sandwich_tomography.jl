@@ -19,7 +19,7 @@ campsres = []
 
 input_strs = ["II", "IX", "IY", "IZ", "XI", "XX", "XY", "XZ", "YI", "YX", "YY", "YZ", "ZI", "ZX", "ZY", "ZZ"]
 for input_str in input_strs
-  observable = stringtopauli(input_str)
+  observable = stringtopauli_sym(input_str)
   obs_string = pp.inttostring(observable.term, length(input_str))
 
   for χ in χs
