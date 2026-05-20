@@ -80,13 +80,34 @@ function random_rotation(Nqubits, ::pp.PauliRotation)
   return gate, angle
 end
 
-""" ```xxz_circuit(t, N)```
+""" ```xxz_circuit(ϕ, θ, t, N)```
 
-Generate t layers of a N-qubit Floquet-trotterized XXZ circuit with ϕ=π/4 for each gate."""
-function xxz_circuit(t, Nqubits)
-  rots = pp.heisenbergtrottercircuit(Nqubits, t)
-  ϕs = [π/4 for r in rots]
-  return rots, ϕs
+Generate t layers of a N-qubit Floquet-trotterized XXZ \
+(ie. exp[i(ϕ(XX+YY)+θ(ZZ))]) circuit."""
+function xxz_circuit(ϕ, θ, t, N)
+  rots = []
+  phases = []
+  qinds = bricklayer_qinds(N)
+  for c in 1:t
+    for i in qinds
+    rots_i, phases_i = xxz(ϕ, θ, i)
+    append!(rots, rots_i)
+    append!(phases, phases_i)
+    end
+  end
+  return rots, phases
+end
+
+""" ```xxz(ϕ, θ, qinds)```
+
+Return rotations and phases corresponding to the gate \
+exp[i(ϕ(XX+YY)+θ(ZZ))] acting on qinds."""
+function xxz(ϕ, θ, qinds)
+  rots = [pp.PauliRotation(p, qinds) for p in 
+    [[:X, :X], [:Y, :Y], [:Z, :Z]]
+  ]
+  phases = [ϕ, ϕ, θ]
+  return rots, phases
 end
 
 """ ```dopeT!(gates, phases, p)````
