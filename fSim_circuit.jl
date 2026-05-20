@@ -33,7 +33,8 @@ output = "output/fSimDynamics.txt"
 printstyled("Running magic-doped fSim circuit dynamics until failure for N=$N, χ_campspp = $χ_campspp, Nmax_campspp = $Nmax_campspp.\n"; color = :cyan)
 println("Magic doping at $(length(magic_pos)) gates of $(length(gates)).")
 
-evs = campspp_circuit_dynamics(ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs, output; showprogress = true, obsname = "magnetization", ev_at = end_fSim)
+CampsPP.initialize_output(output, "magnetization", Dict(:N => N, :χ => χ_campspp, :Nmax => Nmax_campspp))
+evs = campspp_circuit_dynamics(ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs, output; showprogress = true, ev_at = end_fSim)
 
 open(output, "a") do f
   println(f, "\n")

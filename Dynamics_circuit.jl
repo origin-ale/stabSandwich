@@ -27,7 +27,8 @@ output = "output/CircuitDynamics.txt"
 
 printstyled("Running magnetization circuit dynamics until failure for N=$N, χ_campspp = $χ_campspp, Nmax_campspp = $Nmax_campspp.\n"; color = :cyan)
 
-evs = campspp_circuit_dynamics(ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs, output; showprogress = true, obsname = "magnetization")
+CampsPP.initialize_output(output, "magnetization", Dict(:N => N, :χ => χ_campspp, :Nmax => Nmax_campspp))
+evs = campspp_circuit_dynamics(ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs, output; showprogress = true)
 
 open(output, "a") do f
   println(f, "\n")
