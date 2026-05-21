@@ -22,8 +22,12 @@ Nmax_campspp = 200
 thl_pp = thl_campspp
 Nmax_pp = Nmax_campspp
 magic_prob = .5
-end_xxz = [:Z, :Z]
+magic_syms = [:X]
+magic_inds = [N÷2]
 output = "output/XXZDynamics.txt"
+
+layer_depth = length(xxz_circuit(0,0,1,N)[1])
+layer_ends = collect(layer_depth:layer_depth:t*layer_depth)
 
 ψ = cmps.CAMPS(N)
 onebitinds = Integer[]
@@ -31,10 +35,9 @@ Zs = [pp.PauliString(N, [:Z], [i], 1/N) for i = 1:N]
 obs = pp.PauliSum(Zs)
 
 gates, phases = xxz_circuit(ϕ, θ, t, N)
-gates, phases, magic_pos = dopeT(N, gates, phases, magic_prob)
+gates, phases, layer_ends = dopeMagic(N, gates, phases, layer_ends, magic_syms, magic_inds, magic_prob)
 
 printstyled("Running magic-doped XXZ circuit dynamics until failure for N=$N, χ_campspp = $χ_campspp, Nmax_campspp = $Nmax_campspp.\n"; color = :cyan)
-println("Magic doping at $(length(magic_pos)) gates of $(length(gates)).")
 
 CampsPP.initialize_output(
   output, 
@@ -46,14 +49,14 @@ CampsPP.initialize_output(
 
 evs = campspp_circuit_dynamics(
   ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs, output; 
-  showprogress = true, ev_at = end_xxz)
+  showprogress = true, layer_ends = layer_ends)
 
 _ = camps_circuit_dynamics(
   ψ, gates, phases, χ_camps, obs, output; 
-  showprogress = true, ev_at = end_xxz)
+  showprogress = true, layer_ends = layer_ends)
 
 _ = pauliprop_circuit_dynamics(
   onebitinds, gates, phases, thl_pp, Nmax_pp, obs, output; 
-  showprogress = true, ev_at = end_xxz)
+  showprogress = true, layer_ends = layer_ends)
 
 return

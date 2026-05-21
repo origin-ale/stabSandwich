@@ -10,6 +10,7 @@ export stringtopauli_sym
 
 include("Circuits.jl")
 export dopeT
+export dopeMagic
 export rotation_circuit
 export xxz_circuit
 export fSim_circuit

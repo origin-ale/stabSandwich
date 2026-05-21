@@ -6,7 +6,7 @@ set title "T-doped π/4 XXZ magnetization dynamics" font ",24"
 
 set label "N = 22, p=.5, Δ = 1" at graph .95,.75 right font ",20"
 
-set xlabel "Layer" font ",16"
+set xlabel "Time" font ",16"
 set ylabel "Magnetization" font ",16"
 set key font ",16"
 plot "output/XXZDynamics.txt" index 0 with linespoints title "CAMPS-PP (χ = 64, Nmax = 200)" lc rgb "blue", \

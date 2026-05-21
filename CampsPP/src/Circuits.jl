@@ -7,25 +7,42 @@ using DisentangleCAMPS
 
 # == Utility ===================================================================
 
-""" ```dopeT!(gates, phases, p)```
+""" ```dopeMagic(N, gates, phases, layer_ends, dope_syms, dope_inds, p)```
 
-Dope the N-qubit circuit with T gates by adding one on a random index \
-after each gate with probability p.\
-Also return the positions of T gates."""
-function dopeT(N, gates, phases, p)
+Dope the N-qubit circuit with magic rotations by adding a π/8 rotation \
+with the given symbols and indices after each layer with probability p."""
+function dopeMagic(N, gates, phases, layer_ends, dope_syms, dope_inds, p)
   newgates = copy(gates)
   newphases = copy(phases)
-  magic_pos = []
+  newends = copy(layer_ends)
   os = 0
-  for i in eachindex(gates)
+  for i in eachindex(layer_ends)
     if rand() < p
-      insert!(newgates, i+os, pp.PauliRotation([:Z], rand(1:N)))
-      insert!(newphases, i+os, π/8)
-      push!(magic_pos, i+os)
-      os += 1
+      insert!(newgates, newends[i]+1, pp.PauliRotation(dope_syms, dope_inds))
+      insert!(newphases, newends[i]+1, π/8)
+      newends[i:end] .+= 1
     end
   end
-  return newgates, newphases,magic_pos
+  return newgates, newphases, newends
+end
+
+""" ```dopeT(N, gates, phases, layer_ends, p)```
+
+Dope the N-qubit circuit with T gates by adding one on a random index \
+after each layer with probability p."""
+function dopeT(N, gates, phases, layer_ends, p)
+  newgates = copy(gates)
+  newphases = copy(phases)
+  newends = copy(layer_ends)
+  os = 0
+  for i in eachindex(layer_ends)
+    if rand() < p
+      insert!(newgates, newends[i]+1, pp.PauliRotation([:Z], rand(1:N)))
+      insert!(newphases, newends[i]+1, π/8)
+      newends[i:end] .+= 1
+    end
+  end
+  return newgates, newphases, newends
 end
 
 """ ```bricklayer_qinds(N)````

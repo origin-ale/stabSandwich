@@ -47,6 +47,15 @@ end
 showvalues_χ(χ, bd, N, k) = () -> [("Bond dimension (max $χ)", bd), ("Magic qubits (max $N)", k)]
 showvalues_P(Pmax, P) = () -> [("Pauli terms (max $Pmax)", P)]
 
+# == Utility ============================================================================
+
+function getlayer(i, layer_ends)
+  isnothing(layer_ends) && return nothing
+  for l in eachindex(layer_ends)
+    layer_ends[l] >= i && return l
+  end
+end
+
 # == Circuit evolution ==================================================================
 
 function campspp_circuit_dynamics(
@@ -60,16 +69,16 @@ obs::pp.PauliSum,
 output::AbstractString;
 showprogress = false,
 k = 0,
-ev_at = nothing)
+layer_ends = nothing)
   ψ = copy(ψ_ext)
 
   ψ_evo, _, s, evs_camps = camps_circuit_dynamics(
     ψ, gates, phases, χ, obs, output; 
-    showprogress = showprogress, k = k, ev_at = ev_at)
+    showprogress = showprogress, k = k, layer_ends = layer_ends)
 
   s, evs_pp = pauliprop_circuit_dynamics(
     ψ_evo, s, gates, phases, thl, Nmax, obs, output; 
-    showprogress=showprogress, ev_at = ev_at)
+    showprogress=showprogress, layer_ends = layer_ends)
 
   evs_tot = []
   append!(evs_tot, evs_camps)
@@ -87,17 +96,19 @@ obs::pp.PauliSum,
 output::AbstractString;
 showprogress = false,
 k = 0,
-ev_at = nothing)
+layer_ends = nothing)
 
   ψ = copy(ψ_ext)                              
   N = length(ψ)
   M = length(gates)
   i = 0
+  layer = 0
   evs_camps = []
   progress = ProgressUnknown(desc = "Evolving CAMPS… gate ", enabled = showprogress)
   obs_cmps = cmps.PauliSum(obs)
 
   append_expectation!(evs_camps, output, ψ, obs_cmps, 0)
+  layer += 1
 
   while DisentangleCAMPS.bonddim(ψ) < χ && i < M
     i += 1
@@ -106,8 +117,9 @@ ev_at = nothing)
 
     k = apply!(ψ, k, gate, phase)
 
-    if isnothing(ev_at) || gates[i].symbols == ev_at
-      append_expectation!(evs_camps, output, ψ, obs_cmps, i)
+    if isnothing(layer_ends) || i == layer_ends[layer] # Works because || short circuits
+      append_expectation!(evs_camps, output, ψ, obs_cmps, layer)
+      layer += 1
     end
 
     bd = DisentangleCAMPS.bonddim(ψ)
@@ -133,12 +145,13 @@ Nmax::Integer,
 obs::pp.PauliSum,
 output::AbstractString;
 showprogress = false,
-ev_at = nothing)
+layer_ends = nothing)
 
   ψ = copy(ψ_ext)
   M = length(gates)
   i = start_gate
   NP = 1
+  layer = getlayer(start_gate+1, layer_ends)
   gates_pp = []
   angles_pp = []
   evs_pp = []
@@ -154,8 +167,9 @@ ev_at = nothing)
     paulisum = pp.propagate(gates_pp, obs, angles_pp; min_abs_coeff = thl)
 
     NP = length(paulisum)
-    if isnothing(ev_at) || gates[i].symbols == ev_at
-      append_expectation!(evs_pp, output, ψ, paulisum, i)
+    if isnothing(layer_ends) || i == layer_ends[layer]
+      append_expectation!(evs_pp, output, ψ, paulisum, layer)
+      layer += 1
     end
 
     next!(progress; showvalues = showvalues_P(Nmax, NP))
@@ -178,17 +192,19 @@ Nmax::Integer,
 obs::pp.PauliSum,
 output::AbstractString;
 showprogress = false,
-ev_at = nothing)
+layer_ends = nothing)
 
   M = length(gates)
   i = 0
   NP = 1
+  layer = 0
   gates_pp = []
   angles_pp = []
   evs_pp = []
   progress = ProgressUnknown(desc = "Evolving with Pauli prop… gate ", enabled = showprogress)
 
   append_expectation!(evs_pp, output, onebitinds, obs, 0)
+  layer += 1
 
   while NP < Nmax && i < M
     i += 1
@@ -200,8 +216,9 @@ ev_at = nothing)
     paulisum = pp.propagate(gates_pp, obs, angles_pp; min_abs_coeff = thl)
 
     NP = length(paulisum)
-    if isnothing(ev_at) || gates[i].symbols == ev_at
-      append_expectation!(evs_pp, output, onebitinds, paulisum, i)
+    if isnothing(layer_ends) || i == layer_ends[layer]
+      append_expectation!(evs_pp, output, onebitinds, paulisum, layer)
+      layer += 1
     end
 
     next!(progress; showvalues = showvalues_P(Nmax, NP))
