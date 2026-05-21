@@ -7,6 +7,7 @@ export leftover_rotgates
 
 include("Utility.jl")
 export stringtopauli_sym
+export save_three_columns
 
 include("Circuits.jl")
 export dopeT
@@ -20,5 +21,10 @@ export camps_circuit_dynamics
 export pauliprop_circuit_dynamics
 export campspp_circuit_dynamics
 export initialize_output
+
+include("Initialize.jl")
+export domainwallstate
+export transferredmagnetization
+export layerends
 
 end

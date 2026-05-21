@@ -1,0 +1,565 @@
+
+
+*******************************************************************************
+Thu May 21 15:09:04 2026
+
+
+FIT:    data read from "output/TMDynamics.txt" using 1:2
+        format = x:z
+        x range restricted to [1.00000 : 12.0000]
+        #datapoints = 11
+        residuals are weighted equally (unit weight)
+
+function used for fitting: f(x)
+	f(x) = a*x**gamma
+fitted parameters initialized with current variable values
+
+Warning: Initial value of parameter 'gamma' is zero.
+iter      chisq       delta/lim  lambda   a             gamma        
+   0 8.9083218592e+02   0.00e+00  7.07e-01    1.000000e+00   1.000000e-30
+BREAK: Singular matrix in Invert_RtR
+
+*******************************************************************************
+Thu May 21 15:09:30 2026
+
+
+FIT:    data read from "output/TMDynamics.txt" using 1:2
+        format = x:z
+        x range restricted to [1.00000 : 12.0000]
+        #datapoints = 11
+        residuals are weighted equally (unit weight)
+
+function used for fitting: f(x)
+	f(x) = a*x**gamma
+fitted parameters initialized with current variable values
+
+iter      chisq       delta/lim  lambda   a             gamma        
+   0 5.1754223320e+02   0.00e+00  4.01e+00    1.000000e+00   6.600000e-01
+   8 8.3578682015e-02  -2.76e-03  4.01e-06    8.609353e+00   9.134836e-02
+
+After 8 iterations the fit converged.
+final sum of squares of residuals : 0.0835787
+rel. change during last iteration : -2.75987e-08
+
+degrees of freedom    (FIT_NDF)                        : 9
+rms of residuals      (FIT_STDFIT) = sqrt(WSSR/ndf)    : 0.0963666
+variance of residuals (reduced chisquare) = WSSR/ndf   : 0.00928652
+
+Final set of parameters            Asymptotic Standard Error
+=======================            ==========================
+a               = 8.60935          +/- 0.06773      (0.7867%)
+gamma           = 0.0913484        +/- 0.004357     (4.769%)
+
+correlation matrix of the fit parameters:
+                a      gamma  
+a               1.000 
+gamma          -0.929  1.000 
+
+
+*******************************************************************************
+Thu May 21 15:09:51 2026
+
+
+FIT:    data read from "output/TMDynamics.txt" using 1:2
+        format = x:z
+        x range restricted to [1.00000 : 12.0000]
+        #datapoints = 11
+        residuals are weighted equally (unit weight)
+
+function used for fitting: f(x)
+	f(x) = a*x**gamma
+fitted parameters initialized with current variable values
+
+iter      chisq       delta/lim  lambda   a             gamma        
+   0 5.1754223320e+02   0.00e+00  4.01e+00    1.000000e+00   6.600000e-01
+   8 8.3578682015e-02  -2.76e-03  4.01e-06    8.609353e+00   9.134836e-02
+
+After 8 iterations the fit converged.
+final sum of squares of residuals : 0.0835787
+rel. change during last iteration : -2.75987e-08
+
+degrees of freedom    (FIT_NDF)                        : 9
+rms of residuals      (FIT_STDFIT) = sqrt(WSSR/ndf)    : 0.0963666
+variance of residuals (reduced chisquare) = WSSR/ndf   : 0.00928652
+
+Final set of parameters            Asymptotic Standard Error
+=======================            ==========================
+a               = 8.60935          +/- 0.06773      (0.7867%)
+gamma           = 0.0913484        +/- 0.004357     (4.769%)
+
+correlation matrix of the fit parameters:
+                a      gamma  
+a               1.000 
+gamma          -0.929  1.000 
+
+
+*******************************************************************************
+Thu May 21 15:10:58 2026
+
+
+FIT:    data read from "output/TMDynamics.txt" using 1:2
+        format = x:z
+        x range restricted to [1.00000 : 12.0000]
+        #datapoints = 2
+        residuals are weighted equally (unit weight)
+
+function used for fitting: f(x)
+	f(x) = a*x**gamma
+fitted parameters initialized with current variable values
+
+iter      chisq       delta/lim  lambda   a             gamma        
+   0 1.1751634316e+02   0.00e+00  1.00e+00    1.000000e+00   6.600000e-01
+   8 0.0000000000e+00  -inf       1.00e-08    8.792361e+00   5.220713e-02
+
+After 8 iterations the fit converged.
+final sum of squares of residuals : 0
+abs. change during last iteration : -3.15544e-30
+
+
+Exactly as many data points as there are parameters.
+In this degenerate case, all errors are zero by definition.
+
+Final set of parameters 
+======================= 
+
+a               = 8.79236        
+gamma           = 0.0522071      
+
+
+*******************************************************************************
+Thu May 21 15:50:30 2026
+
+
+FIT:    data read from "output/TMDynamics.txt" using 1:2
+        format = x:z
+        x range restricted to [1.00000 : 12.0000]
+        #datapoints = 11
+        residuals are weighted equally (unit weight)
+
+function used for fitting: f(x)
+	f(x) = a*x**gamma
+fitted parameters initialized with current variable values
+
+iter      chisq       delta/lim  lambda   a             gamma        
+   0 9.9746654802e+01   0.00e+00  4.01e+00    1.000000e+00   6.600000e-01
+   8 2.3480336364e-01  -2.19e-05  4.01e-06    5.330772e+00   7.496921e-02
+
+After 8 iterations the fit converged.
+final sum of squares of residuals : 0.234803
+rel. change during last iteration : -2.18551e-10
+
+degrees of freedom    (FIT_NDF)                        : 9
+rms of residuals      (FIT_STDFIT) = sqrt(WSSR/ndf)    : 0.161522
+variance of residuals (reduced chisquare) = WSSR/ndf   : 0.0260893
+
+Final set of parameters            Asymptotic Standard Error
+=======================            ==========================
+a               = 5.33077          +/- 0.1146       (2.15%)
+gamma           = 0.0749692        +/- 0.01198      (15.98%)
+
+correlation matrix of the fit parameters:
+                a      gamma  
+a               1.000 
+gamma          -0.927  1.000 
+
+
+*******************************************************************************
+Thu May 21 15:53:24 2026
+
+
+FIT:    data read from "output/TMDynamics.txt" using 1:2
+        format = x:z
+        x range restricted to [1.00000 : 12.0000]
+        #datapoints = 11
+        residuals are weighted equally (unit weight)
+
+function used for fitting: f(x)
+	f(x) = a*x**gamma
+fitted parameters initialized with current variable values
+
+iter      chisq       delta/lim  lambda   a             gamma        
+   0 1.7229394269e+02   0.00e+00  4.01e+00    1.000000e+00   6.600000e-01
+   6 1.5281920674e+00  -6.13e-01  4.01e-05    4.521063e+00   2.713559e-01
+
+After 6 iterations the fit converged.
+final sum of squares of residuals : 1.52819
+rel. change during last iteration : -6.13029e-06
+
+degrees of freedom    (FIT_NDF)                        : 9
+rms of residuals      (FIT_STDFIT) = sqrt(WSSR/ndf)    : 0.412067
+variance of residuals (reduced chisquare) = WSSR/ndf   : 0.169799
+
+Final set of parameters            Asymptotic Standard Error
+=======================            ==========================
+a               = 4.52106          +/- 0.2568       (5.68%)
+gamma           = 0.271356         +/- 0.02975      (10.96%)
+
+correlation matrix of the fit parameters:
+                a      gamma  
+a               1.000 
+gamma          -0.953  1.000 
+
+
+*******************************************************************************
+Thu May 21 15:53:44 2026
+
+
+FIT:    data read from "output/TMDynamics.txt" using 1:2
+        format = x:z
+        x range restricted to [1.00000 : 12.0000]
+        #datapoints = 11
+        residuals are weighted equally (unit weight)
+
+function used for fitting: f(x)
+	f(x) = a*x**gamma
+fitted parameters initialized with current variable values
+
+iter      chisq       delta/lim  lambda   a             gamma        
+   0 3.0649888804e+02   0.00e+00  4.01e+00    1.000000e+00   6.600000e-01
+   6 1.8854964188e+00  -1.80e-08  4.01e+01    3.886191e+00   4.475171e-01
+
+After 6 iterations the fit converged.
+final sum of squares of residuals : 1.8855
+rel. change during last iteration : -1.79591e-13
+
+degrees of freedom    (FIT_NDF)                        : 9
+rms of residuals      (FIT_STDFIT) = sqrt(WSSR/ndf)    : 0.457711
+variance of residuals (reduced chisquare) = WSSR/ndf   : 0.2095
+
+Final set of parameters            Asymptotic Standard Error
+=======================            ==========================
+a               = 3.88619          +/- 0.2465       (6.344%)
+gamma           = 0.447517         +/- 0.03194      (7.136%)
+
+correlation matrix of the fit parameters:
+                a      gamma  
+a               1.000 
+gamma          -0.967  1.000 
+
+
+*******************************************************************************
+Thu May 21 15:54:01 2026
+
+
+FIT:    data read from "output/TMDynamics.txt" using 1:2
+        format = x:z
+        x range restricted to [1.00000 : 12.0000]
+        #datapoints = 11
+        residuals are weighted equally (unit weight)
+
+function used for fitting: f(x)
+	f(x) = a*x**gamma
+fitted parameters initialized with current variable values
+
+iter      chisq       delta/lim  lambda   a             gamma        
+   0 7.0223183724e+02   0.00e+00  4.01e+00    1.000000e+00   6.600000e-01
+   6 1.3503371642e+00  -3.08e-01  4.01e-05    2.754474e+00   7.598065e-01
+
+After 6 iterations the fit converged.
+final sum of squares of residuals : 1.35034
+rel. change during last iteration : -3.08314e-06
+
+degrees of freedom    (FIT_NDF)                        : 9
+rms of residuals      (FIT_STDFIT) = sqrt(WSSR/ndf)    : 0.387347
+variance of residuals (reduced chisquare) = WSSR/ndf   : 0.150037
+
+Final set of parameters            Asymptotic Standard Error
+=======================            ==========================
+a               = 2.75447          +/- 0.1504       (5.46%)
+gamma           = 0.759807         +/- 0.0262       (3.448%)
+
+correlation matrix of the fit parameters:
+                a      gamma  
+a               1.000 
+gamma          -0.982  1.000 
+
+
+*******************************************************************************
+Thu May 21 15:54:36 2026
+
+
+FIT:    data read from "output/TMDynamics.txt" using 1:2
+        format = x:z
+        x range restricted to [1.00000 : 12.0000]
+        #datapoints = 11
+        residuals are weighted equally (unit weight)
+
+function used for fitting: f(x)
+	f(x) = a*x**gamma
+fitted parameters initialized with current variable values
+
+iter      chisq       delta/lim  lambda   a             gamma        
+   0 6.2204203196e+02   0.00e+00  4.01e+00    1.000000e+00   6.600000e-01
+   6 1.6947891879e+00  -4.64e-02  4.01e-05    3.008543e+00   6.956700e-01
+
+After 6 iterations the fit converged.
+final sum of squares of residuals : 1.69479
+rel. change during last iteration : -4.64368e-07
+
+degrees of freedom    (FIT_NDF)                        : 9
+rms of residuals      (FIT_STDFIT) = sqrt(WSSR/ndf)    : 0.433947
+variance of residuals (reduced chisquare) = WSSR/ndf   : 0.18831
+
+Final set of parameters            Asymptotic Standard Error
+=======================            ==========================
+a               = 3.00854          +/- 0.1815       (6.031%)
+gamma           = 0.69567          +/- 0.02918      (4.194%)
+
+correlation matrix of the fit parameters:
+                a      gamma  
+a               1.000 
+gamma          -0.980  1.000 
+
+
+*******************************************************************************
+Thu May 21 15:54:52 2026
+
+
+FIT:    data read from "output/TMDynamics.txt" using 1:2
+        format = x:z
+        x range restricted to [1.00000 : 12.0000]
+        #datapoints = 11
+        residuals are weighted equally (unit weight)
+
+function used for fitting: f(x)
+	f(x) = a*x**gamma
+fitted parameters initialized with current variable values
+
+iter      chisq       delta/lim  lambda   a             gamma        
+   0 5.3803605198e+02   0.00e+00  4.01e+00    1.000000e+00   6.600000e-01
+   6 1.8901496105e+00  -1.25e-02  4.01e-05    3.279582e+00   6.280527e-01
+
+After 6 iterations the fit converged.
+final sum of squares of residuals : 1.89015
+rel. change during last iteration : -1.25052e-07
+
+degrees of freedom    (FIT_NDF)                        : 9
+rms of residuals      (FIT_STDFIT) = sqrt(WSSR/ndf)    : 0.458276
+variance of residuals (reduced chisquare) = WSSR/ndf   : 0.210017
+
+Final set of parameters            Asymptotic Standard Error
+=======================            ==========================
+a               = 3.27958          +/- 0.2064       (6.295%)
+gamma           = 0.628053         +/- 0.03074      (4.894%)
+
+correlation matrix of the fit parameters:
+                a      gamma  
+a               1.000 
+gamma          -0.977  1.000 
+
+
+*******************************************************************************
+Thu May 21 15:55:28 2026
+
+
+FIT:    data read from "output/TMDynamics.txt" using 1:2
+        format = x:z
+        x range restricted to [1.00000 : 12.0000]
+        #datapoints = 11
+        residuals are weighted equally (unit weight)
+
+function used for fitting: f(x)
+	f(x) = a*x**gamma
+fitted parameters initialized with current variable values
+
+iter      chisq       delta/lim  lambda   a             gamma        
+   0 5.3803605198e+02   0.00e+00  4.01e+00    1.000000e+00   6.600000e-01
+   6 1.8901496105e+00  -1.25e-02  4.01e-05    3.279582e+00   6.280527e-01
+
+After 6 iterations the fit converged.
+final sum of squares of residuals : 1.89015
+rel. change during last iteration : -1.25052e-07
+
+degrees of freedom    (FIT_NDF)                        : 9
+rms of residuals      (FIT_STDFIT) = sqrt(WSSR/ndf)    : 0.458276
+variance of residuals (reduced chisquare) = WSSR/ndf   : 0.210017
+
+Final set of parameters            Asymptotic Standard Error
+=======================            ==========================
+a               = 3.27958          +/- 0.2064       (6.295%)
+gamma           = 0.628053         +/- 0.03074      (4.894%)
+
+correlation matrix of the fit parameters:
+                a      gamma  
+a               1.000 
+gamma          -0.977  1.000 
+
+
+*******************************************************************************
+Thu May 21 15:56:04 2026
+
+
+FIT:    data read from "output/TMDynamics.txt" using 1:2
+        format = x:z
+        x range restricted to [1.00000 : 12.0000]
+        #datapoints = 11
+        residuals are weighted equally (unit weight)
+
+function used for fitting: f(x)
+	f(x) = a*x**gamma
+fitted parameters initialized with current variable values
+
+iter      chisq       delta/lim  lambda   a             gamma        
+   0 5.3803605198e+02   0.00e+00  4.01e+00    1.000000e+00   6.600000e-01
+   6 1.8901496105e+00  -1.25e-02  4.01e-05    3.279582e+00   6.280527e-01
+
+After 6 iterations the fit converged.
+final sum of squares of residuals : 1.89015
+rel. change during last iteration : -1.25052e-07
+
+degrees of freedom    (FIT_NDF)                        : 9
+rms of residuals      (FIT_STDFIT) = sqrt(WSSR/ndf)    : 0.458276
+variance of residuals (reduced chisquare) = WSSR/ndf   : 0.210017
+
+Final set of parameters            Asymptotic Standard Error
+=======================            ==========================
+a               = 3.27958          +/- 0.2064       (6.295%)
+gamma           = 0.628053         +/- 0.03074      (4.894%)
+
+correlation matrix of the fit parameters:
+                a      gamma  
+a               1.000 
+gamma          -0.977  1.000 
+
+
+*******************************************************************************
+Thu May 21 15:56:29 2026
+
+
+FIT:    data read from "output/TMDynamics.txt" using 1:2
+        format = x:z
+        x range restricted to [1.00000 : 12.0000]
+        #datapoints = 11
+        residuals are weighted equally (unit weight)
+
+function used for fitting: f(x)
+	f(x) = a*x**gamma
+fitted parameters initialized with current variable values
+
+iter      chisq       delta/lim  lambda   a             gamma        
+   0 5.3803605198e+02   0.00e+00  4.01e+00    1.000000e+00   6.600000e-01
+   6 1.8901496105e+00  -1.25e-02  4.01e-05    3.279582e+00   6.280527e-01
+
+After 6 iterations the fit converged.
+final sum of squares of residuals : 1.89015
+rel. change during last iteration : -1.25052e-07
+
+degrees of freedom    (FIT_NDF)                        : 9
+rms of residuals      (FIT_STDFIT) = sqrt(WSSR/ndf)    : 0.458276
+variance of residuals (reduced chisquare) = WSSR/ndf   : 0.210017
+
+Final set of parameters            Asymptotic Standard Error
+=======================            ==========================
+a               = 3.27958          +/- 0.2064       (6.295%)
+gamma           = 0.628053         +/- 0.03074      (4.894%)
+
+correlation matrix of the fit parameters:
+                a      gamma  
+a               1.000 
+gamma          -0.977  1.000 
+
+
+*******************************************************************************
+Thu May 21 15:56:45 2026
+
+
+FIT:    data read from "output/TMDynamics.txt" using 1:2
+        format = x:z
+        x range restricted to [1.00000 : 12.0000]
+        #datapoints = 11
+        residuals are weighted equally (unit weight)
+
+function used for fitting: f(x)
+	f(x) = a*x**gamma
+fitted parameters initialized with current variable values
+
+iter      chisq       delta/lim  lambda   a             gamma        
+   0 5.3803605198e+02   0.00e+00  4.01e+00    1.000000e+00   6.600000e-01
+   6 1.8901496105e+00  -1.25e-02  4.01e-05    3.279582e+00   6.280527e-01
+
+After 6 iterations the fit converged.
+final sum of squares of residuals : 1.89015
+rel. change during last iteration : -1.25052e-07
+
+degrees of freedom    (FIT_NDF)                        : 9
+rms of residuals      (FIT_STDFIT) = sqrt(WSSR/ndf)    : 0.458276
+variance of residuals (reduced chisquare) = WSSR/ndf   : 0.210017
+
+Final set of parameters            Asymptotic Standard Error
+=======================            ==========================
+a               = 3.27958          +/- 0.2064       (6.295%)
+gamma           = 0.628053         +/- 0.03074      (4.894%)
+
+correlation matrix of the fit parameters:
+                a      gamma  
+a               1.000 
+gamma          -0.977  1.000 
+
+
+*******************************************************************************
+Thu May 21 15:57:16 2026
+
+
+FIT:    data read from "output/TMDynamics.txt" using 1:2
+        format = x:z
+        x range restricted to [1.00000 : 12.0000]
+        #datapoints = 11
+        residuals are weighted equally (unit weight)
+
+function used for fitting: f(x)
+	f(x) = a*x**gamma
+fitted parameters initialized with current variable values
+
+iter      chisq       delta/lim  lambda   a             gamma        
+   0 5.3803605198e+02   0.00e+00  4.01e+00    1.000000e+00   6.600000e-01
+   6 1.8901496105e+00  -1.25e-02  4.01e-05    3.279582e+00   6.280527e-01
+
+After 6 iterations the fit converged.
+final sum of squares of residuals : 1.89015
+rel. change during last iteration : -1.25052e-07
+
+degrees of freedom    (FIT_NDF)                        : 9
+rms of residuals      (FIT_STDFIT) = sqrt(WSSR/ndf)    : 0.458276
+variance of residuals (reduced chisquare) = WSSR/ndf   : 0.210017
+
+Final set of parameters            Asymptotic Standard Error
+=======================            ==========================
+a               = 3.27958          +/- 0.2064       (6.295%)
+gamma           = 0.628053         +/- 0.03074      (4.894%)
+
+correlation matrix of the fit parameters:
+                a      gamma  
+a               1.000 
+gamma          -0.977  1.000 
+
+
+*******************************************************************************
+Fri May 22 11:18:42 2026
+
+
+FIT:    data read from "output/TMDynamics.txt" index 1 using 1:2
+        format = x:z
+        x range restricted to [1.00000 : 12.0000]
+        #datapoints = 11
+        residuals are weighted equally (unit weight)
+
+function used for fitting: f(x)
+	f(x) = a*x**gamma
+fitted parameters initialized with current variable values
+
+iter      chisq       delta/lim  lambda   a             gamma        
+   0 1.1529696871e+03   0.00e+00  4.01e+00    1.000000e+00   6.600000e-01
+   9 0.0000000000e+00  -inf       4.01e-08    2.000000e+00   1.000000e+00
+
+After 9 iterations the fit converged.
+final sum of squares of residuals : 0
+abs. change during last iteration : -1.55455e-28
+
+
+Hmmmm.... Sum of squared residuals is zero. Can't compute errors.
+
+Final set of parameters 
+======================= 
+
+a               = 2              
+gamma           = 1              

@@ -5,6 +5,8 @@ import PauliPropagation as pp
 using QuantumClifford
 using DisentangleCAMPS
 
+# == Terminal input/output ==============================================================
+
 """ ```stringtopauli_sym(str::String)```
 
 Convert a string consisting of ```I```, ```X```, ```Y```, ```Z``` \
@@ -25,3 +27,16 @@ function stringtopauli_sym(str::String)
     return pp.PauliString(nq, paulis, qinds)
 end
 
+# == File input/output ==================================================================
+
+function save_three_columns(a, b, c, filename)
+  n = max(length(a), length(b), length(c))
+  open(filename, "a") do f
+    for i in 1:n
+      ai = i <= length(a) ? a[i] : ""
+      bi = i <= length(b) ? b[i] : ""
+      ci = i <= length(c) ? c[i] : ""
+      println(f, "$(ai) $(bi) $(ci)")
+    end
+  end
+end
