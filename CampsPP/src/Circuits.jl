@@ -26,6 +26,16 @@ function dopeMagic(N, gates, phases, layer_ends, dope_syms, dope_inds, p)
   return newgates, newphases, newends
 end
 
+function subMagic(phases, p; magicphase = π/8)
+  newphases = copy(phases)
+  for i in eachindex(phases)
+    if rand() < p
+      newphases[i] = magicphase
+    end
+  end
+  return newphases
+end
+
 """ ```dopeT(N, gates, phases, layer_ends, p)```
 
 Dope the N-qubit circuit with T gates by adding one on a random index \
