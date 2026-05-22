@@ -17,29 +17,24 @@ ensemble with contrast parameter μ.
 function domainwallstate(N, μ)
   p = exp(μ)/(exp(μ) + exp(-μ))
 
-  states = []
+  cliff = one(CliffordOperator, N)
   onebitinds = Int[]
 
   for i in 1:N÷2
-    if rand() < p
-      push!(states, "0")
-    else
-      push!(states, "1")
+    if rand() > p
       push!(onebitinds, i)
+      cliff[i+N] = -cliff[i+N]
     end
   end
   for i in N÷2+1:N
     if rand() < p
-      push!(states, "1")
       push!(onebitinds, i)
-    else
-      push!(states, "0")
+      cliff[i+N] = -cliff[i+N]
     end
   end
 
-  sites = siteinds("Qubit", N)
-  ψ = MPS(sites, states)
-  ψ = cmps.CAMPS(ψ)
+  ψ = cmps.CAMPS(N)
+  ψ.Cdag *= inv(cliff)
 
   return ψ, onebitinds
 end

@@ -17,8 +17,8 @@ N = 22
 t = 11
 ϕ = π/4
 θ = π/4
-μ = 100 # μ = 100 gives hard domain wall already, equivalent to μ = ∞
-Nsamples = 50
+μ = .8 # μ = 100 gives hard domain wall already, equivalent to μ = ∞
+Nsamples = 10
 
 χ_campspp = 64
 thl_campspp = 1e-15
@@ -26,7 +26,7 @@ Nmax_campspp = 200
 χ_camps = χ_campspp
 thl_pp = thl_campspp
 Nmax_pp = Nmax_campspp
-magic_prob = 0
+magic_prob = 1
 magic_syms = [:X, :X]
 magic_inds = [N÷2, N÷2+1]
 output = "output/TMDynamics.txt"
@@ -78,8 +78,7 @@ initialize_output(
     "Nmax" => Nmax_pp))
 
 save_three_columns(layers, ev_means_cpp, ev_errs_cpp, output)
-
-save_three_columns(layers, ["\n\n"], ["\n\n"], output)
+save_three_columns(["\n\n"], [""], [""], output)
 save_three_columns(layers, ev_means_pp, ev_errs_pp, output)
 
 return
