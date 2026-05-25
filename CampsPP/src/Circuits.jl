@@ -119,8 +119,8 @@ random_paulistr_sym(N::Integer) = pp.inttosymbol(rand(0:BigInt(4)^N-1), N)
 Generate t layers of a N-qubit Floquet-trotterized XXZ \
 (ie. exp[i(ϕ(XX+YY)+θ(ZZ))]) circuit."""
 function xxz_circuit(ϕ, θ, t, N)
-  rots = []
-  phases = []
+  rots = pp.PauliRotation[]
+  phases = Real[]
   qinds = bricklayer_qinds(N)
   for c in 1:t
     for i in qinds

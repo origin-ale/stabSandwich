@@ -12,6 +12,7 @@ export save_three_columns
 include("Circuits.jl")
 export dopeT
 export dopeMagic
+export subMagic
 export rotation_circuit
 export xxz_circuit
 export fSim_circuit
@@ -24,6 +25,7 @@ export initialize_output
 
 include("Initialize.jl")
 export domainwallstate
+export computationalcamps
 export transferredmagnetization
 export layerends
 

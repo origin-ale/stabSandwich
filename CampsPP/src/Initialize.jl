@@ -23,20 +23,27 @@ function domainwallstate(N, μ)
   for i in 1:N÷2
     if rand() > p
       push!(onebitinds, i)
-      cliff[i+N] = -cliff[i+N]
     end
   end
   for i in N÷2+1:N
     if rand() < p
       push!(onebitinds, i)
-      cliff[i+N] = -cliff[i+N]
     end
+  end
+
+  ψ = computationalcamps(N, onebitinds)
+  return ψ, onebitinds
+end
+
+function computationalcamps(N, onebitinds)
+  cliff = one(CliffordOperator, N)
+  for i in onebitinds
+    cliff[i+N] = -cliff[i+N]
   end
 
   ψ = cmps.CAMPS(N)
   ψ.Cdag *= inv(cliff)
-
-  return ψ, onebitinds
+  return ψ
 end
 
 # == Observables ========================================================================
@@ -46,13 +53,28 @@ end
 Return a pp.PauliSum representing the transferred magnetization (Rosenberg et al.) \
 ie. the number of 1s which appeared in the left half of the bitstring
 """
-function transferredmagnetization(N, onebitinds)
-  init_zeros = setdiff(1:N÷2, onebitinds)
-  Zs = [pp.PauliString(N, [:Z], [i], -1) for i in init_zeros]
-  Is = [pp.PauliString(N, [:I], [i], 1) for i in init_zeros]
+function transferredmagnetization(N, init_ones)
+  init_zeros = setdiff(1:N, init_ones)
+
+  init_zeros_l = Int[i for i in init_zeros if i <= N÷2]
+  init_ones_l = Int[i for i in init_ones if i <= N÷2]
+  init_zeros_r = Int[i for i in init_zeros if i > N÷2]
+  init_ones_r = Int[i for i in init_ones if i > N÷2]
+
+  Zs_l = [pp.PauliString(N, [:Z], [i], -.5) for i in 1:N÷2]
+  Is_l = [pp.PauliString(N, [:I], [i], .5) for i in 1:N÷2]
+
+  Zs_r = [pp.PauliString(N, [:Z], [i], .5) for i in N÷2+1:N]
+  Is_r = [pp.PauliString(N, [:I], [i], .5) for i in N÷2+1:N]
+
+  append!(Is_l, [pp.PauliString(N, [:I], [i], -1) for i in init_ones_l])
+  append!(Is_r, [pp.PauliString(N, [:I], [i], -1) for i in init_zeros_r])
+
   obs = pp.PauliSum(N)
-  for Zi in Zs obs += Zi end
-  for Ii in Is obs += Ii end
+  for Zi in Zs_l obs += Zi end
+  for Ii in Is_l obs += Ii end
+  for Zi in Zs_r obs += Zi end
+  for Ii in Is_r obs += Ii end
   return obs
 end
 

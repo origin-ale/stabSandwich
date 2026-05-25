@@ -11,37 +11,36 @@ using Random: seed!
 using ProgressMeter
 using Statistics
 
-seed!(2)
+seed!(1)
 
-N = 22
-t = 11
+N = 10
+t = N ÷ 2
 ϕ = π/4
 θ = π/4
-μ = .8 # μ = 100 gives hard domain wall already, equivalent to μ = ∞
+μ = 1 # μ = 100 gives hard domain wall already, equivalent to μ = ∞
 Nsamples = 10
 
 χ_campspp = 64
 thl_campspp = 1e-15
-Nmax_campspp = 200
+Nmax_campspp = 100
 χ_camps = χ_campspp
 thl_pp = thl_campspp
-Nmax_pp = Nmax_campspp
+Nmax_pp = 1_000_000
 magic_prob = 1
-magic_syms = [:X, :X]
-magic_inds = [N÷2, N÷2+1]
+magic_syms = [:Z for i = 1:N]
+magic_inds = collect(1:N)
 output = "output/TMDynamics.txt"
 
 layer_ends = layerends(N, t, xxz_circuit)
 
 gates, phases = xxz_circuit(ϕ, θ, t, N)
-gates, phases, layer_ends = dopeMagic(
-  N, gates, phases, layer_ends, magic_syms, magic_inds, magic_prob)
-  
+phases = subMagic(phases, magic_prob)
+
 printstyled("Running μ = $μ XXZ circuit dynamics until t = $t for \
 N=$N, thl_pp = $thl_pp, Nmax_pp = $Nmax_pp.\n"; color = :cyan)
 
-evs_pp = []
 evs_cpp = []
+evs_pp = []
 prog = Progress(Nsamples; desc = "Computing ensemble averages…")
 for it in 1:Nsamples
   ψ, onebitinds = domainwallstate(N, μ)
