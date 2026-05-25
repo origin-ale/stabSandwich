@@ -20,7 +20,7 @@ t = N ÷ 2
 μs = [0.3, 0.6, 1, 10]
 Nsamples = 25
 
-χ_campspp = 64
+χ_campspp = 256
 thl_campspp = 1e-15
 Nmax_campspp = 100
 magic_prob = 1
@@ -45,22 +45,45 @@ initialize_output(
     "Nmax" => Nmax_campspp))
 
 printstyled("Running XXZ circuit dynamics until t = $t for \
-N=$N, thl = $thl_campspp, Nmax_pp = $Nmax_campspp.\n"; color = :cyan)
+N=$N, thl = $thl_campspp, Nmax = $Nmax_campspp.\n"; color = :cyan)
 
 prog = Progress(Nsamples*length(μs); desc = "Computing…")
-for μ in μs
+evs_by_μ = Vector{Any}(undef, length(μs))
+full_outputs = Vector{String}(undef, length(μs))
+
+Threads.@threads for μ_idx in eachindex(μs)
+  μ = μs[μ_idx]
   evs = []
+  temp_output_full = tempname()
+  full_outputs[μ_idx] = temp_output_full
+
   for it in 1:Nsamples
     ψ, onebitinds = domainwallstate(N, μ)
     obs = transferredmagnetization(N, onebitinds)
 
     evs_it = campspp_circuit_dynamics(
-      ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs, output_full;
+      ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs, temp_output_full;
       layer_ends = layer_ends)
 
     evs = isempty(evs) ? evs_it : hcat(evs, evs_it)
     next!(prog; showvalues = [("μ", μ),("sample", it)])
   end
+
+  evs_by_μ[μ_idx] = evs
+end
+
+open(output_full, "w") do full_io
+  for temp_output in full_outputs
+    isfile(temp_output) || continue
+    open(temp_output, "r") do temp_io
+      write(full_io, read(temp_io))
+    end
+    rm(temp_output; force = true)
+  end
+end
+
+for (μ_idx, μ) in pairs(μs)
+  evs = evs_by_μ[μ_idx]
   ev_means = mean(evs, dims=2)
   ev_errs = std(evs, dims=2)/sqrt(Nsamples)
   layers = collect(0:length(layer_ends))

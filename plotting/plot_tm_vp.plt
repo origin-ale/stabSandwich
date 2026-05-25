@@ -5,7 +5,7 @@ set key box width 2 height 1 left
 
 set title "π/8 XXZ Floquet dynamics" font ",24"
 
-set label "N = 10, Δ = 1, 25 samples" at graph .05,.65 left font ",20"
+set label "N = 12, Δ = 1, 25 samples" at graph .05,.65 left font ",20"
 
 set logscale xy
 set xrange [.9:6]
