@@ -21,7 +21,7 @@ ITensors.Strided.set_num_threads(nthr)
 
 seed!(1)
 
-N = 46
+N = 22
 t = N ÷ 2
 ϕ = π/4
 θ = π/4
