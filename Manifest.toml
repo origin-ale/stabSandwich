@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "05e04db79098a6cc0b0e4f390d27d5a7a961ba56"
+project_hash = "5b80703bb5547f853445b560e3bf88a90f911d1f"
 
 [[deps.AbstractAlgebra]]
 deps = ["LinearAlgebra", "MacroTools", "Preferences", "Random", "RandomExtensions", "SparseArrays"]
@@ -240,6 +240,12 @@ deps = ["Artifacts", "Bzip2_jll", "CompilerSupportLibraries_jll", "Fontconfig_jl
 git-tree-sha1 = "1fa950ebc3e37eccd51c6a8fe1f92f7d86263522"
 uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
 version = "1.18.7+0"
+
+[[deps.CampsPP]]
+deps = ["CliffordMPS", "DisentangleCAMPS", "ITensorMPS", "ITensors", "PauliPropagation", "ProgressMeter", "QuantumClifford", "Revise"]
+path = "CampsPP"
+uuid = "5093fef3-1b34-48b8-8e23-46bc6a6eb350"
+version = "0.1.0"
 
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra"]

@@ -32,8 +32,8 @@ Nsamples = 25
 thl_campspp = 1e-15
 Nmax_campspp = 100
 magic_prob = 1
-output = "output/TMDynamics_varparams.txt"
-output_full = "output/TMDynamics_varparams_full.txt"
+output = "output/TMD_$(N)_$(Nsamples).txt"
+output_full = "output/TMD_$(N)_$(Nsamples)_full.txt"
 
 layer_ends = layerends(N, t, xxz_circuit)
 
