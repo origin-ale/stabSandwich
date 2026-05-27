@@ -21,7 +21,7 @@ ITensors.Strided.set_num_threads(nthr)
 
 seed!(1)
 
-N = 12
+N = 20
 t = N ÷ 2
 ϕ = π/4
 θ = π/4
@@ -29,8 +29,8 @@ t = N ÷ 2
 Nsamples = 25
 
 χ_campspp = 256
-thl_campspp = 1e-15
-Nmax_campspp = 100
+thl_campspp = 1e-10
+Nmax_campspp = 1_000_000_000
 magic_prob = 1
 output = "output/TMD_$(N)_$(Nsamples).txt"
 output_full = "output/TMD_$(N)_$(Nsamples)_full.txt"
@@ -54,7 +54,7 @@ initialize_output(
 
 prog = Progress(length(μs)*Nsamples; desc = "Computing…")
 printstyled("Running XXZ circuit dynamics until t = $t for \
-N=$N, thl = $thl_campspp, Nmax = $Nmax_campspp.\n"; color = :cyan)
+N=$N, thl = $thl_campspp, Nmax = $Nmax_campspp.\nNsamples = $Nsamples, $nthr threads."; color = :cyan)
 
 evs_by_μ = Vector{Any}(undef, length(μs))
 full_outputs = Vector{String}(undef, length(μs))
