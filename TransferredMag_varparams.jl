@@ -21,19 +21,19 @@ ITensors.Strided.set_num_threads(nthr)
 
 seed!(1)
 
-N = 20
+N = 46
 t = N ÷ 2
 ϕ = π/4
 θ = π/4
 μs = [0.3, 0.6, 1, 10]
 Nsamples = 25
 
-χ_campspp = 256
+χ_campspp = 128
 thl_campspp = 1e-10
 Nmax_campspp = 1_000_000_000
-magic_prob = 1
-output = "output/TMD_$(N)_$(Nsamples).txt"
-output_full = "output/TMD_$(N)_$(Nsamples)_full.txt"
+magic_prob = 0
+output = "output/TMD_$(N)_$(round(magic_prob))_$(Nsamples).txt"
+output_full = "output/TMD_$(N)_$(round(magic_prob))_$(Nsamples)_full.txt"
 
 layer_ends = layerends(N, t, xxz_circuit)
 
