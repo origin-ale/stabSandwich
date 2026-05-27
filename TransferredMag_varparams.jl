@@ -10,10 +10,18 @@ using Printf
 using Random: seed!
 using ProgressMeter
 using Statistics
+using Strided
+using LinearAlgebra
+
+Strided.disable_threads()
+nthr=Threads.nthreads()
+
+BLAS.set_num_threads(nthr)
+ITensors.Strided.set_num_threads(nthr)
 
 seed!(1)
 
-N = 10
+N = 12
 t = N ÷ 2
 ϕ = π/4
 θ = π/4
@@ -44,31 +52,46 @@ initialize_output(
     "thl" => thl_campspp,
     "Nmax" => Nmax_campspp))
 
+prog = Progress(length(μs)*Nsamples; desc = "Computing…")
 printstyled("Running XXZ circuit dynamics until t = $t for \
 N=$N, thl = $thl_campspp, Nmax = $Nmax_campspp.\n"; color = :cyan)
 
-prog = Progress(Nsamples*length(μs); desc = "Computing…")
 evs_by_μ = Vector{Any}(undef, length(μs))
 full_outputs = Vector{String}(undef, length(μs))
 
-Threads.@threads for μ_idx in eachindex(μs)
+for μ_idx in eachindex(μs)
   μ = μs[μ_idx]
-  evs = []
   temp_output_full = tempname()
   full_outputs[μ_idx] = temp_output_full
+  sample_outputs = Vector{String}(undef, Nsamples)
+  sample_evs = Vector{Any}(undef, Nsamples)
 
-  for it in 1:Nsamples
+  Threads.@threads for it in 1:Nsamples
     ψ, onebitinds = domainwallstate(N, μ)
     obs = transferredmagnetization(N, onebitinds)
 
+    temp_output = tempname()
+    sample_outputs[it] = temp_output
+
     evs_it = campspp_circuit_dynamics(
-      ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs, temp_output_full;
+      ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs, temp_output;
       layer_ends = layer_ends)
 
-    evs = isempty(evs) ? evs_it : hcat(evs, evs_it)
-    next!(prog; showvalues = [("μ", μ),("sample", it)])
+    sample_evs[it] = evs_it
+    next!(prog)
   end
 
+  open(temp_output_full, "w") do full_io
+    for temp_output in sample_outputs
+      isfile(temp_output) || continue
+      open(temp_output, "r") do temp_io
+        write(full_io, read(temp_io))
+      end
+      rm(temp_output; force = true)
+    end
+  end
+
+  evs = hcat(sample_evs...)
   evs_by_μ[μ_idx] = evs
 end
 
