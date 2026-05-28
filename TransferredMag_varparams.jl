@@ -65,6 +65,14 @@ function sample_checkpoint_digest(onebitinds, evs_it)
   return bytes2hex(sha1(onebit_str * "|" * ev_str))
 end
 
+function onebitinds_digest(onebitinds)
+  return bytes2hex(sha1(join(string.(onebitinds), ",")))
+end
+
+function evs_digest(evs_it)
+  return bytes2hex(sha1(join(map(ev -> @sprintf("%.17g", Float64(ev)), evs_it), ",")))
+end
+
 for μ_idx in eachindex(μs)
   μ = μs[μ_idx]
   sample_evs = Vector{Any}(undef, Nsamples)
@@ -131,8 +139,9 @@ open(checkpoint_output, "a") do checkpoint_io
   for (μ_idx, μ) in pairs(μs)
     for (sample_idx, evs_it) in enumerate(sample_evs_by_μ[μ_idx])
       onebitinds = sample_onebitinds_by_μ[μ_idx][sample_idx]
-      digest = sample_checkpoint_digest(onebitinds, evs_it)
-      println(checkpoint_io, "μ_idx=$μ_idx\tμ=$μ\tsample=$sample_idx\tones=$(length(onebitinds))\tevs=$(length(evs_it))\tdigest=$digest")
+      onebit_digest = onebitinds_digest(onebitinds)
+      evs_digest_value = evs_digest(evs_it)
+      println(checkpoint_io, "μ_idx=$μ_idx\tμ=$μ\tsample=$sample_idx\tones=$(length(onebitinds))\tevs=$(length(evs_it))\tonebit_digest=$onebit_digest\tevs_digest=$evs_digest_value")
     end
   end
 end
