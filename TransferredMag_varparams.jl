@@ -51,9 +51,10 @@ initialize_output(
     "thl" => thl_campspp,
     "Nmax" => Nmax_campspp))
 
-# prog = Progress(length(μs)*Nsamples; desc = "Computing…")
 printstyled("Running XXZ circuit dynamics until t = $t for \
 N=$N, thl = $thl_campspp, Nmax = $Nmax_campspp.\nNsamples = $Nsamples, $nthr threads.\n"; color = :cyan)
+
+prog = Progress(length(μs) * Nsamples; desc = "Computing…")
 
 evs_by_μ = Vector{Any}(undef, length(μs))
 sample_evs_by_μ = Vector{Any}(undef, length(μs))
@@ -73,10 +74,6 @@ function evs_digest(evs_it)
   return bytes2hex(sha1(join(map(ev -> @sprintf("%.17g", Float64(ev)), evs_it), ",")))
 end
 
-@show Threads.nthreads()
-@show BLAS.get_num_threads()
-@show BLAS.get_config()
-
 for μ_idx in eachindex(μs)
   μ = μs[μ_idx]
   sample_evs = Vector{Any}(undef, Nsamples)
@@ -93,6 +90,7 @@ for μ_idx in eachindex(μs)
 
     sample_evs[it] = evs_it
     sample_onebitinds[it] = copy(onebitinds)
+    next!(prog)
   end
 
   evs = hcat(sample_evs...)
