@@ -1,0 +1,23 @@
+name = "DisentangleCAMPS"
+uuid = "8669911b-b2eb-4312-a450-6a1e58917cb3"
+version = "0.1.0"
+authors = ["Alessandro Cerati <alessandro.cerati@studio.unibo.it>"]
+
+[deps]
+CliffordMPS = "0b786a47-0bfe-4075-b9f4-31a5037e06a5"
+ITensorMPS = "0d1a4710-d33b-49a5-8f18-73bdf49b47e2"
+ITensors = "9136182c-28ba-11e9-034c-db9fb085ebd5"
+Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
+ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
+QuantumClifford = "0525e862-1e90-11e9-3e4d-1b39d7109de1"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[compat]
+ITensorMPS = "0.4.0"
+ITensors = "0.9.25"
+Logging = "1.11.0"
+ProgressMeter = "1.11.0"
+QuantumClifford = "0.11.3"
+Revise = "3.14.3"
+Test = "1.11.0"
