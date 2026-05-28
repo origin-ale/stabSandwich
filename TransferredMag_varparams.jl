@@ -73,6 +73,10 @@ function evs_digest(evs_it)
   return bytes2hex(sha1(join(map(ev -> @sprintf("%.17g", Float64(ev)), evs_it), ",")))
 end
 
+@show Threads.nthreads()
+@show BLAS.get_num_threads()
+@show BLAS.get_config()
+
 for μ_idx in eachindex(μs)
   μ = μs[μ_idx]
   sample_evs = Vector{Any}(undef, Nsamples)
