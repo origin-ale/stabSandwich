@@ -7,7 +7,7 @@ import PauliPropagation as pp
 import CliffordMPS as cmps
 
 using Printf
-using Random: seed!
+using Random: seed!, MersenneTwister
 using ProgressMeter
 using Statistics
 using Strided
@@ -18,8 +18,6 @@ nthr=Threads.nthreads()
 
 BLAS.set_num_threads(1)
 ITensors.Strided.set_num_threads(1)
-
-seed!(1)
 
 N = 22
 t = N ÷ 2
@@ -57,51 +55,52 @@ printstyled("Running XXZ circuit dynamics until t = $t for \
 N=$N, thl = $thl_campspp, Nmax = $Nmax_campspp.\nNsamples = $Nsamples, $nthr threads.\n"; color = :cyan)
 
 evs_by_μ = Vector{Any}(undef, length(μs))
-full_outputs = Vector{String}(undef, length(μs))
+sample_evs_by_μ = Vector{Any}(undef, length(μs))
 
 for μ_idx in eachindex(μs)
   μ = μs[μ_idx]
-  temp_output_full = tempname()
-  full_outputs[μ_idx] = temp_output_full
-  sample_outputs = Vector{String}(undef, Nsamples)
   sample_evs = Vector{Any}(undef, Nsamples)
 
   Threads.@threads for it in 1:Nsamples
-    ψ, onebitinds = domainwallstate(N, μ)
+    rng = MersenneTwister(100_000 * μ_idx + it)
+    ψ, onebitinds = domainwallstate(rng, N, μ)
     obs = transferredmagnetization(N, onebitinds)
 
-    temp_output = tempname()
-    sample_outputs[it] = temp_output
-
     evs_it = campspp_circuit_dynamics(
-      ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs, temp_output;
+      ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs;
       layer_ends = layer_ends)
 
     sample_evs[it] = evs_it
     next!(prog)
   end
 
-  open(temp_output_full, "w") do full_io
-    for temp_output in sample_outputs
-      isfile(temp_output) || continue
-      open(temp_output, "r") do temp_io
-        write(full_io, read(temp_io))
-      end
-      rm(temp_output; force = true)
-    end
-  end
-
   evs = hcat(sample_evs...)
   evs_by_μ[μ_idx] = evs
+  sample_evs_by_μ[μ_idx] = sample_evs
 end
 
-open(output_full, "w") do full_io
-  for temp_output in full_outputs
-    isfile(temp_output) || continue
-    open(temp_output, "r") do temp_io
-      write(full_io, read(temp_io))
+initialize_output(
+  output_full,
+  "Transferred magnetization (all $Nsamples samples)",
+  Dict(
+    "N" => N,
+    "μs" => μs,
+    "Δ" => ϕ/θ,
+    "p_dope" => magic_prob,
+    "χ" => χ_campspp,
+    "thl" => thl_campspp,
+    "Nmax" => Nmax_campspp))
+
+open(output_full, "a") do full_io
+  for (μ_idx, μ) in pairs(μs)
+    println(full_io, "# μ = $μ")
+    for (sample_idx, evs_it) in enumerate(sample_evs_by_μ[μ_idx])
+      println(full_io, "# sample $sample_idx")
+      for (layer_idx, ev) in enumerate(evs_it)
+        println(full_io, "$(layer_idx - 1)\t$(ev)")
+      end
+      println(full_io)
     end
-    rm(temp_output; force = true)
   end
 end
 

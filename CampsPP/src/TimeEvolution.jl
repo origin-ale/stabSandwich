@@ -31,15 +31,32 @@ out_array::Vector, out_file::AbstractString, ψ::cmps.CAMPS, obs, i::Integer)
 end
 
 function append_expectation!(
+out_array::Vector, ::Nothing, ψ::cmps.CAMPS, obs, i::Integer)
+  ev = cmps.expectation(ψ, obs)
+  push!(out_array, real(ev))
+end
+
+function append_expectation!(
 out_array::Vector, out_file::AbstractString, onebitinds::Vector{<:Integer}, obs, i::Integer)
   ev = pp.overlapwithcomputational(obs, onebitinds)
   append_expectation!(out_array, out_file, ev, i)
 end
 
 function append_expectation!(
+out_array::Vector, ::Nothing, onebitinds::Vector{<:Integer}, obs, i::Integer)
+  ev = pp.overlapwithcomputational(obs, onebitinds)
+  push!(out_array, real(ev))
+end
+
+function append_expectation!(
 out_array::Vector, out_file::AbstractString, ev::Number, i::Integer)
   push!(out_array, real(ev))
   append_datapoint(out_file, i, real(ev))
+end
+
+function append_expectation!(
+out_array::Vector, ::Nothing, ev::Number, i::Integer)
+  push!(out_array, real(ev))
 end
 
 # == ProgressMeter showvalues ===========================================================
@@ -66,7 +83,7 @@ Nmax::Integer,
 gates::Vector{},
 phases::Vector,
 obs::pp.PauliSum,
-output::AbstractString;
+output;
 showprogress = false,
 k = 0,
 layer_ends = nothing)
@@ -87,13 +104,43 @@ layer_ends = nothing)
   return evs_tot
 end
 
+function campspp_circuit_dynamics(
+ψ_ext::cmps.CAMPS,
+χ::Integer,
+thl::Real,
+Nmax::Integer,
+gates::Vector{},
+phases::Vector,
+obs::pp.PauliSum;
+showprogress = false,
+k = 0,
+layer_ends = nothing)
+  return campspp_circuit_dynamics(
+    ψ_ext, χ, thl, Nmax, gates, phases, obs, nothing;
+    showprogress = showprogress, k = k, layer_ends = layer_ends)
+end
+
+function camps_circuit_dynamics(
+ψ_ext::cmps.CAMPS,
+gates::Vector,
+phases::Vector,
+χ::Integer,
+obs::pp.PauliSum;
+showprogress = false,
+k = 0,
+layer_ends = nothing)
+  return camps_circuit_dynamics(
+    ψ_ext, gates, phases, χ, obs, nothing;
+    showprogress = showprogress, k = k, layer_ends = layer_ends)
+end
+
 function camps_circuit_dynamics(
 ψ_ext::cmps.CAMPS,
 gates::Vector,
 phases::Vector,
 χ::Integer,
 obs::pp.PauliSum,
-output::AbstractString;
+output;
 showprogress = false,
 k = 0,
 layer_ends = nothing)
@@ -127,9 +174,11 @@ layer_ends = nothing)
   end
 
   finish!(progress)
-  open(output, "a") do f
-    reason = (i == M) ? "(end of circuit)" : "(bond dim. ≥ $χ)"
-    println(f, "# CAMPS stopped at gate $i ", reason, "\n\n")
+  if !isnothing(output)
+    open(output, "a") do f
+      reason = (i == M) ? "(end of circuit)" : "(bond dim. ≥ $χ)"
+      println(f, "# CAMPS stopped at gate $i ", reason, "\n\n")
+    end
   end
 
   return ψ, k, i, evs_camps
@@ -142,8 +191,23 @@ gates::Vector,
 phases::Vector,
 thl::Real,
 Nmax::Integer,
+obs::pp.PauliSum;
+showprogress = false,
+layer_ends = nothing)
+  return pauliprop_circuit_dynamics(
+    ψ_ext, start_gate, gates, phases, thl, Nmax, obs, nothing;
+    showprogress = showprogress, layer_ends = layer_ends)
+end
+
+function pauliprop_circuit_dynamics(
+ψ_ext::cmps.CAMPS,
+start_gate::Integer,
+gates::Vector,
+phases::Vector,
+thl::Real,
+Nmax::Integer,
 obs::pp.PauliSum,
-output::AbstractString;
+output;
 showprogress = false,
 layer_ends = nothing)
 
@@ -176,9 +240,11 @@ layer_ends = nothing)
   end
 
   finish!(progress)
-  open(output, "a") do f
-    reason = (i == M) ? "(end of circuit)" : "(n. of Paulis ≥ $Nmax)"
-    println(f, "# Pauli prop. stopped at gate $i ", reason, "\n\n")
+  if !isnothing(output)
+    open(output, "a") do f
+      reason = (i == M) ? "(end of circuit)" : "(n. of Paulis ≥ $Nmax)"
+      println(f, "# Pauli prop. stopped at gate $i ", reason, "\n\n")
+    end
   end
   return i, evs_pp
 end
@@ -189,8 +255,22 @@ gates::Vector,
 phases::Vector,
 thl::Real,
 Nmax::Integer,
+obs::pp.PauliSum;
+showprogress = false,
+layer_ends = nothing)
+  return pauliprop_circuit_dynamics(
+    onebitinds, gates, phases, thl, Nmax, obs, nothing;
+    showprogress = showprogress, layer_ends = layer_ends)
+end
+
+function pauliprop_circuit_dynamics(
+onebitinds::Vector{<:Integer},
+gates::Vector,
+phases::Vector,
+thl::Real,
+Nmax::Integer,
 obs::pp.PauliSum,
-output::AbstractString;
+output::Union{AbstractString, Nothing};
 showprogress = false,
 layer_ends = nothing)
 
@@ -225,9 +305,11 @@ layer_ends = nothing)
   end
 
   finish!(progress)
-  open(output, "a") do f
-    reason = (i == M) ? "(end of circuit)" : "(n. of Paulis ≥ $Nmax)"
-    println(f, "# Pauli prop. stopped at gate $i ", reason, "\n\n")
+  if !isnothing(output)
+    open(output, "a") do f
+      reason = (i == M) ? "(end of circuit)" : "(n. of Paulis ≥ $Nmax)"
+      println(f, "# Pauli prop. stopped at gate $i ", reason, "\n\n")
+    end
   end
   return i, evs_pp
 end

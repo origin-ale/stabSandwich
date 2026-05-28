@@ -7,7 +7,7 @@ import PauliPropagation as pp
 import CliffordMPS as cmps
 
 using Printf
-using Random: seed!
+using Random: seed!, MersenneTwister
 using ProgressMeter
 using Statistics
 
@@ -43,7 +43,8 @@ evs_cpp = []
 evs_pp = []
 prog = Progress(Nsamples; desc = "Computing ensemble averages…")
 for it in 1:Nsamples
-  ψ, onebitinds = domainwallstate(N, μ)
+  rng = MersenneTwister(it)
+  ψ, onebitinds = domainwallstate(rng, N, μ)
   obs = transferredmagnetization(N, onebitinds)
 
   evs_it_cpp = campspp_circuit_dynamics(

@@ -8,25 +8,25 @@ import CliffordMPS as cmps
 
 # == States =============================================================================
 
-""" ```domainwallstate(N, μ)```
+""" ```domainwallstate(rng, N, μ)```
 
 Return an N-qubit product state from the Rosenberg et al. domain wall \
 ensemble with contrast parameter μ.
 """
 
-function domainwallstate(N, μ)
+function domainwallstate(rng, N, μ)
   p = exp(μ)/(exp(μ) + exp(-μ))
 
   cliff = one(CliffordOperator, N)
   onebitinds = Int[]
 
   for i in 1:N÷2
-    if rand() > p
+    if rand(rng) > p
       push!(onebitinds, i)
     end
   end
   for i in N÷2+1:N
-    if rand() < p
+    if rand(rng) < p
       push!(onebitinds, i)
     end
   end
