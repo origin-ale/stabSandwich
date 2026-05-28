@@ -10,6 +10,7 @@ using Printf
 using Random: seed!, MersenneTwister
 using ProgressMeter
 using Statistics
+using SHA
 using Strided
 using LinearAlgebra
 
@@ -56,10 +57,18 @@ N=$N, thl = $thl_campspp, Nmax = $Nmax_campspp.\nNsamples = $Nsamples, $nthr thr
 
 evs_by_μ = Vector{Any}(undef, length(μs))
 sample_evs_by_μ = Vector{Any}(undef, length(μs))
+sample_onebitinds_by_μ = Vector{Any}(undef, length(μs))
+
+function sample_checkpoint_digest(onebitinds, evs_it)
+  onebit_str = join(string.(onebitinds), ",")
+  ev_str = join(map(ev -> @sprintf("%.17g", Float64(ev)), evs_it), ",")
+  return bytes2hex(sha1(onebit_str * "|" * ev_str))
+end
 
 for μ_idx in eachindex(μs)
   μ = μs[μ_idx]
   sample_evs = Vector{Any}(undef, Nsamples)
+  sample_onebitinds = Vector{Vector{Int}}(undef, Nsamples)
 
   Threads.@threads for it in 1:Nsamples
     rng = MersenneTwister(100_000 * μ_idx + it)
@@ -71,13 +80,13 @@ for μ_idx in eachindex(μs)
       layer_ends = layer_ends)
 
     sample_evs[it] = evs_it
-    print("it = $it, μ = $μ\n")
-    # next!(prog)
+    sample_onebitinds[it] = copy(onebitinds)
   end
 
   evs = hcat(sample_evs...)
   evs_by_μ[μ_idx] = evs
   sample_evs_by_μ[μ_idx] = sample_evs
+  sample_onebitinds_by_μ[μ_idx] = sample_onebitinds
 end
 
 initialize_output(
@@ -101,6 +110,29 @@ open(output_full, "a") do full_io
         println(full_io, "$(layer_idx - 1)\t$(ev)")
       end
       println(full_io)
+    end
+  end
+end
+
+checkpoint_output = replace(output_full, ".txt" => "_checkpoints.txt")
+initialize_output(
+  checkpoint_output,
+  "Transferred magnetization checkpoints (per sample)",
+  Dict(
+    "N" => N,
+    "μs" => μs,
+    "Δ" => ϕ/θ,
+    "p_dope" => magic_prob,
+    "χ" => χ_campspp,
+    "thl" => thl_campspp,
+    "Nmax" => Nmax_campspp))
+
+open(checkpoint_output, "a") do checkpoint_io
+  for (μ_idx, μ) in pairs(μs)
+    for (sample_idx, evs_it) in enumerate(sample_evs_by_μ[μ_idx])
+      onebitinds = sample_onebitinds_by_μ[μ_idx][sample_idx]
+      digest = sample_checkpoint_digest(onebitinds, evs_it)
+      println(checkpoint_io, "μ_idx=$μ_idx\tμ=$μ\tsample=$sample_idx\tones=$(length(onebitinds))\tevs=$(length(evs_it))\tdigest=$digest")
     end
   end
 end
