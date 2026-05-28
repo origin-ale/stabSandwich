@@ -1,5 +1,5 @@
 N="22"
-Nsamples="25"
+Nsamples="30"
 magic_prob="0"
 
 set term png size 850, 600

@@ -228,10 +228,10 @@ layer_ends = nothing)
 
     push!(gates_pp, gate)
     push!(angles_pp, angle)
-    paulisum = pp.propagate(gates_pp, obs, angles_pp; min_abs_coeff = thl)
 
-    NP = length(paulisum)
     if isnothing(layer_ends) || i == layer_ends[layer]
+      paulisum = pp.propagate(gates_pp, obs, angles_pp; min_abs_coeff = thl)
+      NP = length(paulisum)
       append_expectation!(evs_pp, output, ψ, paulisum, layer)
       layer += 1
     end
@@ -293,10 +293,10 @@ layer_ends = nothing)
 
     push!(gates_pp, gate)
     push!(angles_pp, angle)
-    paulisum = pp.propagate(gates_pp, obs, angles_pp; min_abs_coeff = thl)
 
-    NP = length(paulisum)
     if isnothing(layer_ends) || i == layer_ends[layer]
+      paulisum = pp.propagate(gates_pp, obs, angles_pp; min_abs_coeff = thl)
+      NP = length(paulisum)
       append_expectation!(evs_pp, output, onebitinds, paulisum, layer)
       layer += 1
     end

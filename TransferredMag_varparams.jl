@@ -17,8 +17,8 @@ using LinearAlgebra
 Strided.disable_threads()
 nthr=Threads.nthreads()
 
-BLAS.set_num_threads(1)
-ITensors.Strided.set_num_threads(1)
+BLAS.set_num_threads(nthr)
+ITensors.Strided.set_num_threads(nthr)
 
 N = 22
 t = N ÷ 2
@@ -79,18 +79,20 @@ for μ_idx in eachindex(μs)
   sample_evs = Vector{Any}(undef, Nsamples)
   sample_onebitinds = Vector{Vector{Int}}(undef, Nsamples)
 
-  Threads.@threads for it in 1:Nsamples
-    rng = MersenneTwister(100_000 * μ_idx + it)
-    ψ, onebitinds = domainwallstate(rng, N, μ)
-    obs = transferredmagnetization(N, onebitinds)
+  @sync for it in 1:Nsamples
+    Threads.@spawn begin
+      rng = MersenneTwister(100_000 * μ_idx + it)
+      ψ, onebitinds = domainwallstate(rng, N, μ)
+      obs = transferredmagnetization(N, onebitinds)
 
-    evs_it = campspp_circuit_dynamics(
-      ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs;
-      layer_ends = layer_ends)
+      evs_it = campspp_circuit_dynamics(
+        ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs;
+        layer_ends = layer_ends)
 
-    sample_evs[it] = evs_it
-    sample_onebitinds[it] = copy(onebitinds)
-    next!(prog)
+      sample_evs[it] = evs_it
+      sample_onebitinds[it] = copy(onebitinds)
+      next!(prog)
+    end
   end
 
   evs = hcat(sample_evs...)
