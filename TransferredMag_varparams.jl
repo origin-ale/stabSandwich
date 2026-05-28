@@ -16,8 +16,8 @@ using LinearAlgebra
 Strided.disable_threads()
 nthr=Threads.nthreads()
 
-BLAS.set_num_threads(nthr)
-ITensors.Strided.set_num_threads(nthr)
+BLAS.set_num_threads(1)
+ITensors.Strided.set_num_threads(1)
 
 seed!(1)
 
@@ -54,7 +54,7 @@ initialize_output(
 
 prog = Progress(length(μs)*Nsamples; desc = "Computing…")
 printstyled("Running XXZ circuit dynamics until t = $t for \
-N=$N, thl = $thl_campspp, Nmax = $Nmax_campspp.\nNsamples = $Nsamples, $nthr threads."; color = :cyan)
+N=$N, thl = $thl_campspp, Nmax = $Nmax_campspp.\nNsamples = $Nsamples, $nthr threads.\n"; color = :cyan)
 
 evs_by_μ = Vector{Any}(undef, length(μs))
 full_outputs = Vector{String}(undef, length(μs))
