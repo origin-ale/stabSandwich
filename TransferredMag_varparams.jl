@@ -50,7 +50,7 @@ initialize_output(
     "thl" => thl_campspp,
     "Nmax" => Nmax_campspp))
 
-prog = Progress(length(μs)*Nsamples; desc = "Computing…")
+# prog = Progress(length(μs)*Nsamples; desc = "Computing…")
 printstyled("Running XXZ circuit dynamics until t = $t for \
 N=$N, thl = $thl_campspp, Nmax = $Nmax_campspp.\nNsamples = $Nsamples, $nthr threads.\n"; color = :cyan)
 
@@ -71,7 +71,8 @@ for μ_idx in eachindex(μs)
       layer_ends = layer_ends)
 
     sample_evs[it] = evs_it
-    next!(prog)
+    print("it = $it, μ = $μ\n")
+    # next!(prog)
   end
 
   evs = hcat(sample_evs...)
