@@ -81,7 +81,12 @@ for μ_idx in eachindex(μs)
     end
   end
 
-  evs = hcat(sample_evs...)
+  maxlen = maximum(length, sample_evs)
+  T = eltype(first(sample_evs))
+  evs = Matrix{Union{Missing, T}}(missing, maxlen, Nsamples)
+  for (j, a) in enumerate(sample_evs)
+    evs[1:length(a), j] = a
+  end
   evs_by_μ[μ_idx] = evs
   sample_evs_by_μ[μ_idx] = sample_evs
   sample_onebitinds_by_μ[μ_idx] = sample_onebitinds
@@ -114,9 +119,9 @@ end
 
 for (μ_idx, μ) in pairs(μs)
   evs = evs_by_μ[μ_idx]
-  ev_means = mean(evs, dims=2)
-  ev_errs = std(evs, dims=2)/sqrt(Nsamples)
-  layers = collect(0:length(layer_ends))
+  ev_means = [mean(skipmissing(row)) for row in eachrow(evs)]
+  ev_errs = [std(skipmissing(row))/sqrt(count(!ismissing, row)) for row in eachrow(evs)]
+  layers = collect(0:size(evs, 1) - 1)
 
   save_three_columns(layers, ev_means, ev_errs, output)
   save_three_columns(["\n\n"], [""], [""], output)
