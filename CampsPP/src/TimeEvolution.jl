@@ -67,7 +67,7 @@ showvalues_P(Pmax, P) = () -> [("Pauli terms (max $Pmax)", P)]
 # == Utility ============================================================================
 
 function getlayer(i, layer_ends)
-  isnothing(layer_ends) && return nothing
+  isnothing(layer_ends) && return i
   for l in eachindex(layer_ends)
     layer_ends[l] >= i && return l
   end
