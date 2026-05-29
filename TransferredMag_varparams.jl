@@ -17,10 +17,10 @@ using LinearAlgebra
 Strided.disable_threads()
 nthr=Threads.nthreads()
 
-BLAS.set_num_threads(nthr)
-ITensors.Strided.set_num_threads(nthr)
+BLAS.set_num_threads(1)
+ITensors.Strided.set_num_threads(1)
 
-N = 22
+N = 14
 t = N ÷ 2
 ϕ = π/4
 θ = π/4
@@ -29,8 +29,8 @@ Nsamples = 30
 
 χ_campspp = 128
 thl_campspp = 1e-10
-Nmax_campspp = 1_000_000_000
-magic_prob = 0
+Nmax_campspp = 1000
+magic_prob = 1
 output = "output/TMD_$(N)_$(round(magic_prob))_$(Nsamples).txt"
 output_full = "output/TMD_$(N)_$(round(magic_prob))_$(Nsamples)_full.txt"
 
@@ -59,20 +59,6 @@ prog = Progress(length(μs) * Nsamples; desc = "Computing…")
 evs_by_μ = Vector{Any}(undef, length(μs))
 sample_evs_by_μ = Vector{Any}(undef, length(μs))
 sample_onebitinds_by_μ = Vector{Any}(undef, length(μs))
-
-function sample_checkpoint_digest(onebitinds, evs_it)
-  onebit_str = join(string.(onebitinds), ",")
-  ev_str = join(map(ev -> @sprintf("%.17g", Float64(ev)), evs_it), ",")
-  return bytes2hex(sha1(onebit_str * "|" * ev_str))
-end
-
-function onebitinds_digest(onebitinds)
-  return bytes2hex(sha1(join(string.(onebitinds), ",")))
-end
-
-function evs_digest(evs_it)
-  return bytes2hex(sha1(join(map(ev -> @sprintf("%.17g", Float64(ev)), evs_it), ",")))
-end
 
 for μ_idx in eachindex(μs)
   μ = μs[μ_idx]
@@ -122,30 +108,6 @@ open(output_full, "a") do full_io
         println(full_io, "$(layer_idx - 1)\t$(ev)")
       end
       println(full_io)
-    end
-  end
-end
-
-checkpoint_output = replace(output_full, ".txt" => "_checkpoints.txt")
-initialize_output(
-  checkpoint_output,
-  "Transferred magnetization checkpoints (per sample)",
-  Dict(
-    "N" => N,
-    "μs" => μs,
-    "Δ" => ϕ/θ,
-    "p_dope" => magic_prob,
-    "χ" => χ_campspp,
-    "thl" => thl_campspp,
-    "Nmax" => Nmax_campspp))
-
-open(checkpoint_output, "a") do checkpoint_io
-  for (μ_idx, μ) in pairs(μs)
-    for (sample_idx, evs_it) in enumerate(sample_evs_by_μ[μ_idx])
-      onebitinds = sample_onebitinds_by_μ[μ_idx][sample_idx]
-      onebit_digest = onebitinds_digest(onebitinds)
-      evs_digest_value = evs_digest(evs_it)
-      println(checkpoint_io, "μ_idx=$μ_idx\tμ=$μ\tsample=$sample_idx\tones=$(length(onebitinds))\tevs=$(length(evs_it))\tonebit_digest=$onebit_digest\tevs_digest=$evs_digest_value")
     end
   end
 end
