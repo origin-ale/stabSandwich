@@ -17,20 +17,20 @@ using LinearAlgebra
 Strided.disable_threads()
 nthr=Threads.nthreads()
 
-BLAS.set_num_threads(nthr)
-ITensors.Strided.set_num_threads(nthr)
+BLAS.set_num_threads(1)
+ITensors.Strided.set_num_threads(1)
 
-N = 14
+N = 100
 t = N ÷ 2
 ϕ = π/4
 θ = π/4
 μs = [0.3, 0.6, 1., 10.]
-Nsamples = 30
+Nsamples = 50
 
 χ_campspp = 128
 thl_campspp = 1e-10
 Nmax_campspp = 1000
-magic_prob = 1
+magic_prob = 0
 output = "output/TMD_$(N)_$(round(magic_prob))_$(Nsamples).txt"
 output_full = "output/TMD_$(N)_$(round(magic_prob))_$(Nsamples)_full.txt"
 
