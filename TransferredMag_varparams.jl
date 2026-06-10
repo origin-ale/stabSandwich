@@ -25,7 +25,7 @@ t = N ÷ 2
 ϕ = π/4
 θ = π/4
 μs = [0.3, 0.6, 1., 10.]
-Nsamples = 50
+Nsamples = 25
 
 χ_campspp = 128
 thl_campspp = 1e-10
