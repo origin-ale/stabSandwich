@@ -20,7 +20,7 @@ nthr=Threads.nthreads()
 BLAS.set_num_threads(1)
 ITensors.Strided.set_num_threads(1)
 
-N = 100
+N = 12
 t = N ÷ 2
 ϕ = π/4
 θ = π/4
@@ -30,14 +30,16 @@ Nsamples = 25
 χ_campspp = 128
 thl_campspp = 1e-10
 Nmax_campspp = 1000
-magic_prob = 0
-output = "output/TMD_$(N)_$(round(magic_prob))_$(Nsamples).txt"
-output_full = "output/TMD_$(N)_$(round(magic_prob))_$(Nsamples)_full.txt"
+magic_prob = 1
+output = "output/TMD_$(N)_$(round(magic_prob))gl_$(Nsamples).txt"
+output_full = "output/TMD_$(N)_$(round(magic_prob))gl_$(Nsamples)_full.txt"
 
 layer_ends = layerends(N, t, xxz_circuit)
 
 gates, phases = xxz_circuit(ϕ, θ, t, N)
-phases = subMagic(phases, magic_prob)
+dope_syms = fill(:Z, N)
+dope_inds = collect(1:N)
+gates, phases, layer_ends = CampsPP.dopeMagic(N, gates, phases, layer_ends, dope_syms, dope_inds, magic_prob)
 
 initialize_output(
   output, 
