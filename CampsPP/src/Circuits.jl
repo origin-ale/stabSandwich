@@ -5,27 +5,34 @@ import PauliPropagation as pp
 using QuantumClifford
 using DisentangleCAMPS
 
-# == Utility ===================================================================
+# == Doping ===================================================================
 
-""" ```dopeMagic(N, gates, phases, layer_ends, dope_syms, dope_inds, p)```
+""" ```dopeMagic(N, gates, phases, layer_ends, dope_syms, dope_inds, p; [magicphase])```
 
-Dope the N-qubit circuit with magic rotations by adding a π/8 rotation \
-with the given symbols and indices after each layer with probability p."""
-function dopeMagic(N, gates, phases, layer_ends, dope_syms, dope_inds, p)
+Dope the N-qubit circuit with magic rotations by adding a magic rotation, \
+default π/8, with the given symbols and indices after each layer with \
+probability p. `dope_inds` may be a callable, in which case it is invoked \
+once per inserted rotation to determine the indices (allowing per-layer \
+randomization)."""
+function dopeMagic(N, gates, phases, layer_ends, dope_syms, dope_inds, p; magicphase = π/8)
   newgates = copy(gates)
   newphases = copy(phases)
   newends = copy(layer_ends)
-  os = 0
   for i in eachindex(layer_ends)
     if rand() < p
-      insert!(newgates, newends[i]+1, pp.PauliRotation(dope_syms, dope_inds))
-      insert!(newphases, newends[i]+1, π/8)
+      inds = dope_inds isa Function ? dope_inds() : dope_inds
+      insert!(newgates, newends[i]+1, pp.PauliRotation(dope_syms, inds))
+      insert!(newphases, newends[i]+1, magicphase)
       newends[i:end] .+= 1
     end
   end
   return newgates, newphases, newends
 end
 
+""" ```subMagic(phases, p; [magicphase])```
+
+Dope a circuit with magic by substituting some phases with magic ones,\
+default π/8, with probability p."""
 function subMagic(phases, p; magicphase = π/8)
   newphases = copy(phases)
   for i in eachindex(phases)
@@ -40,33 +47,8 @@ end
 
 Dope the N-qubit circuit with T gates by adding one on a random index \
 after each layer with probability p."""
-function dopeT(N, gates, phases, layer_ends, p)
-  newgates = copy(gates)
-  newphases = copy(phases)
-  newends = copy(layer_ends)
-  os = 0
-  for i in eachindex(layer_ends)
-    if rand() < p
-      insert!(newgates, newends[i]+1, pp.PauliRotation([:Z], rand(1:N)))
-      insert!(newphases, newends[i]+1, π/8)
-      newends[i:end] .+= 1
-    end
-  end
-  return newgates, newphases, newends
-end
-
-""" ```bricklayer_qinds(N)````
-
-Return a vector of pairs of indices corresponding to a bricklayer \
-(even-odd bond layers) N-qubit circuit structure."""
-function bricklayer_qinds(N::Integer)
-  even_bonds = [[i, i+1] for i in 1:2:N-1]
-  odd_bonds = [[i, i+1] for i in 2:2:N-1]
-  bonds = []
-  append!(bonds, even_bonds)
-  append!(bonds, odd_bonds)
-  return bonds
-end
+dopeT(N, gates, phases, layer_ends, p) =
+  dopeMagic(N, gates, phases, layer_ends, [:Z], () -> rand(1:N), p)
 
 # == Random rotations ===================================================================
 
@@ -175,3 +157,18 @@ Return rotations and phases for a t-cycle fSim Heisenberg-Trotter-like \
     phases = [θ/2, θ/2, ϕ/4, ϕ/4, -ϕ/4, -ϕ/4]
     return rots, phases
   end
+
+# == Utility ===================================================================
+
+""" ```bricklayer_qinds(N)````
+
+Return a vector of pairs of indices corresponding to a bricklayer \
+(even-odd bond layers) N-qubit circuit structure."""
+function bricklayer_qinds(N::Integer)
+  even_bonds = [[i, i+1] for i in 1:2:N-1]
+  odd_bonds = [[i, i+1] for i in 2:2:N-1]
+  bonds = []
+  append!(bonds, even_bonds)
+  append!(bonds, odd_bonds)
+  return bonds
+end
