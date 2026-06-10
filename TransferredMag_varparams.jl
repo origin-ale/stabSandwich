@@ -55,7 +55,7 @@ initialize_output(
     "thl" => thl_campspp,
     "Nmax" => Nmax_campspp))
 
-printstyled("Running XXZ circuit dynamics until t = $t for \
+printstyled("Running XXZ circuit dynamics with $magic_prob/1 doping until t = $t for \
 N=$N, thl = $thl_campspp, Nmax = $Nmax_campspp.\nNsamples = $Nsamples, $nthr threads.\n"; color = :cyan)
 
 prog = Progress(length(μs) * Nsamples; desc = "Computing…")

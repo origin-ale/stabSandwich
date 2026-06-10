@@ -5,11 +5,11 @@ magic_prob="0"
 set term png size 850, 600
 set output "output/TMD_".N."_".magic_prob."_".Nsamples."_graph.png"
 
-set key box width 2 height 1 bottom
+set key bottom
 
 set title "p(π/8)=".magic_prob." XXZ Floquet dynamics" font ",24"
 
-set label "N = ".N." Δ = 1, ".Nsamples." samples" at graph .05,.05 left font ",20"
+set label "N = ".N.", Δ = 1\n".Nsamples." samples" at graph .05,.10 left font ",20"
 
 set logscale xy
 
