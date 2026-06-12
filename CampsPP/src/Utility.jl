@@ -64,14 +64,34 @@ function save_stats(output, evs)
   save_three_columns(["\n\n"], [""], [""], output)
 end
 
-function save_three_columns(a, b, c, filename)
-  n = max(length(a), length(b), length(c))
+""" ```save_rows(filename, params, rows; [blockend])```
+
+Append one space-separated row per parameter point: \
+```params[i] rows[i][1] rows[i][2] …```. If ```blockend = true```, terminate \
+the block with a blank line (gnuplot-style block separator).
+Always appends; call ```initialize_output``` first to (re)create the file."""
+function save_rows(filename::AbstractString, params::AbstractVector,
+                   rows::AbstractVector; blockend::Bool = false)
+  open(filename, "a") do f
+    for i in eachindex(params)
+      println(f, join((params[i], rows[i]...), " "))
+    end
+    blockend && println(f)
+  end
+end
+
+""" ```save_columns(filename, cols...)```
+
+Append the given columns side by side, space-separated; shorter columns \
+are padded with empty fields.
+Always appends; call ```initialize_output``` first to (re)create the file."""
+function save_columns(filename::AbstractString, cols::AbstractVector...)
+  n = maximum(length, cols)
   open(filename, "a") do f
     for i in 1:n
-      ai = i <= length(a) ? a[i] : ""
-      bi = i <= length(b) ? b[i] : ""
-      ci = i <= length(c) ? c[i] : ""
-      println(f, "$(ai) $(bi) $(ci)")
+      println(f, join((i <= length(c) ? string(c[i]) : "" for c in cols), " "))
     end
   end
 end
+
+save_three_columns(a, b, c, filename) = save_columns(filename, a, b, c)
