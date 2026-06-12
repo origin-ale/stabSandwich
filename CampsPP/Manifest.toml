@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "729376639dede1015eb30bfe0b0f038aadce03ba"
+project_hash = "62ee005802fca18f4e3fcff3b18d91e0d17eee78"
 
 [[deps.AbstractAlgebra]]
 deps = ["LinearAlgebra", "MacroTools", "Preferences", "Random", "RandomExtensions", "SparseArrays"]
@@ -242,7 +242,7 @@ uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
 version = "1.18.7+0"
 
 [[deps.CampsPP]]
-deps = ["CliffordMPS", "DisentangleCAMPS", "ITensorMPS", "ITensors", "PauliPropagation", "ProgressMeter", "QuantumClifford", "Revise"]
+deps = ["CliffordMPS", "DisentangleCAMPS", "ITensorMPS", "ITensors", "PauliPropagation", "ProgressMeter", "QuantumClifford", "Revise", "Statistics"]
 path = "."
 uuid = "5093fef3-1b34-48b8-8e23-46bc6a6eb350"
 version = "0.1.0"
@@ -276,7 +276,7 @@ version = "1.0.0"
 
 [[deps.CliffordMPS]]
 deps = ["ArgParse", "Dates", "Distributed", "ITensorMPS", "ITensors", "JLD2", "Kronecker", "LinearAlgebra", "Plots", "Preferences", "Printf", "QuantumClifford", "Random", "Statistics", "StatsBase", "Test"]
-path = "/Users/alessandro/.julia/dev/dmrgCliffordMPS/"
+path = "../dmrgCliffordMPS"
 uuid = "0b786a47-0bfe-4075-b9f4-31a5037e06a5"
 version = "0.1.0"
 
@@ -437,7 +437,7 @@ version = "0.4.6"
 
 [[deps.DisentangleCAMPS]]
 deps = ["CliffordMPS", "ITensorMPS", "ITensors", "Logging", "ProgressMeter", "QuantumClifford", "Revise", "Test"]
-path = "/Users/alessandro/Programmi/magiCAMPS/DisentangleCAMPS/"
+path = "../DisentangleCAMPS"
 uuid = "8669911b-b2eb-4312-a450-6a1e58917cb3"
 version = "0.1.0"
 

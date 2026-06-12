@@ -9,7 +9,6 @@ import CliffordMPS as cmps
 using Printf
 using Random: seed!, MersenneTwister
 using ProgressMeter
-using Statistics
 using SHA
 using Strided
 using LinearAlgebra
