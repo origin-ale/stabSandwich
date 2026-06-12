@@ -43,29 +43,17 @@ dope_phase = π/8
 # gates, phases, layer_ends = CampsPP.dopeMagic(N, gates, phases, layer_ends, dope_syms, dope_inds, magic_prob)
 phases = subMagic(phases, magic_prob; magicphase = dope_phase)
 
-initialize_output(
-  output, 
-  "Transferred magnetization (avg over $Nsamples samples)", 
-  Dict(
+param_info = Dict(
     "N" => N, 
     "μs" => μs,
     "Δ" => ϕ/θ,
     "p_dope" => magic_prob,
     "χ" => χ_campspp,
     "thl" => thl_campspp,
-    "Nmax" => Nmax_campspp))
-
-initialize_output(
-  output_full,
-  "Transferred magnetization (all $Nsamples samples)",
-  Dict(
-    "N" => N,
-    "μs" => μs,
-    "Δ" => ϕ/θ,
-    "p_dope" => magic_prob,
-    "χ" => χ_campspp,
-    "thl" => thl_campspp,
-    "Nmax" => Nmax_campspp))
+    "Nmax" => Nmax_campspp)
+obsname = "Transferred magnetization"
+initialize_output(output, "$obsname (avg over $Nsamples samples)", param_info)
+initialize_output(output_full, "$obsname", param_info)
 
 printstyled("Running XXZ circuit dynamics with $magic_prob/1 doping until t = $t for \
 N=$N, thl = $thl_campspp, Nmax = $Nmax_campspp.\nNsamples = $Nsamples, $nthr threads.\n"; color = :cyan)
