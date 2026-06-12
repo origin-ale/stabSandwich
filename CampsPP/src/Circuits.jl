@@ -149,6 +149,33 @@ function xxz_layer_circuit(ϕ, θ, t, N)
   return rots, phases
 end
 
+""" ```xxz_alt_circuit(ϕ, θ, t, N)```
+
+Generate t layers of a N-qubit Floquet-trotterized XXZ \
+(ie. exp[i(ϕ(XX+YY)+θ(ZZ))]) circuit, laid out as\
+even XX - odd YY - even ZZ - odd XX - … …"""
+function xxz_alt_circuit(ϕ, θ, t, N)
+  rots = pp.PauliRotation[]
+  phases = Real[]
+  even_bonds = [[i, i+1] for i in 1:2:N-1]
+  odd_bonds = [[i, i+1] for i in 2:2:N-1]
+  gates = [([:X,:X], ϕ), ([:Y,:Y], ϕ), ([:Z,:Z], θ)]
+  sublayer = 0
+  for c in 1:t
+    for g in [gates; gates]
+      qinds = iseven(sublayer) ? even_bonds : odd_bonds
+      sublayer += 1
+      for i in qinds
+        rot_i = pp.PauliRotation(g[1], i)
+        phase_i = g[2]
+        push!(rots, rot_i)
+        push!(phases, phase_i)
+      end
+    end
+  end
+  return rots, phases
+end
+
 # == fSim ===============================================================================
 
 """ ```fSim_circuit(θ, ϕ, t, N)```
