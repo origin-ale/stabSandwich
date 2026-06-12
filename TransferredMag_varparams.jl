@@ -83,9 +83,7 @@ for μ_idx in eachindex(μs)
   end
 
   evs = stack_samples(sample_evs)
-
   save_full_samples(output_full, μ, evs)
-
   save_stats(output, evs)
 end
 
