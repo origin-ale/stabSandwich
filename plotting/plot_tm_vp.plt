@@ -7,7 +7,7 @@ set output "output/TMD_".N."_".magic_prob."_".Nsamples."_graph.png"
 
 set key bottom
 
-set title "p(π/8)=".magic_prob." XXZ Floquet dynamics" font ",24"
+set title "Dope=".magic_prob." XXZ Floquet dynamics" font ",24"
 
 set label "N = ".N.", Δ = 1\n".Nsamples." samples" at graph .05,.10 left font ",20"
 

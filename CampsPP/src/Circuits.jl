@@ -99,11 +99,12 @@ random_paulistr_sym(N::Integer) = pp.inttosymbol(rand(0:BigInt(4)^N-1), N)
 """ ```xxz_circuit(ϕ, θ, t, N)```
 
 Generate t layers of a N-qubit Floquet-trotterized XXZ \
-(ie. exp[i(ϕ(XX+YY)+θ(ZZ))]) circuit."""
+(ie. exp[i(ϕ(XX+YY)+θ(ZZ))]) circuit, laid out as\
+XX-YY-ZZ XX-YY-ZZ …"""
 function xxz_circuit(ϕ, θ, t, N)
   rots = pp.PauliRotation[]
   phases = Real[]
-  qinds = bricklayer_qinds(N)
+  qinds = staircase_qinds(N)
   for c in 1:t
     for i in qinds
     rots_i, phases_i = xxz(ϕ, θ, i)
@@ -123,6 +124,28 @@ function xxz(ϕ, θ, qinds)
     [[:X, :X], [:Y, :Y], [:Z, :Z]]
   ]
   phases = [ϕ, ϕ, θ]
+  return rots, phases
+end
+
+""" ```xxz_layer_circuit(ϕ, θ, t, N)```
+
+Generate t layers of a N-qubit Floquet-trotterized XXZ \
+(ie. exp[i(ϕ(XX+YY)+θ(ZZ))]) circuit, laid out as\
+XX-XX-… YY-YY-… ZZ-ZZ-… …"""
+function xxz_layer_circuit(ϕ, θ, t, N)
+  rots = pp.PauliRotation[]
+  phases = Real[]
+  qinds = bricklayer_qinds(N)
+  for c in 1:t
+    for g in [([:X,:X], ϕ), ([:Y,:Y], ϕ), ([:Z,:Z], θ)]
+      for i in qinds
+        rot_i = pp.PauliRotation(g[1], i)
+        phase_i = g[2]
+        push!(rots, rot_i)
+        push!(phases, phase_i)
+      end
+    end
+  end
   return rots, phases
 end
 
@@ -172,3 +195,24 @@ function bricklayer_qinds(N::Integer)
   append!(bonds, odd_bonds)
   return bonds
 end
+
+""" ```staircase_qinds(N)````
+
+Return a vector of pairs of indices corresponding to a staircase \
+(1-2,2-3,…) N-qubit circuit structure."""
+function staircase_qinds(N::Integer)
+  return [[i, i+1] for i in 1:N-1]
+end
+
+# """ ```triangle_qinds(N)````
+
+# Return a vector of pairs of indices corresponding to a triangle \
+# (1-2,3-4,2-3,5-6,7-8,6-7,…) N-qubit circuit structure."""
+# function triangle_qinds(N::Integer)
+#   bonds = []
+#   for i = 1:4:N-3
+#     new = [[i,i+1],[i+2,i+3],[i+1,i+2]]
+#     append!(bonds,new)
+#   end
+#   return bonds
+# end
