@@ -4,14 +4,14 @@ import PauliPropagation as pp
 using PauliPropagation: getpauli
 using QuantumClifford
 
-include("../CiffordMPSPauliPropagation.jl")
+include("../CampsPP/src/CliffordMPSPauliPropagation.jl")
 
 # Independent encoding reference:
 #   PauliPropagation packs qubit i at bits 2*(i-1) and 2*(i-1)+1 with I=0, X=1, Y=2, Z=3.
 #   Multi-qubit integer = sum over i of pauli_i * 4^(i-1).
 #   QuantumClifford P"ABC" assigns A→qubit1, B→qubit2, C→qubit3.
 
-@testset "CiffordMPSPauliPropagation" begin
+@testset "CliffordMPSPauliPropagation" begin
 
     @testset "_inttostabilizer single Pauli string" begin
         # Single-qubit cases: code directly encodes the Pauli

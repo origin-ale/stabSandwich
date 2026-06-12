@@ -1,6 +1,6 @@
 module CampsPP
 
-include("CiffordMPSPauliPropagation.jl")
+include("CliffordMPSPauliPropagation.jl")
 export paulivec
 export getpauli
 export leftover_rotgates
