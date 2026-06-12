@@ -8,6 +8,9 @@ export leftover_rotgates
 include("Utility.jl")
 export stringtopauli_sym
 export save_three_columns
+export stack_samples
+export save_full_samples
+export save_stats
 
 include("Circuits.jl")
 export dopeT

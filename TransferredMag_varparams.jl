@@ -55,14 +55,22 @@ initialize_output(
     "thl" => thl_campspp,
     "Nmax" => Nmax_campspp))
 
+initialize_output(
+  output_full,
+  "Transferred magnetization (all $Nsamples samples)",
+  Dict(
+    "N" => N,
+    "μs" => μs,
+    "Δ" => ϕ/θ,
+    "p_dope" => magic_prob,
+    "χ" => χ_campspp,
+    "thl" => thl_campspp,
+    "Nmax" => Nmax_campspp))
+
 printstyled("Running XXZ circuit dynamics with $magic_prob/1 doping until t = $t for \
 N=$N, thl = $thl_campspp, Nmax = $Nmax_campspp.\nNsamples = $Nsamples, $nthr threads.\n"; color = :cyan)
 
 prog = Progress(length(μs) * Nsamples; desc = "Computing…", enabled = true)
-
-evs_by_μ = Vector{Any}(undef, length(μs))
-sample_evs_by_μ = Vector{Any}(undef, length(μs))
-sample_onebitinds_by_μ = Vector{Any}(undef, length(μs))
 
 for μ_idx in eachindex(μs)
   μ = μs[μ_idx]
@@ -83,50 +91,11 @@ for μ_idx in eachindex(μs)
     next!(prog)
   end
 
-  maxlen = maximum(length, sample_evs)
-  T = eltype(first(sample_evs))
-  evs = Matrix{Union{Missing, T}}(missing, maxlen, Nsamples)
-  for (j, a) in enumerate(sample_evs)
-    evs[1:length(a), j] = a
-  end
-  evs_by_μ[μ_idx] = evs
-  sample_evs_by_μ[μ_idx] = sample_evs
-  sample_onebitinds_by_μ[μ_idx] = sample_onebitinds
-end
+  evs = stack_samples(sample_evs)
 
-initialize_output(
-  output_full,
-  "Transferred magnetization (all $Nsamples samples)",
-  Dict(
-    "N" => N,
-    "μs" => μs,
-    "Δ" => ϕ/θ,
-    "p_dope" => magic_prob,
-    "χ" => χ_campspp,
-    "thl" => thl_campspp,
-    "Nmax" => Nmax_campspp))
+  save_full_samples(output_full, μ, evs)
 
-open(output_full, "a") do full_io
-  for (μ_idx, μ) in pairs(μs)
-    println(full_io, "# μ = $μ")
-    for (sample_idx, evs_it) in enumerate(sample_evs_by_μ[μ_idx])
-      println(full_io, "# sample $sample_idx")
-      for (layer_idx, ev) in enumerate(evs_it)
-        println(full_io, "$(layer_idx - 1)\t$(ev)")
-      end
-      println(full_io)
-    end
-  end
-end
-
-for (μ_idx, μ) in pairs(μs)
-  evs = evs_by_μ[μ_idx]
-  ev_means = [mean(skipmissing(row)) for row in eachrow(evs)]
-  ev_errs = [std(skipmissing(row))/sqrt(count(!ismissing, row)) for row in eachrow(evs)]
-  layers = collect(0:size(evs, 1) - 1)
-
-  save_three_columns(layers, ev_means, ev_errs, output)
-  save_three_columns(["\n\n"], [""], [""], output)
+  save_stats(output, evs)
 end
 
 return
