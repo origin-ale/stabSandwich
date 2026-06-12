@@ -25,12 +25,14 @@ t = N ÷ 2
 θ = π/4
 μs = [0.3, 0.6, 1., 10.]
 Nsamples = 25
+warn_on_prestop = true
 
 χ_campspp = 128
 thl_campspp = 1e-10
 Nmax_campspp = 1000
 magic_prob = 0
 output = "output/TMD_$(N)_$(round(magic_prob))_$(Nsamples).txt"
+output_log = "output/TMD_$(N)_$(round(magic_prob))_$(Nsamples)_log.txt"
 output_full = "output/TMD_$(N)_$(round(magic_prob))_$(Nsamples)_full.txt"
 
 layer_ends = layerends(N, t, xxz_circuit)
@@ -49,9 +51,11 @@ param_info = Dict(
   "p_dope" => magic_prob,
   "χ" => χ_campspp,
   "thl" => thl_campspp,
-  "Nmax" => Nmax_campspp)
+  "Nmax" => Nmax_campspp,
+  "n.gates" => length(phases))
 obsname = "Transferred magnetization"
 initialize_output(output, "$obsname (avg over $Nsamples samples)", param_info)
+initialize_output(output_log, "$obsname", param_info)
 initialize_output(output_full, "$obsname", param_info)
 
 printstyled("Running XXZ circuit dynamics with $magic_prob/1 doping until t = $t for \
@@ -68,10 +72,12 @@ for μ_idx in eachindex(μs)
     ψ, onebitinds = domainwallstate(rng, N, μ)
     obs = transferredmagnetization(N, onebitinds)
 
-    evs_it = campspp_circuit_dynamics(
-      ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs;
+    evs_it, t_stop = campspp_circuit_dynamics(
+      ψ, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, obs, output_log;
       layer_ends = layer_ends)
-
+    if warn_on_prestop && (t_stop < length(phases))
+      printstyled("\rWARNING: sample $it for μ=$μ stopped at gate $t_stop/$(length(phases))    \n"; color = :yellow)
+    end
     sample_evs[it] = evs_it
     next!(prog)
   end

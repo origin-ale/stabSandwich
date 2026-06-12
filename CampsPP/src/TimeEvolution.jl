@@ -101,7 +101,7 @@ layer_ends = nothing)
   append!(evs_tot, evs_camps)
   append!(evs_tot, evs_pp)
 
-  return evs_tot
+  return evs_tot, s
 end
 
 function campspp_circuit_dynamics(
