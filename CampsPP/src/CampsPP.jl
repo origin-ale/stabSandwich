@@ -26,6 +26,7 @@ export camps_circuit_dynamics
 export pauliprop_circuit_dynamics
 export campspp_circuit_dynamics
 export initialize_output
+export append_datapoint
 
 include("Initialize.jl")
 export domainwallstate

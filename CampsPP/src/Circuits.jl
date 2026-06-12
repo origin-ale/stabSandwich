@@ -74,7 +74,7 @@ end
 
 Generate N-qubit random Pauli rotation gates e^(iϕP), with given phases ϕ returned separately."""
 function rotation_circuit(ϕs::Vector{<:Real}, N::Integer)
-  randstrings = [random_paulistr_sym(N) for _ in 1:t]
+  randstrings = [random_paulistr_sym(N) for _ in 1:length(ϕs)]
   return rotation_circuit(randstrings, ϕs, N)
 end
 

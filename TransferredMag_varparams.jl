@@ -75,7 +75,7 @@ for μ_idx in eachindex(μs)
     obs = transferredmagnetization(N, onebitinds)
 
     evs_it, t_stop = campspp_circuit_dynamics(
-      ψ, χ, thl, Nmax_pauli_pauli, gates, phases, obs, output_log;
+      ψ, χ, thl, Nmax_pauli, gates, phases, obs, output_log;
       layer_ends = layer_ends)
     if warn_on_prestop && (t_stop < length(phases))
       printstyled("\rWARNING: sample $it for μ=$μ stopped at gate $t_stop/$(length(phases))    \n"; color = :yellow)
