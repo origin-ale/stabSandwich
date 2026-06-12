@@ -44,13 +44,13 @@ dope_phase = π/8
 phases = subMagic(phases, magic_prob; magicphase = dope_phase)
 
 param_info = Dict(
-    "N" => N, 
-    "μs" => μs,
-    "Δ" => ϕ/θ,
-    "p_dope" => magic_prob,
-    "χ" => χ_campspp,
-    "thl" => thl_campspp,
-    "Nmax" => Nmax_campspp)
+  "N" => N, 
+  "μs" => μs,
+  "Δ" => ϕ/θ,
+  "p_dope" => magic_prob,
+  "χ" => χ_campspp,
+  "thl" => thl_campspp,
+  "Nmax" => Nmax_campspp)
 obsname = "Transferred magnetization"
 initialize_output(output, "$obsname (avg over $Nsamples samples)", param_info)
 initialize_output(output_full, "$obsname", param_info)
@@ -63,7 +63,6 @@ prog = Progress(length(μs) * Nsamples; desc = "Computing…", enabled = true)
 for μ_idx in eachindex(μs)
   μ = μs[μ_idx]
   sample_evs = Vector{Any}(undef, Nsamples)
-  sample_onebitinds = Vector{Vector{Int}}(undef, Nsamples)
 
   for it in 1:Nsamples
     rng = MersenneTwister(100_000 * μ_idx + it)
@@ -75,7 +74,6 @@ for μ_idx in eachindex(μs)
       layer_ends = layer_ends)
 
     sample_evs[it] = evs_it
-    sample_onebitinds[it] = copy(onebitinds)
     next!(prog)
   end
 
