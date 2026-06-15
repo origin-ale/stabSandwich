@@ -17,7 +17,7 @@ export save_stats
 include("Circuits.jl")
 export dopeT
 export dopeMagic
-export subMagic
+export sub_magic
 export rotation_circuit
 export xxz_alt_circuit
 export xxz_layer_circuit

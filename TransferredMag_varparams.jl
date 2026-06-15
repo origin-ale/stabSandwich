@@ -37,10 +37,10 @@ thl = 1e-10
 Nmax_pauli = 1000
 warn_on_prestop = true
 
-layer_ends = layerends(N, t, xxz_alt_circuit)
-gates, phases = xxz_alt_circuit(ϕ, θ, t, N)
+layer_ends = layerends(N, t, xxz_circuit)
+gates, phases = xxz_circuit(ϕ, θ, t, N)
 # gates, phases, layer_ends = CampsPP.dopeMagic(N, gates, phases, layer_ends, dope_syms, dope_inds, magic_prob)
-phases = subMagic(phases, magic_prob; magicphase = dope_phase)
+phases = sub_magic(phases, magic_prob; magicphase = dope_phase)
 
 output = "output/TMD_$(N)_$(round(magic_prob))_$(Nsamples).txt"
 output_log = "output/TMD_$(N)_$(round(magic_prob))_$(Nsamples)_log.txt"

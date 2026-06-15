@@ -29,11 +29,11 @@ function dopeMagic(N, gates, phases, layer_ends, dope_syms, dope_inds, p; magicp
   return newgates, newphases, newends
 end
 
-""" ```subMagic(phases, p; [magicphase])```
+""" ```sub_magic(phases, p; [magicphase])```
 
 Dope a circuit with magic by substituting some phases with magic ones,\
 default π/8, with probability p."""
-function subMagic(phases, p; magicphase = π/8)
+function sub_magic(phases, p; magicphase = π/8)
   newphases = copy(phases)
   for i in eachindex(phases)
     if rand() < p
