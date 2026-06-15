@@ -27,10 +27,10 @@ t = N ÷ 2
 μs = [0.3, 0.6, 1., 10.]
 Nsamples = 25
 
-magic_prob = 0
+magic_prob = .1
 dope_syms = fill(:Z, N)
 dope_inds = collect(1:N)
-dope_phase = π/8
+dope_phase = -π/8
 
 χ = 128
 thl = 1e-10
@@ -40,11 +40,12 @@ warn_on_prestop = true
 layer_ends = layerends(N, t, xxz_circuit)
 gates, phases = xxz_circuit(ϕ, θ, t, N)
 # gates, phases, layer_ends = CampsPP.dopeMagic(N, gates, phases, layer_ends, dope_syms, dope_inds, magic_prob)
-phases = sub_magic(phases, magic_prob; magicphase = dope_phase)
+phases = x_magic(phases, magic_prob; magicphase=dope_phase)
+phases = y_magic(phases, magic_prob; magicphase=dope_phase)
 
-output = "output/TMD_$(N)_$(round(magic_prob))_$(Nsamples).txt"
-output_log = "output/TMD_$(N)_$(round(magic_prob))_$(Nsamples)_log.txt"
-output_full = "output/TMD_$(N)_$(round(magic_prob))_$(Nsamples)_full.txt"
+output = "output/TMD_$(N)_$(round(magic_prob;digits=1))_$(Nsamples).txt"
+output_log = "output/TMD_$(N)_$(round(magic_prob;digits=1))_$(Nsamples)_log.txt"
+output_full = "output/TMD_$(N)_$(round(magic_prob;digits=1))_$(Nsamples)_full.txt"
 param_info = Dict(
   "N" => N, 
   "μs" => μs,

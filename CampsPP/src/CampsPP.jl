@@ -18,6 +18,9 @@ include("Circuits.jl")
 export dopeT
 export dopeMagic
 export sub_magic
+export x_magic
+export y_magic
+export z_magic
 export rotation_circuit
 export xxz_alt_circuit
 export xxz_layer_circuit

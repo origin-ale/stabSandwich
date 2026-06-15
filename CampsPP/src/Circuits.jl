@@ -43,6 +43,51 @@ function sub_magic(phases, p; magicphase = π/8)
   return newphases
 end
 
+""" ```x_magic(phases, p; [magicphase])```
+
+Dope an XX-YY-ZZ circuit with magic \
+by adding a magic phase to the X phases,\
+default -π/8, with probability p."""
+function x_magic(phases, p; magicphase = -π/8)
+  newphases = copy(phases)
+  for i = 1:3:length(phases)
+    if rand() < p
+      newphases[i] = phases[i] + magicphase
+    end
+  end
+  return newphases
+end
+
+""" ```y_magic(phases, p; [magicphase])```
+
+Dope an XX-YY-ZZ circuit with magic \
+by adding a magic phase to the Z phases,\
+default -π/8, with probability p."""
+function y_magic(phases, p; magicphase = -π/8)
+  newphases = copy(phases)
+  for i = 2:3:length(phases)
+    if rand() < p
+      newphases[i] = phases[i] + magicphase
+    end
+  end
+  return newphases
+end
+
+""" ```z_magic(phases, p; [magicphase])```
+
+Dope an XX-YY-ZZ circuit with magic \
+by adding a magic phase to the Z phases,\
+default -π/8, with probability p."""
+function z_magic(phases, p; magicphase = -π/8)
+  newphases = copy(phases)
+  for i = 3:3:length(phases)
+    if rand() < p
+      newphases[i] = phases[i] + magicphase
+    end
+  end
+  return newphases
+end
+
 """ ```dopeT(N, gates, phases, layer_ends, p)```
 
 Dope the N-qubit circuit with T gates by adding one on a random index \
