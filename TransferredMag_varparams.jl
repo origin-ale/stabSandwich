@@ -65,13 +65,14 @@ for μ_idx in eachindex(μs)
   sample_evs = Vector{Any}(undef, Nsamples)
 
   for it in 1:Nsamples
+    rng = MersenneTwister(100_000 * μ_idx + it)
+
     layer_ends = layerends(N, t, xxz_circuit)
     gates, phases = xxz_circuit(ϕ, θ, t, N)
     # gates, phases, layer_ends = CampsPP.dopeMagic(N, gates, phases, layer_ends, dope_syms, dope_inds, magic_prob)
-    phases = x_magic(phases, magic_prob; magicphase=dope_phase)
-    phases = y_magic(phases, magic_prob; magicphase=dope_phase)
+    phases = x_magic(rng, phases, magic_prob; magicphase=dope_phase)
+    phases = y_magic(rng, phases, magic_prob; magicphase=dope_phase)
 
-    rng = MersenneTwister(100_000 * μ_idx + it)
     ψ, onebitinds = domainwallstate(rng, N, μ)
     obs = transferredmagnetization(N, onebitinds)
 

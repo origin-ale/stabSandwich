@@ -4,6 +4,7 @@ import CliffordMPS as cmps
 import PauliPropagation as pp
 using QuantumClifford
 using DisentangleCAMPS
+using Random: AbstractRNG, default_rng
 
 # == Doping ===================================================================
 
@@ -48,30 +49,32 @@ end
 Dope an XX-YY-ZZ circuit with magic \
 by adding a magic phase to the X phases,\
 default -π/8, with probability p."""
-function x_magic(phases, p; magicphase = -π/8)
+function x_magic(rng::AbstractRNG, phases, p; magicphase = -π/8)
   newphases = copy(phases)
   for i = 1:3:length(phases)
-    if rand() < p
+    if rand(rng) < p
       newphases[i] = phases[i] + magicphase
     end
   end
   return newphases
 end
+x_magic(phases, p; kwargs...) = x_magic(default_rng(), phases, p; kwargs...)
 
 """ ```y_magic(phases, p; [magicphase])```
 
 Dope an XX-YY-ZZ circuit with magic \
 by adding a magic phase to the Z phases,\
 default -π/8, with probability p."""
-function y_magic(phases, p; magicphase = -π/8)
+function y_magic(rng::AbstractRNG, phases, p; magicphase = -π/8)
   newphases = copy(phases)
   for i = 2:3:length(phases)
-    if rand() < p
+    if rand(rng) < p
       newphases[i] = phases[i] + magicphase
     end
   end
   return newphases
 end
+y_magic(phases, p; kwargs...) = y_magic(default_rng(), phases, p; kwargs...)
 
 """ ```z_magic(phases, p; [magicphase])```
 

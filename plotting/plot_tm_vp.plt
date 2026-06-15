@@ -1,6 +1,6 @@
 N="12"
 Nsamples="100"
-magic_prob="0.1"
+magic_prob="1.0"
 
 set term png size 850, 600
 set output "output/TMD_".N."_".magic_prob."_".Nsamples."_graph.png"
