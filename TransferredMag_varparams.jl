@@ -25,7 +25,7 @@ t = N ÷ 2
 ϕ = π/4
 θ = π/4
 μs = [0.3, 0.6, 1., 10.]
-Nsamples = 25
+Nsamples = 100
 
 magic_prob = .1
 dope_syms = fill(:Z, N)
@@ -36,12 +36,6 @@ dope_phase = -π/8
 thl = 1e-10
 Nmax_pauli = 1000
 warn_on_prestop = true
-
-layer_ends = layerends(N, t, xxz_circuit)
-gates, phases = xxz_circuit(ϕ, θ, t, N)
-# gates, phases, layer_ends = CampsPP.dopeMagic(N, gates, phases, layer_ends, dope_syms, dope_inds, magic_prob)
-phases = x_magic(phases, magic_prob; magicphase=dope_phase)
-phases = y_magic(phases, magic_prob; magicphase=dope_phase)
 
 output = "output/TMD_$(N)_$(round(magic_prob;digits=1))_$(Nsamples).txt"
 output_log = "output/TMD_$(N)_$(round(magic_prob;digits=1))_$(Nsamples)_log.txt"
@@ -54,14 +48,14 @@ param_info = Dict(
   "χ" => χ,
   "thl" => thl,
   "Nmax_pauli" => Nmax_pauli,
-  "n.gates" => length(phases))
+  "n.gates" => length(xxz_circuit(1,1, t, N)[1]))
 obsname = "Transferred magnetization"
 initialize_output(output, "$obsname (avg over $Nsamples samples)", param_info)
 initialize_output(output_log, "$obsname", param_info)
 initialize_output(output_full, "$obsname", param_info)
 
 printstyled("Running XXZ circuit dynamics with $magic_prob/1 doping until t = $t for \
-N=$N, thl = $thl, Nmax_pauli = $Nmax_pauli.\nNsamples = $Nsamples, $nthr threads.\n"; color = :cyan)
+N=$N, thl = $thl, Nmax_pauli = $Nmax_pauli.\nNsamples = $Nsamples.\n"; color = :cyan)
 prog = Progress(length(μs) * Nsamples; desc = "Sampling…", enabled = true)
 ProgressMeter.update!(prog, 0)
 
@@ -71,6 +65,12 @@ for μ_idx in eachindex(μs)
   sample_evs = Vector{Any}(undef, Nsamples)
 
   for it in 1:Nsamples
+    layer_ends = layerends(N, t, xxz_circuit)
+    gates, phases = xxz_circuit(ϕ, θ, t, N)
+    # gates, phases, layer_ends = CampsPP.dopeMagic(N, gates, phases, layer_ends, dope_syms, dope_inds, magic_prob)
+    phases = x_magic(phases, magic_prob; magicphase=dope_phase)
+    phases = y_magic(phases, magic_prob; magicphase=dope_phase)
+
     rng = MersenneTwister(100_000 * μ_idx + it)
     ψ, onebitinds = domainwallstate(rng, N, μ)
     obs = transferredmagnetization(N, onebitinds)
