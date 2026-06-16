@@ -28,8 +28,6 @@ t = N ÷ 2
 Nsamples = 100
 
 magic_prob = .1
-dope_syms = fill(:Z, N)
-dope_inds = collect(1:N)
 dope_phase = -π/8
 
 χ = 128
@@ -69,7 +67,6 @@ for μ_idx in eachindex(μs)
 
     layer_ends = layerends(N, t, xxz_circuit)
     gates, phases = xxz_circuit(ϕ, θ, t, N)
-    # gates, phases, layer_ends = CampsPP.dopeMagic(N, gates, phases, layer_ends, dope_syms, dope_inds, magic_prob)
     phases = x_magic(rng, phases, magic_prob; magicphase=dope_phase)
     phases = y_magic(rng, phases, magic_prob; magicphase=dope_phase)
 
