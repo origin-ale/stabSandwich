@@ -40,9 +40,9 @@ function stack_samples(sample_evs)
   return evs
 end
 
-function save_full_samples(output_full, μ, evs)
+function save_full_samples(output_full, μ, magic_prob, evs)
   open(output_full, "a") do full_io
-    println(full_io, "# μ = $μ")
+    println(full_io, "# p = $magic_prob, μ = $μ")
     for sample_idx in axes(evs, 2)
       println(full_io, "# sample $sample_idx")
       for layer_idx in axes(evs, 1)
@@ -55,11 +55,20 @@ function save_full_samples(output_full, μ, evs)
   end
 end
 
-function save_stats(output, evs)
+""" ```save_stats(output, evs, μ, magic_prob)```
+
+Append the per-layer mean and standard error of ```evs``` as three columns \
+(layer, mean, error), preceded by a ```# magic_prob = …, μ = …``` header line \
+identifying the parameter point, and followed by two blank lines (gnuplot block \
+separator)."""
+function save_stats(output, evs, μ, magic_prob)
   ev_means = [mean(skipmissing(row)) for row in eachrow(evs)]
   ev_errs = [std(skipmissing(row))/sqrt(count(!ismissing, row)) for row in eachrow(evs)]
   layers = collect(0:size(evs, 1) - 1)
 
+  open(output, "a") do io
+    println(io, "# p = $magic_prob, μ = $μ")
+  end
   save_three_columns(layers, ev_means, ev_errs, output)
   open(output, "a") do io
     print(io, "\n\n")  # two blank lines: gnuplot index (block) separator
@@ -68,21 +77,8 @@ end
 
 """ ```append_stats(output, evs, μ, magic_prob)```
 
-Like ```save_stats```, but writes a ```# μ = …, magic_prob = …``` header line \
-immediately before the data block."""
-function append_stats(output, evs, μ, magic_prob)
-  ev_means = [mean(skipmissing(row)) for row in eachrow(evs)]
-  ev_errs = [std(skipmissing(row))/sqrt(count(!ismissing, row)) for row in eachrow(evs)]
-  layers = collect(0:size(evs, 1) - 1)
-
-  open(output, "a") do io
-    println(io, "# μ = $μ, p = $magic_prob")
-  end
-  save_three_columns(layers, ev_means, ev_errs, output)
-  open(output, "a") do io
-    print(io, "\n\n")  # two blank lines: gnuplot index (block) separator
-  end
-end
+Alias for ```save_stats```, kept for backwards compatibility."""
+append_stats(output, evs, μ, magic_prob) = save_stats(output, evs, μ, magic_prob)
 
 """ ```save_rows(filename, params, rows; [blockend])```
 
