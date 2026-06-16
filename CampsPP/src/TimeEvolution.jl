@@ -12,7 +12,7 @@ function initialize_output(output::AbstractString, obsname::AbstractString, para
   open(output, "w") do f
     pairs = ["$(string(k))=$(string(v))" for (k,v) in params]
     header = isempty(pairs) ? "" : (join(pairs, " ") * " ")
-    println(f, "# $(header) \n# Cycle $obsname")
+    println(f, "# $(header) \n# Cycle $obsname\n\n")
   end
 end
 

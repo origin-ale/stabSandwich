@@ -13,6 +13,7 @@ export save_columns
 export stack_samples
 export save_full_samples
 export save_stats
+export append_stats
 
 include("Circuits.jl")
 export dopeT

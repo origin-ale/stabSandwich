@@ -61,7 +61,27 @@ function save_stats(output, evs)
   layers = collect(0:size(evs, 1) - 1)
 
   save_three_columns(layers, ev_means, ev_errs, output)
-  save_three_columns(["\n\n"], [""], [""], output)
+  open(output, "a") do io
+    print(io, "\n\n")  # two blank lines: gnuplot index (block) separator
+  end
+end
+
+""" ```append_stats(output, evs, μ, magic_prob)```
+
+Like ```save_stats```, but writes a ```# μ = …, magic_prob = …``` header line \
+immediately before the data block."""
+function append_stats(output, evs, μ, magic_prob)
+  ev_means = [mean(skipmissing(row)) for row in eachrow(evs)]
+  ev_errs = [std(skipmissing(row))/sqrt(count(!ismissing, row)) for row in eachrow(evs)]
+  layers = collect(0:size(evs, 1) - 1)
+
+  open(output, "a") do io
+    println(io, "# μ = $μ, p = $magic_prob")
+  end
+  save_three_columns(layers, ev_means, ev_errs, output)
+  open(output, "a") do io
+    print(io, "\n\n")  # two blank lines: gnuplot index (block) separator
+  end
 end
 
 """ ```save_rows(filename, params, rows; [blockend])```
