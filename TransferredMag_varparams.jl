@@ -25,7 +25,7 @@ t = N ÷ 2
 ϕ = π/4
 θ = π/4
 μs = [0.3, 0.6, 1., 10.]
-magic_probs = [0.1]
+magic_probs = [0.95, 1.]
 Nsamples = 100
 
 dope_phase = -π/8
@@ -67,8 +67,7 @@ for pair_idx in eachindex(param_pairs)
 
     layer_ends = layerends(N, t, xxz_circuit)
     gates, phases = xxz_circuit(ϕ, θ, t, N)
-    phases = x_magic(rng, phases, magic_prob; magicphase=dope_phase)
-    phases = y_magic(rng, phases, magic_prob; magicphase=dope_phase)
+    phases = xy_magic(rng, phases, magic_prob; magicphase=dope_phase)
 
     ψ, onebitinds = domainwallstate(rng, N, μ)
     obs = transferredmagnetization(N, onebitinds)

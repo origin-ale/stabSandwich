@@ -23,7 +23,7 @@ datafile = "output/TMD_".N."_".Nsamples.".txt"
 
 # Whitespace-separated list of block indices to plot (0-based: index 0 is the
 # first data block).
-blocks = "0 1 2 3"
+blocks = "1 3 5 7"
 
 # Power-law fit a*x**b for each block: 1 = overlay the fit lines, 0 = only
 # print the fitted parameters to the terminal.
