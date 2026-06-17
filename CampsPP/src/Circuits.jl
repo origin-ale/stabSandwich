@@ -53,8 +53,8 @@ function xy_magic(rng::AbstractRNG, phases, p; magicphase = -π/8)
   newphases = copy(phases)
   for i = 1:3:length(phases)
     if rand(rng) < p
-      newphases[i] = phases[i] + magicphase
-      newphases[i+1] = phases[i+1] + magicphase
+      newphases[i] = magicphase
+      newphases[i+1] = magicphase
     end
   end
   return newphases
@@ -66,15 +66,16 @@ xy_magic(phases, p; kwargs...) = xy_magic(default_rng(), phases, p; kwargs...)
 Dope an XX-YY-ZZ circuit with magic \
 by adding a magic phase to the Z phases,\
 default -π/8, with probability p."""
-function z_magic(phases, p; magicphase = -π/8)
+function z_magic(rng::AbstractRNG, phases, p; magicphase = -π/8)
   newphases = copy(phases)
   for i = 3:3:length(phases)
-    if rand() < p
-      newphases[i] = phases[i] + magicphase
+    if rand(rng) < p
+      newphases[i] = magicphase
     end
   end
   return newphases
 end
+z_magic(phases, p; kwargs...) = z_magic(default_rng(), phases, p; kwargs...)
 
 """ ```dopeT(N, gates, phases, layer_ends, p)```
 

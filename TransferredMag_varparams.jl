@@ -25,10 +25,11 @@ t = N ÷ 2
 ϕ = π/4
 θ = π/4
 μs = [0.3, 0.6, 1., 10.]
-magic_probs = [0.95, 1.]
-Nsamples = 100
+magic_probs = [0., 0.5, 0.95, 1.]
+Nsamples = 50
 
-dope_phase = -π/8
+dope_phase = 3/16
+dope_method = "on XY"
 
 param_pairs = vec([(magic_prob, μ) for magic_prob in magic_probs, μ in μs])
 
@@ -42,7 +43,8 @@ output_log = "output/TMD_$(N)_$(Nsamples)_log.txt"
 output_full = "output/TMD_$(N)_$(Nsamples)_full.txt"
 param_info = Dict(
   "N" => N,
-  "Δ" => ϕ/θ,
+  "Δ" => θ/ϕ,
+  "doping" => "$(round(dope_phase; ndigits = 3)) $dope_method",
   "χ" => χ,
   "thl" => thl,
   "Nmax_pauli" => Nmax_pauli,

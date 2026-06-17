@@ -1,7 +1,6 @@
 N="12"
-Nsamples="100"
+Nsamples="50"
 magic_prob="1.0"
-magic_phase="pi8"
 
 set term png size 850, 600
 outfile = "output/TMD_".N."_".Nsamples."_graph.png"
@@ -11,9 +10,10 @@ set key bottom
 
 set title "XXZ Floquet dynamics" font ",24"
 
-set label "N = ".N.", Δ = 1, ".magic_phase." doping\n".Nsamples." samples" at graph .05,.10 left font ",20"
+set label "N = ".N.", ϕ = θ = π/4\nDoping with 3π/16 on XX, YY\n".Nsamples." samples" at graph .05,.15 left font ",18"
 
 set logscale xy
+set yrange [0.01:*]
 
 set xlabel "Time" font ",16"
 set ylabel "Transferred magnetization" font ",16"
@@ -23,7 +23,10 @@ datafile = "output/TMD_".N."_".Nsamples.".txt"
 
 # Whitespace-separated list of block indices to plot (0-based: index 0 is the
 # first data block).
-blocks = "1 3 5 7"
+blocks = "0 4 8 12"
+# blocks = "1 5 9 10"
+# blocks = "2 6 10 14"
+# blocks = "3 7 11 15"
 
 # Power-law fit a*x**b for each block: 1 = overlay the fit lines, 0 = only
 # print the fitted parameters to the terminal.
@@ -57,12 +60,12 @@ if (plot_fit) {
          with yerrorlines lc j title blocktitle(int(word(blocks, j))), \
        for [j=1:nb] A[j]*x**B[j] lc j dt 2 notitle, \
        2*x lc rgb "gray" title "2t", \
-       x**0.66 lc rgb "light-gray" notitle "t^{2/3}"
+       x**0.66 lc rgb "light-gray" title "t^{2/3}"
 } else {
   plot for [j=1:nb] datafile index int(word(blocks, j)) \
          with yerrorlines lc j title blocktitle(int(word(blocks, j))), \
        2*x lc rgb "gray" title "2t", \
-       x**0.66 lc rgb "light-gray" notitle "t^{2/3}"
+       x**0.66 lc rgb "light-gray" title "t^{2/3}"
 }
 
 print "Plotted ".outfile
