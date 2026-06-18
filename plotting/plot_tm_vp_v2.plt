@@ -1,6 +1,5 @@
 N="12"
 Nsamples="50"
-magic_prob="1.0"
 
 set term png size 850, 600
 
@@ -23,7 +22,7 @@ datafile = "output/TMD_".N."_".Nsamples.".txt"
 # index 0 is the first data block). One image is saved per entry.
 array blocksets[4]
 blocksets[1] = "0 4 8 12"
-blocksets[2] = "1 5 9 10"
+blocksets[2] = "1 5 9 13"
 blocksets[3] = "2 6 10 14"
 blocksets[4] = "3 7 11 15"
 
@@ -54,7 +53,7 @@ do for [k=1:|blocksets|] {
   do for [j=1:nb] {
     i = int(word(blocks, j))
     a = 1; b = 0.66
-    fit [1:*] a*x**b datafile index i using 1:2 via a, b
+    fit [2:*] a*x**b datafile index i using 1:2 via a, b
     A[j] = a; B[j] = b
     print sprintf("%s:  a = %.4g +/- %.2g,  b = %.4g +/- %.2g", \
                   blocktitle(i), a, a_err, b, b_err)
