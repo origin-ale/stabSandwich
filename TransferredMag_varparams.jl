@@ -44,7 +44,7 @@ output_full = "output/TMD_$(N)_$(Nsamples)_full.txt"
 param_info = Dict(
   "N" => N,
   "Δ" => θ/ϕ,
-  "doping" => "$(round(dope_phase; ndigits = 3)) $dope_method",
+  "doping" => "$(round(dope_phase; digits = 3)) $dope_method",
   "χ" => χ,
   "thl" => thl,
   "Nmax_pauli" => Nmax_pauli,
