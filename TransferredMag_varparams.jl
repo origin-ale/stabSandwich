@@ -20,16 +20,16 @@ BLAS.set_num_threads(1)
 ITensors.Strided.set_num_threads(1)
 
 
-N = 12
+N = 46
 t = N ÷ 2
 ϕ = π/4
 θ = π/4
 μs = [0.3, 0.6, 1., 10.]
-magic_probs = [0., 0.5, 0.95, 1.]
-Nsamples = 50
+magic_probs = [0.000, 0.007, 0.014]
+Nsamples = 10
 
 dope_phase = 3/16
-dope_method = "on XY"
+dope_method = "on Z"
 
 param_pairs = vec([(magic_prob, μ) for magic_prob in magic_probs, μ in μs])
 
@@ -55,7 +55,7 @@ initialize_output(output_log, "$obsname", param_info)
 initialize_output(output_full, "$obsname", param_info)
 
 printstyled("Running XXZ circuit dynamics over $(length(param_pairs)) (magic_prob, μ) pairs \
-until t = $t for N=$N, thl = $thl, Nmax_pauli = $Nmax_pauli.\nNsamples = $Nsamples.\n"; color = :cyan)
+until t = $t for N=$N. χ=$χ, thl = $thl, Nmax_pauli = $Nmax_pauli.\nNsamples = $Nsamples.\n"; color = :cyan)
 prog = Progress(length(param_pairs) * Nsamples; desc = "Sampling…", enabled = true)
 ProgressMeter.update!(prog, 0)
 
@@ -69,7 +69,7 @@ for pair_idx in eachindex(param_pairs)
 
     layer_ends = layerends(N, t, xxz_circuit)
     gates, phases = xxz_circuit(ϕ, θ, t, N)
-    phases = xy_magic(rng, phases, magic_prob; magicphase=dope_phase)
+    phases = z_magic(rng, phases, magic_prob; magicphase=dope_phase)
 
     ψ, onebitinds = domainwallstate(rng, N, μ)
     obs = transferredmagnetization(N, onebitinds)
