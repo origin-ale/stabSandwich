@@ -29,7 +29,7 @@ magic_probs = [0.000, 0.007, 0.014]
 Nsamples = 10
 
 dope_phase = 3/16
-dope_method = "on Z"
+dope_method = "on XY"
 
 param_pairs = vec([(magic_prob, μ) for magic_prob in magic_probs, μ in μs])
 
@@ -38,9 +38,10 @@ thl = 1e-10
 Nmax_pauli = 1000
 warn_on_prestop = true
 
-output = "output/TMD_$(N)_$(Nsamples).txt"
-output_log = "output/TMD_$(N)_$(Nsamples)_log.txt"
-output_full = "output/TMD_$(N)_$(Nsamples)_full.txt"
+prefix = "TMDxy"
+output = "output/$(prefix)_$(N)_$(Nsamples).txt"
+output_log = "output/$(prefix)_$(N)_$(Nsamples)_log.txt"
+output_full = "output/$(prefix)_$(N)_$(Nsamples)_full.txt"
 param_info = Dict(
   "N" => N,
   "Δ" => θ/ϕ,
@@ -69,7 +70,7 @@ for pair_idx in eachindex(param_pairs)
 
     layer_ends = layerends(N, t, xxz_circuit)
     gates, phases = xxz_circuit(ϕ, θ, t, N)
-    phases = z_magic(rng, phases, magic_prob; magicphase=dope_phase)
+    phases = xy_magic(rng, phases, magic_prob; magicphase=dope_phase)
 
     ψ, onebitinds = domainwallstate(rng, N, μ)
     obs = transferredmagnetization(N, onebitinds)
