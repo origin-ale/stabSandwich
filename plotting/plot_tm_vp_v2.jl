@@ -21,7 +21,7 @@ const Nsamples = "50"
 
 # Doping channel: :z dopes ZZ, :xy dopes XX,YY. Controls the file prefix and
 # the second line of the annotation.
-const doping_mode = :z
+const doping_mode = :xy
 const doping_suffix, doping_label =
     doping_mode == :z  ? ("z",  "Doping with π/3 on ZZ")       :
     doping_mode == :xy ? ("xy", "Doping with 3π/16 on XX,YY")  :

@@ -11,13 +11,13 @@ using Random: seed!, MersenneTwister
 using ProgressMeter
 using Statistics
 
-N = 12
+N = 46
 t = N ÷ 2
 ϕ = π/4
 θ = π/4
 μ = 10
 
-magic_prob = .5
+magic_prob = 0.007
 dope_mode = "on XX-YY"
 dope_phase = 3π/16
 
@@ -26,13 +26,25 @@ thl_step = 10
 convergence = 1e-9
 nsamples = 50
 
-Nmax_pauli = 1_000_000
+χ = 64
+Nmax_pauli = 1_000
 warn_on_prestop = true
 
+output_log = "output/convergence_log.txt"
+param_info = Dict(
+  "N" => N,
+  "Δ" => θ/ϕ,
+  "doping" => "$(round(dope_phase; digits = 3)) $dope_mode",
+  "χ" => χ,
+  "Nmax_pauli" => Nmax_pauli,
+  "n.gates" => length(xxz_circuit(1,1, t, N)[1]))
+initialize_output(output_log, "Transferred magnetization", param_info)
+
 printstyled(
-  "Testing convergence of PP for XXZ Trotterization \
-  with doping $(round(dope_phase; digits = 3)) $dope_mode with p = $magic_prob \
-  until t = $t for N = $N.\nNsamples = $nsamples, Nmax_pauli = $Nmax_pauli.\n";
+  "Testing convergence of CAMPS-PP for XXZ Trotterization \
+  with doping $(round(dope_phase; digits = 3)) $dope_mode \
+  with p = $magic_prob until t = $t for N = $N.\n\
+  χ = $χ, Nsamples = $nsamples, Nmax_pauli = $Nmax_pauli.\n";
   color = :cyan)
 
 rng = MersenneTwister(0)
@@ -45,8 +57,8 @@ obs = transferredmagnetization(N, onebitinds)
 gates, phases = xxz_circuit(ϕ, θ, t, N)
 phases = xy_magic(rng, phases, magic_prob; magicphase=dope_phase)
 
-_, evs = pauliprop_circuit_dynamics(
-    onebitinds,  gates, phases, thl, Nmax_pauli, obs;
+evs, _ = campspp_circuit_dynamics(
+    ψ, χ, thl, Nmax_pauli, gates, phases, obs;
     layer_ends = layer_ends,
     showprogress=false)
 
@@ -58,6 +70,10 @@ diff = @. abs(last_evs - evs)
 while maximum(diff) > convergence
   global thl /= thl_step
   global last_evs = copy(evs)
+
+  open(output_log, "a") do f
+    println(f, "========================= thl = $thl =========================\n")
+  end
 
   sample_evs = Vector{Any}(undef, nsamples)
 
@@ -74,8 +90,8 @@ while maximum(diff) > convergence
     local gates, phases = xxz_circuit(ϕ, θ, t, N)
     local phases = xy_magic(rng, phases, magic_prob; magicphase=dope_phase)
 
-    global t_stop, sample_evs[it] = pauliprop_circuit_dynamics(
-      onebitinds,  gates, phases, thl, Nmax_pauli, obs,
+    global sample_evs[it], t_stop = campspp_circuit_dynamics(
+      ψ, χ, thl, Nmax_pauli, gates, phases, obs, output_log,
       layer_ends = layer_ends)
     if warn_on_prestop && (t_stop < length(phases))
       printstyled("\rWARNING: sample $it stopped at gate \
@@ -85,8 +101,10 @@ while maximum(diff) > convergence
   end
   evs_its = stack_samples(sample_evs)
   global evs = [mean(skipmissing(row)) for row in eachrow(evs_its)]
-  last_evs = last_evs[1:length(evs)]
+  global last_evs = last_evs[1:length(evs)]
   global diff = @. abs(last_evs - evs)
+  @show evs
+  @show last_evs
   @printf "PP threshold %.1e -> max variation %.3e\n" thl maximum(diff)
 end
 
