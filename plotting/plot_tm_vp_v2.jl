@@ -16,17 +16,17 @@ using LsqFit
 # ----------------------------------------------------------------------------
 # Configuration (mirrors the variables at the top of the .plt file)
 # ----------------------------------------------------------------------------
-const N        = "46"
-const Nsamples = "50"
+const N_plot        = "12"
+const Nsamples_plot = "50"
 
 # Doping channel: :z dopes ZZ, :xy dopes XX,YY. Controls the file prefix and
 # the second line of the annotation.
-const doping_mode = :xy
+const doping_mode = :z
 const doping_suffix, doping_label =
     doping_mode == :z  ? ("z",  "Doping with π/3 on ZZ")       :
     doping_mode == :xy ? ("xy", "Doping with 3π/16 on XX,YY")  :
     error("unknown doping_mode $doping_mode")
-const prefix   = "TMD" * doping_suffix
+const prefix_plot = "TMD" * doping_suffix
 
 # Each entry is a list of block indices to plot (0-based: index 0 is the first
 # data block). One image is saved per entry.
@@ -37,7 +37,7 @@ const blocksets = [
     # [3, 7, 11],
 ]
 
-const datafile = joinpath("output", "$(prefix)_$(N)_$(Nsamples).txt")
+const datafile = joinpath("output", "$(prefix)_$(N_plot)_$(Nsamples_plot).txt")
 
 # ----------------------------------------------------------------------------
 # Data parsing
@@ -116,7 +116,7 @@ end
 # ----------------------------------------------------------------------------
 # Plotting
 # ----------------------------------------------------------------------------
-const annotation = "N = $N, ϕ = θ = π/4\n$doping_label\n$Nsamples samples"
+const annotation = "N = $N_plot, ϕ = θ = π/4\n$doping_label\n$Nsamples_plot samples"
 
 # Map an axis fraction f to a coordinate on a log-scaled axis [lo, hi].
 logfrac(lo, hi, f) = lo * (hi / lo)^f
@@ -213,7 +213,7 @@ function main()
         ay = logfrac(ymin, ymax, 0.15)
         annotate!(plt, ax, ay, text(annotation, 16, :left))
 
-        outfile = joinpath("output", "$(prefix)_$(N)_$(Nsamples)_graph_$(k).png")
+        outfile = joinpath("output", "$(prefix)_$(N_plot)_$(Nsamples_plot)_graph_$(k).png")
         savefig(plt, outfile)
         println("Plotted ", outfile)
     end
