@@ -1,9 +1,9 @@
-N="12"
-Nsamples="1000"
-magic_prob="1pi8"
+N="14"
+Nsamples="10"
+magic_prob="xy"
 
 set term png size 850, 600
-set output "output/TMD_".N."_".magic_prob."_".Nsamples."_graph.png"
+set output "output/mps_TMDxy_".N."_".Nsamples."_graph.png"
 
 set key bottom
 
@@ -19,7 +19,7 @@ set xlabel "Time" font ",16"
 set ylabel "Transferred magnetization" font ",16"
 set key font ",16"
 
-datafile = "output/TMD_".N."_".magic_prob."_".Nsamples.".txt"
+datafile = "output/mps_TMDxy_".N."_".Nsamples.".txt"
 
 # Power-law fits a*x**b for each dataset, without printing the fit log
 set fit quiet
@@ -44,4 +44,4 @@ do for [i = 0:3] {
 plot for [i = 0:3] datafile index i with yerrorlines title "µ = ".mus[i+1] ,\
 x**0.66 title "t^{2/3}" lc rgb "dark-gray",\
 2*x title "2t (upper bound)" lc rgb "red"
-print "Plotted output/TMD_".N."_".magic_prob."_".Nsamples.".txt"
+print "Plotted ".datafile

@@ -3,6 +3,7 @@ using Revise
 using DisentangleCAMPS
 import PauliPropagation as pp
 import CliffordMPS as cmps
+using ITensors, ITensorMPS
 
 using ProgressMeter
 
@@ -32,6 +33,18 @@ end
 
 function append_expectation!(
 out_array::Vector, ::Nothing, ψ::cmps.CAMPS, obs, i::Integer)
+  ev = cmps.expectation(ψ, obs)
+  push!(out_array, real(ev))
+end
+
+function append_expectation!(
+out_array::Vector, out_file::AbstractString, ψ::ITensorMPS.MPS, obs::cmps.PauliSum, i::Integer)
+  ev = cmps.expectation(ψ, obs)
+  append_expectation!(out_array, out_file, ev, i)
+end
+
+function append_expectation!(
+out_array::Vector, ::Nothing, ψ::ITensorMPS.MPS, obs::cmps.PauliSum, i::Integer)
   ev = cmps.expectation(ψ, obs)
   push!(out_array, real(ev))
 end
@@ -312,4 +325,55 @@ layer_ends = nothing)
     end
   end
   return i, evs_pp
+end
+
+function mps_circuit_dynamics(
+  ψ_ext::MPS,
+  gates::Vector,
+  phases::Vector,
+  thl,
+  obs::pp.PauliSum,
+  output;
+  showprogress = false,
+  layer_ends = nothing
+)
+  ψ = copy(ψ_ext)                              
+  N = length(ψ)
+  M = length(gates)
+  i = 0
+  layer = 0
+  evs = []
+  progress = ProgressUnknown(desc = "Evolving MPS… gate ", enabled = showprogress)
+  obs_cmps = cmps.PauliSum(obs)
+
+  append_expectation!(evs, output, ψ, obs_cmps, 0)
+  layer += 1
+
+  while i < M
+    i += 1
+    gate_pauli = PauliOperator(getpauli(gates[i], N))
+    I = PauliOperator(0x0, fill(false,N), fill(false,N))
+    phase = phases[i]
+    gate = cmps.PauliSum([cos(phase), im * sin(phase)], Stabilizer([I,gate_pauli]))
+
+    ψ = ITensorMPS.apply(ψ, gate; cutoff = thl)
+    normalize!(ψ)
+
+    if isnothing(layer_ends) || i == layer_ends[layer] # Works because || short circuits
+      append_expectation!(evs, output, ψ, obs_cmps, layer)
+      layer += 1
+    end
+
+    next!(progress)
+  end
+
+  finish!(progress)
+  if !isnothing(output)
+    open(output, "a") do f
+      reason = "end of circuit"
+      println(f, "# MPS stopped at gate $i ", reason, "\n\n")
+    end
+  end
+
+  return ψ, evs
 end
