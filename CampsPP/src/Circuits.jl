@@ -138,7 +138,7 @@ XX-YY-ZZ XX-YY-ZZ …"""
 function xxz_circuit(ϕ, θ, t, N)
   rots = pp.PauliRotation[]
   phases = Real[]
-  qinds = staircase_qinds(N)
+  qinds = bricklayer_qinds(N)
   for c in 1:t
     for i in qinds
     rots_i, phases_i = xxz(ϕ, θ, i)
