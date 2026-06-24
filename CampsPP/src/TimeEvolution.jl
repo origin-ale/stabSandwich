@@ -76,6 +76,7 @@ end
 
 showvalues_χ(χ, bd, N, k) = () -> [("Bond dimension (max $χ)", bd), ("Magic qubits (max $N)", k)]
 showvalues_P(Pmax, P) = () -> [("Pauli terms (max $Pmax)", P)]
+showvalues_ee(ee) = () -> [("Entanglement entropies", round.(ee; digits=2))]
 
 # == Utility ============================================================================
 
@@ -363,8 +364,8 @@ function mps_circuit_dynamics(
       append_expectation!(evs, output, ψ, obs_cmps, layer)
       layer += 1
     end
-
-    next!(progress)
+    ee = cmps.eEntropys!(ψ)
+    next!(progress; showvalues = showvalues_ee(ee))
   end
 
   finish!(progress)
