@@ -10,18 +10,19 @@
 # Run from the project root with:  julia --project=. plotting/plot_tm_vp_v2.jl
 
 using Plots
+using LaTeXStrings
 using Printf
 using LsqFit
 
 # ----------------------------------------------------------------------------
 # Configuration (mirrors the variables at the top of the .plt file)
 # ----------------------------------------------------------------------------
-const N_plot        = "12"
+const N_plot        = "46"
 const Nsamples_plot = "50"
 
 # Doping channel: :z dopes ZZ, :xy dopes XX,YY. Controls the file prefix and
 # the second line of the annotation.
-const doping_mode = :z
+const doping_mode = :xy
 const doping_suffix, doping_label =
     doping_mode == :z  ? ("z",  "Doping with π/3 on ZZ")       :
     doping_mode == :xy ? ("xy", "Doping with 3π/16 on XX,YY")  :
@@ -37,7 +38,13 @@ const blocksets = [
     # [3, 7, 11],
 ]
 
-const datafile = joinpath("output", "$(prefix)_$(N_plot)_$(Nsamples_plot).txt")
+# Block indices to omit from the local-exponent plots only (the main graphs
+# still show every block). Set here to the lowest mu of each p (the first,
+# i.e. lowest-mu, entry of each blockset), whose noisy exponent clutters the
+# plot. Set to an empty `Set{Int}()` to show every dataset.
+const localexp_exclude = Set(first.(blocksets))
+
+const datafile = joinpath("output", "$(prefix_plot)_$(N_plot)_$(Nsamples_plot).txt")
 
 # ----------------------------------------------------------------------------
 # Data parsing
@@ -111,6 +118,19 @@ function fit_lastw(blk, w; a0 = 1.0, b0 = 0.66)
     return (a = a, b = b, a_err = a_err, b_err = b_err,
             redchi2 = redchi2, weighted = weighted,
             tlo = minimum(t), thi = maximum(t))
+end
+
+# ----------------------------------------------------------------------------
+# Local power-law exponent  b(t) = d log y / d log t
+# ----------------------------------------------------------------------------
+# Computed as a finite difference between consecutive (positive) points and
+# reported at the geometric-mean time. Returns (tmid, b) vectors.
+function local_exponents(blk)
+    m = (blk.t .> 0) .& (blk.y .> 0)
+    t = blk.t[m]; y = blk.y[m]
+    tmid = sqrt.(t[1:end-1] .* t[2:end])
+    b = diff(log.(y)) ./ diff(log.(t))
+    return tmid, b
 end
 
 # ----------------------------------------------------------------------------
@@ -205,17 +225,45 @@ function main()
 
         # Reference lines.
         xref = range(xmin, xmax; length = 200)
-        plot!(plt, xref, 2 .* xref;     color = :gray,      label = "2t")
-        plot!(plt, xref, xref .^ 0.66;  color = :lightgray, label = "t^(2/3)")
+        plot!(plt, xref, 2 .* xref;     color = :gray,      label = L"2t")
+        plot!(plt, xref, xref .^ 0.5;  color = :lightgray, label = L"t^{1/2}")
 
         # Annotation at graph fractions (0.05, 0.15).
         ax = logfrac(xmin, xmax, 0.05)
         ay = logfrac(ymin, ymax, 0.15)
         annotate!(plt, ax, ay, text(annotation, 16, :left))
 
-        outfile = joinpath("output", "$(prefix)_$(N_plot)_$(Nsamples_plot)_graph_$(k).png")
+        outfile = joinpath("output", "$(prefix_plot)_$(N_plot)_$(Nsamples_plot)_graph_$(k).png")
         savefig(plt, outfile)
         println("Plotted ", outfile)
+
+        # Companion figure: local power-law exponent b(t) for each data set.
+        eplt = plot(; size = (850, 600),
+                    title = "XXZ Floquet local exponent", titlefontsize = 24,
+                    xscale = :log10,
+                    xlabel = "Time", ylabel = "d log M / d log t",
+                    guidefontsize = 16, legendfontsize = 16,
+                    legend = :bottomright, grid = false,
+                    xticks = multiple_ticks(xmin, xmax, 5))
+
+        for (j, i) in enumerate(blocks_idx)
+            i in localexp_exclude && continue
+            tmid, b = local_exponents(blocks[i + 1])
+            plot!(eplt, tmid, b; color = j, marker = :circle, markersize = 3,
+                  label = blocktitle(titles, i))
+        end
+
+        # Reference exponents matching the 2t and t^(1/2) guide lines.
+        hline!(eplt, [1.0]; color = :gray,      linestyle = :dash, label = L"b = 1")
+        hline!(eplt, [0.5]; color = :lightgray, linestyle = :dash, label = L"b = 1/2")
+
+        # Bottom-left, inside the axes (legend occupies the bottom right).
+        annotate!(eplt, xlims(eplt)[1]+.1, ylims(eplt)[1],
+                  text(annotation, 16, :left, :bottom))
+
+        eoutfile = joinpath("output", "$(prefix_plot)_$(N_plot)_$(Nsamples_plot)_localexp_$(k).png")
+        savefig(eplt, eoutfile)
+        println("Plotted ", eoutfile)
     end
 end
 
