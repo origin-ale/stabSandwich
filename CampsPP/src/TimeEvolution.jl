@@ -101,7 +101,7 @@ output;
 showprogress = false,
 k = 0,
 layer_ends = nothing)
-  ψ = copy(ψ_ext)
+  ψ = deepcopy(ψ_ext)
 
   ψ_evo, _, s, evs_camps = camps_circuit_dynamics(
     ψ, gates, phases, χ, obs, output; 
@@ -159,7 +159,7 @@ showprogress = false,
 k = 0,
 layer_ends = nothing)
 
-  ψ = copy(ψ_ext)                              
+  ψ = deepcopy(ψ_ext)                              
   N = length(ψ)
   M = length(gates)
   i = 0
@@ -225,7 +225,7 @@ output;
 showprogress = false,
 layer_ends = nothing)
 
-  ψ = copy(ψ_ext)
+  ψ = deepcopy(ψ_ext)
   M = length(gates)
   i = start_gate
   NP = 1
@@ -338,7 +338,7 @@ function mps_circuit_dynamics(
   showprogress = false,
   layer_ends = nothing
 )
-  ψ = copy(ψ_ext)                              
+  ψ = deepcopy(ψ_ext)                              
   N = length(ψ)
   M = length(gates)
   i = 0

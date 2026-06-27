@@ -12,6 +12,7 @@ using ProgressMeter
 using SHA
 using Strided
 using LinearAlgebra
+using Threads
 
 Strided.disable_threads()
 nthr=Threads.nthreads()
@@ -56,7 +57,8 @@ initialize_output(output_log, "$obsname", param_info)
 initialize_output(output_full, "$obsname", param_info)
 
 printstyled("Running CAMPS-PP XXZ circuit dynamics over $(length(param_pairs)) (magic_prob, μ) pairs \
-until t = $t for N=$N. χ=$χ, thl = $thl, Nmax_pauli = $Nmax_pauli.\nNsamples = $Nsamples.\n"; color = :cyan)
+until t = $t for N=$N. χ=$χ, thl = $thl, Nmax_pauli = $Nmax_pauli.\nNsamples = $Nsamples.\n\
+Using $nthr threads."; color = :cyan)
 prog = Progress(length(param_pairs) * Nsamples; desc = "Sampling…", enabled = true)
 ProgressMeter.update!(prog, 0)
 
@@ -65,7 +67,7 @@ for pair_idx in eachindex(param_pairs)
   magic_prob, μ = param_pairs[pair_idx]
   sample_evs = Vector{Any}(undef, Nsamples)
 
-  for it in 1:Nsamples
+  Threads.@threads for it in 1:Nsamples
     rng = MersenneTwister(100_000 * pair_idx + it)
 
     layer_ends = layerends(N, t, xxz_circuit)
@@ -76,7 +78,7 @@ for pair_idx in eachindex(param_pairs)
     obs = transferredmagnetization(N, onebitinds)
 
     evs_it, t_stop = campspp_circuit_dynamics(
-      ψ, χ, thl, Nmax_pauli, gates, phases, obs, output_log;
+      ψ, χ, thl, Nmax_pauli, gates, phases, obs;
       layer_ends = layer_ends)
     if warn_on_prestop && (t_stop < length(phases))
       printstyled("\rWARNING: sample $it for (magic_prob=$magic_prob, μ=$μ) stopped at gate $t_stop/$(length(phases))    \n"; color = :yellow)
