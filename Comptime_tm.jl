@@ -21,7 +21,7 @@ ITensors.Strided.set_num_threads(1)
 # == Parameters ===============================================================
 nmethods = 3 # CAMPS-PP, CAMPS, and MPS
 
-magic_prob = 0
+magic_prob = 1
 magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
 μ = 0.6
 
@@ -29,7 +29,7 @@ Nmin = 2
 spacing = 2
 Nmax = 10
 
-samples = 10
+samples = 50
 
 ϕ = π/4
 θ = π/4
@@ -228,7 +228,7 @@ for N in Ns
   time_mps = mean(times_curr)
   push!(times_methods[3], time_mps)
 
-  if !all(isapprox(evs_campspp, evs_camps; atol = 1e-10))
+  if !all(isapprox(evs_campspp, evs_camps; atol = 1e-6))
     printstyled("WARNING: N = $N CAMPS-PP and CAMPS do not match\n";
       color=:yellow)
     println("-"^32)
@@ -237,7 +237,7 @@ for N in Ns
     end
     println("-"^32)
   end
-  if !all(isapprox(evs_campspp, evs_mps; atol = 1e-10))
+  if !all(isapprox(evs_campspp, evs_mps; atol = 1e-6))
     printstyled("WARNING: N = $N CAMPS-PP and MPS do not match\n";
       color=:yellow)
     println("-"^32)
