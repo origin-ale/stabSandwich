@@ -15,8 +15,8 @@ using Strided
 using LinearAlgebra
 Strided.disable_threads()
 nthr = Threads.nthreads()
-BLAS.set_num_threads(1)
-ITensors.Strided.set_num_threads(1)
+BLAS.set_num_threads(nthr)
+ITensors.Strided.set_num_threads(nthr)
 
 # == Parameters ===============================================================
 nmethods = 3 # CAMPS-PP, CAMPS, and MPS
