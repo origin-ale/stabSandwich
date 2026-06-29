@@ -12,7 +12,6 @@ using ProgressMeter
 using SHA
 using Strided
 using LinearAlgebra
-using Threads
 
 Strided.disable_threads()
 nthr=Threads.nthreads()
