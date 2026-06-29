@@ -198,6 +198,75 @@ layer_ends = nothing)
   return ψ, k, i, evs_camps
 end
 
+function campssrc_circuit_dynamics(
+ψ_ext::cmps.CAMPS,
+gates::Vector,
+phases::Vector,
+thl::Real,
+obs::pp.PauliSum;
+criterion = :entangle,
+strategy = :brickwork,
+showprogress = false,
+layer_ends = nothing)
+  return campssrc_circuit_dynamics(
+    ψ_ext, gates, phases, thl, obs, nothing;
+    criterion = criterion, strategy = strategy,
+    showprogress = showprogress, layer_ends = layer_ends)
+end
+
+function campssrc_circuit_dynamics(
+ψ_ext::cmps.CAMPS,
+gates::Vector,
+phases::Vector,
+thl::Real,
+obs::pp.PauliSum,
+output;
+criterion = :entangle,
+strategy = :brickwork,
+showprogress = false,
+layer_ends = nothing)
+
+  ψ = deepcopy(ψ_ext)
+  N = length(ψ)
+  M = length(gates)
+  i = 0
+  layer = 0
+  evs_camps = []
+  progress = ProgressUnknown(desc = "Evolving CAMPS (SVD)… gate ", enabled = showprogress)
+  obs_cmps = cmps.PauliSum(obs)
+  crit = cmps.DisentangleCriterion(criterion)
+  strat = cmps.DisentangleStrategy(strategy)
+
+  append_expectation!(evs_camps, output, ψ, obs_cmps, 0)
+  layer += 1
+
+  while i < M
+    i += 1
+    gate = PauliOperator(getpauli(gates[i], N))
+    phase = phases[i]
+
+    apply!(ψ, gate, phase, thl)
+    
+    if isnothing(layer_ends) || i == layer_ends[layer] # Works because || short circuits
+      append_expectation!(evs_camps, output, ψ, obs_cmps, layer)
+      cmps.disentangle!(ψ, strat, N; criterion = crit, min_diff = 1e-6)
+      layer += 1
+    end
+
+    bd = DisentangleCAMPS.bonddim(ψ)
+    next!(progress; showvalues = () -> [("Bond dimension", bd)])
+  end
+
+  finish!(progress)
+  if !isnothing(output)
+    open(output, "a") do f
+      println(f, "# CAMPS (SVD) stopped at gate $i (end of circuit)\n\n")
+    end
+  end
+
+  return ψ, i, evs_camps
+end
+
 function pauliprop_circuit_dynamics(
 ψ_ext::cmps.CAMPS,
 start_gate::Integer,

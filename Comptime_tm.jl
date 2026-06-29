@@ -19,7 +19,7 @@ BLAS.set_num_threads(1)
 ITensors.Strided.set_num_threads(1)
 
 # == Parameters ===============================================================
-nmethods = 2 # CAMPS-PP and MPS
+nmethods = 3 # CAMPS-PP, CAMPS, and MPS
 
 magic_prob = 0
 magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
@@ -42,7 +42,7 @@ campspp_Pmax = 1000 # Maximum number of Paulis for s-PP
 # CAMPS
 camps_thl = 1e-7 # CAMPS SVD truncation threshold
 camps_crit = :chi3 # CAMPS entanglement criterion (:chi3 or :entangle)
-camps_strat = :full # CAMPS disentangler strategy (:full, :brickwork, :snake)
+camps_strat = :snake # CAMPS disentangler strategy (:full, :brickwork, :snake)
 
 # MPS
 mps_thl = 1e-7 # MPS SVD truncation threshold
@@ -159,6 +159,42 @@ for N in Ns
   time_campspp = mean(times_curr)
   push!(times_methods[1], time_campspp)
 
+  # == CAMPS ==================================================================
+  prog = Progress(samples; desc = "N=$N CAMPS")
+
+  ψ_wu, tm_wu, gates, phases = init_camps(N, 0)
+  times_curr = Real[]
+  evs_camps = Vector{Real}[]
+  _ = @timed campssrc_circuit_dynamics(
+    ψ_wu,
+    gates,
+    phases,
+    camps_thl,
+    tm_wu,
+    campssrc_log;
+    criterion = camps_crit,
+    strategy = camps_strat,
+    layer_ends = layer_ends)
+
+  for i in 1:samples
+    ψ, tm, gates, phases = init_camps(N, i)
+    (_, _, evs), time, _ = @timed campssrc_circuit_dynamics(
+      ψ,
+      gates,
+      phases,
+      camps_thl,
+      tm,
+      campssrc_log;
+      criterion = camps_crit,
+      strategy = camps_strat,
+      layer_ends = layer_ends)
+    push!(evs_camps, evs)
+    push!(times_curr, time)
+    next!(prog)
+  end
+  time_camps = mean(times_curr)
+  push!(times_methods[2], time_camps)
+
   # == MPS ==================================================================
   prog = Progress(samples; desc = "N=$N MPS")
 
@@ -190,17 +226,27 @@ for N in Ns
     next!(prog)
   end
   time_mps = mean(times_curr)
-  push!(times_methods[2], time_mps)
+  push!(times_methods[3], time_mps)
 
-  if !all(isapprox(evs_campspp, evs_mps; atol = 1e-10))
-    printstyled("WARNING: N = $N CAMPS-PP and MPS do not match\n"; 
+  if !all(isapprox(evs_campspp, evs_camps; atol = 1e-10))
+    printstyled("WARNING: N = $N CAMPS-PP and CAMPS do not match\n";
       color=:yellow)
     println("-"^32)
     for idx in eachindex(evs_campspp)
-      println("$(evs_campspp[idx])\t $(evs_mps[idx])")
+      println("$(evs_campspp[idx])\n$(evs_camps[idx])\n")
     end
     println("-"^32)
   end
+  if !all(isapprox(evs_campspp, evs_mps; atol = 1e-10))
+    printstyled("WARNING: N = $N CAMPS-PP and MPS do not match\n";
+      color=:yellow)
+    println("-"^32)
+    for idx in eachindex(evs_campspp)
+      println("$(evs_campspp[idx])\n $(evs_mps[idx])\n")
+    end
+    println("-"^32)
+  end
+
   initialize_output(output, "[ignore this row]", param_info)
   save_columns(output, Ns, times_methods...)
 end

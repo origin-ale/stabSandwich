@@ -110,6 +110,40 @@ function CliffordMPS.apply!(ψ::CAMPS,
   return k
 end
 
+"```apply!(ψ, k, P, ϕ, thl)```
+
+Apply the Pauli rotation `exp(iϕP)` to the CAMPS ψ, keeping the exact Clifford
+handling but folding every non-Clifford gate directly into the MPS part with SVD
+truncation at threshold `thl` (no disentangling, no new magic qubits).
+Modify ψ in-place and return k unchanged."
+function CliffordMPS.apply!(ψ::CAMPS,
+                            P::PauliOperator,
+                            ϕ::Real,
+                            thl::Real)
+  N = length(ψ)
+  I = PauliOperator(0x0, fill(false, N), fill(false, N))
+
+  aϕ = abs(ϕ)
+  if (isapprox(aϕ, 0; atol = 1e-6) || aϕ ≈ π)
+    return
+  elseif aϕ ≈ π/4
+    apply_pi4_cliff!(ψ, P)
+    return
+  elseif aϕ ≈ 3π/4
+    apply_3pi4_cliff!(ψ, P)
+    return
+  elseif aϕ ≈ π/2
+    ψ.Cdag = inv(CliffordOperator(P)) * ψ.Cdag
+    return
+  end
+
+  # Only genuinely non-Clifford gates are folded straight into the MPS (like the
+  # :logical branch of the 4-arg apply!), with SVD truncation at threshold thl.
+  # Clifford angles returned above, handled exactly via the Clifford frame.
+  R = PauliSum([cos(ϕ), im * sin(ϕ)], Stabilizer([I, P]))
+  applyGate!(ψ, R; cutoff = thl)
+end
+
 function apply_pi4_cliff!(ψ::CAMPS, P)
   N = length(ψ)
   op = one(CliffordOperator, N)
