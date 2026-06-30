@@ -25,11 +25,11 @@ magic_prob = 1
 magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
 μ = 0.6
 
-Nmin = 14
+Nmin = 2
 spacing = 2
-Nmax = 14
+Nmax = 16
 
-samples = 10
+samples = 50
 
 ϕ = π/4
 θ = π/4
