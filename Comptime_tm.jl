@@ -25,19 +25,19 @@ magic_prob = 1
 magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
 μ = 0.6
 
-Nmin = 2
+Nmin = 14
 spacing = 2
-Nmax = 10
+Nmax = 14
 
-samples = 50
+samples = 10
 
 ϕ = π/4
 θ = π/4
 
 # CAMPS-PP (sandwich, ie. s-)
-campspp_χ = 64 # s-CAMPS bond dimension that triggers s-PP
-campspp_thl = 1e-10 # Threshold for truncation during s-PP
-campspp_Pmax = 1000 # Maximum number of Paulis for s-PP
+campspp_χ = 128 # s-CAMPS bond dimension that triggers s-PP
+campspp_thl = 1e-5 # Threshold for truncation during s-PP
+campspp_Pmax = 10_000_000 # Maximum number of Paulis for s-PP
 
 # CAMPS
 camps_thl = 1e-7 # CAMPS SVD truncation threshold
@@ -152,6 +152,9 @@ for N in Ns
       tm,
       campspp_log,
       layer_ends = layer_ends)
+    if length(evs) < N/2+1
+      printstyled("WARNING: CAMPS-PP sample $i for N=$N stopped early!")
+    end
     push!(evs_campspp, evs)
     push!(times_curr, time)
     next!(prog)
