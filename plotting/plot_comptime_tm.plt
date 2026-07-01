@@ -9,11 +9,11 @@ set format y "%1g"
 set xlabel "N"
 set ylabel "Time (s)"
 
-set xrange [1.9:20]
+set xrange [1.9:14.7]
 
 set key bottom
 
-input = 'output/comptime_tm_cliff.txt'
+input = 'output/comptime_tm_magic.txt'
 
 plot input using 1:2 with linespoints title "CAMPS-PP",\
 input using 1:3 with linespoints title "CAMPS",\
