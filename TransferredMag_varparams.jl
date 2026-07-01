@@ -20,25 +20,25 @@ BLAS.set_num_threads(1)
 ITensors.Strided.set_num_threads(1)
 
 
-N = 12
-t = N ÷ 2
+N = 46
+t = N ÷ 4
 ϕ = π/4
 θ = π/4
 μs = [0.3, 0.6, 1., 10.]
-magic_probs = [0., 0.5, 1]
-Nsamples = 50
+magic_probs = [0., 0.014, 0.028]
+Nsamples = 100
 
-dope_phase = π/3
-dope_method = "on ZZ"
+dope_phase = 3π/16
+dope_method = "on XY"
 
 param_pairs = vec([(magic_prob, μ) for magic_prob in magic_probs, μ in μs])
 
 χ = 128
-thl = 1e-10
-Nmax_pauli = 1000
+thl = 1e-5
+Nmax_pauli = 1_000_000
 warn_on_prestop = true
 
-prefix = "TMDz"
+prefix = "TMDxy_dbl"
 output = "output/$(prefix)_$(N)_$(Nsamples).txt"
 output_log = "output/$(prefix)_$(N)_$(Nsamples)_log.txt"
 output_full = "output/$(prefix)_$(N)_$(Nsamples)_full.txt"
@@ -71,7 +71,7 @@ for pair_idx in eachindex(param_pairs)
 
     layer_ends = layerends(N, t, xxz_circuit)
     gates, phases = xxz_circuit(ϕ, θ, t, N)
-    phases = z_magic(rng, phases, magic_prob; magicphase=dope_phase)
+    phases = xy_magic(rng, phases, magic_prob; magicphase=dope_phase)
 
     ψ, onebitinds = domainwallstate(rng, N, μ)
     obs = transferredmagnetization(N, onebitinds)
