@@ -19,7 +19,7 @@ BLAS.set_num_threads(nthr)
 ITensors.Strided.set_num_threads(nthr)
 
 # == Parameters ===============================================================
-nmethods = 3 # CAMPS-PP, CAMPS, and MPS
+nmethods = 4 # CAMPS-PP, CAMPS, MPS, and PP
 
 magic_prob = 1
 magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
@@ -27,7 +27,7 @@ magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
 
 Nmin = 2
 spacing = 2
-Nmax = 16
+Nmax = 14
 
 samples = 50
 
@@ -46,6 +46,10 @@ camps_strat = :snake # CAMPS disentangler strategy (:full, :brickwork, :snake)
 
 # MPS
 mps_thl = 1e-7 # MPS SVD truncation threshold
+
+# Pauli propagation
+pp_thl = 1e-5 # Threshold for truncation during PP
+pp_Pmax = 10_000_000 # Maximum number of Paulis for PP
 
 # output
 output = "output/comptime_tm.txt"
@@ -71,7 +75,9 @@ param_info = Dict(
   "camps_thl" => camps_thl,
   "camps_crit" => camps_crit,
   "camps_strat" => camps_strat,
-  "mps_thl" => mps_thl)
+  "mps_thl" => mps_thl,
+  "pp_thl" => pp_thl,
+  "pp_Pmax" => pp_Pmax)
 
 if magic_mode == :xy
   magic_phase = 3π/16
@@ -90,6 +96,7 @@ suffix = "_log.txt"
 campspp_log = prefix * "campspp" * suffix
 campssrc_log = prefix * "campssrc" * suffix
 mps_log = prefix * "mps" * suffix
+pp_log = prefix * "pp" * suffix
 
 times_methods = [Real[] for i in 1:nmethods]
 
@@ -121,6 +128,16 @@ function init_mps(N, seed)
 end
 
 # == Main loop ================================================================
+function init_pp(N, seed)
+  rng = MersenneTwister(seed)
+  _, onebitinds = domainwallstate(rng, N, μ)
+  tm = transferredmagnetization(N, onebitinds)
+
+  gates, phases = xxz_circuit(ϕ, θ, N/2, N)
+  phases = magic_doping(phases, magic_prob; magicphase = magic_phase)
+  return onebitinds, tm, gates, phases
+end
+
 for N in Ns
   layer_ends = layerends(N, N/2, xxz_circuit)
   # == CAMPS-PP ===============================================================
@@ -231,6 +248,43 @@ for N in Ns
   time_mps = mean(times_curr)
   push!(times_methods[3], time_mps)
 
+  # == PP ====================================================================
+  prog = Progress(samples; desc = "N=$N PP")
+
+  onebitinds_wu, tm_wu, gates, phases = init_pp(N, 0)
+  times_curr = Real[]
+  evs_pp = Vector{Real}[]
+  _ = @timed pauliprop_circuit_dynamics(
+    onebitinds_wu,
+    gates,
+    phases,
+    pp_thl,
+    pp_Pmax,
+    tm_wu,
+    pp_log;
+    layer_ends = layer_ends)
+
+  for i in 1:samples
+    onebitinds, tm, gates, phases = init_pp(N, i)
+    (_, evs), time, _ = @timed pauliprop_circuit_dynamics(
+      onebitinds,
+      gates,
+      phases,
+      pp_thl,
+      pp_Pmax,
+      tm,
+      pp_log;
+      layer_ends = layer_ends)
+    if length(evs) < N/2+1
+      printstyled("WARNING: PP sample $i for N=$N stopped early!")
+    end
+    push!(evs_pp, evs)
+    push!(times_curr, time)
+    next!(prog)
+  end
+  time_pp = mean(times_curr)
+  push!(times_methods[4], time_pp)
+
   if !all(isapprox(evs_campspp, evs_camps; atol = 1e-6))
     printstyled("WARNING: N = $N CAMPS-PP and CAMPS do not match\n";
       color=:yellow)
@@ -246,6 +300,15 @@ for N in Ns
     println("-"^32)
     for idx in eachindex(evs_campspp)
       println("$(evs_campspp[idx])\n $(evs_mps[idx])\n")
+    end
+    println("-"^32)
+  end
+  if !all(isapprox(evs_campspp, evs_pp; atol = 1e-6))
+    printstyled("WARNING: N = $N CAMPS-PP and PP do not match\n";
+      color=:yellow)
+    println("-"^32)
+    for idx in eachindex(evs_campspp)
+      println("$(evs_campspp[idx])\n $(evs_pp[idx])\n")
     end
     println("-"^32)
   end
