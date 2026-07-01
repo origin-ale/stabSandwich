@@ -41,7 +41,7 @@ campspp_Pmax = 10_000_000 # Maximum number of Paulis for s-PP
 
 # CAMPS
 camps_thl = 1e-7 # CAMPS SVD truncation threshold
-camps_crit = :chi3 # CAMPS entanglement criterion (:chi3 or :entangle)
+camps_crit = :entangle # CAMPS entanglement criterion (:chi3 or :entangle)
 camps_strat = :snake # CAMPS disentangler strategy (:full, :brickwork, :snake)
 
 # MPS
