@@ -18,7 +18,7 @@ using LsqFit
 # Configuration (mirrors the variables at the top of the .plt file)
 # ----------------------------------------------------------------------------
 const N_plot        = "46"
-const Nsamples_plot = "50"
+const Nsamples_plot = "100"
 
 # Doping channel: :z dopes ZZ, :xy dopes XX,YY. Controls the file prefix and
 # the second line of the annotation.
@@ -27,7 +27,7 @@ const doping_suffix, doping_label =
     doping_mode == :z  ? ("z",  "Doping with π/3 on ZZ")       :
     doping_mode == :xy ? ("xy", "Doping with 3π/16 on XX,YY")  :
     error("unknown doping_mode $doping_mode")
-const prefix_plot = "TMD" * doping_suffix
+const prefix_plot = "TMD" * doping_suffix * "_dbl"
 
 # Each entry is a list of block indices to plot (0-based: index 0 is the first
 # data block). One image is saved per entry.
