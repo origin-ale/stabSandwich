@@ -27,22 +27,22 @@ N = 46 # Fixed system size
 magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
 μ = 0.6
 
-magic_prob_min = 0.028
-magic_prob_spacing = 0.007
-magic_prob_max = 0.028
+magic_prob_min = 0.000
+magic_prob_spacing = 0.005
+magic_prob_max = 0.050
 
-samples = 1
+samples = 25
 
 ϕ = π/4
 θ = π/4
 
 # CAMPS-PP (sandwich, ie. s-)
 campspp_χ = 128 # s-CAMPS bond dimension that triggers s-PP
-campspp_thl = 1e-7 # Threshold for truncation during s-PP
+campspp_thl = 1e-12 # Threshold for truncation during s-PP
 campspp_Pmax = 10_000_000 # Maximum number of Paulis for s-PP
 
 # CAMPS
-camps_thl = 1e-7 # CAMPS SVD truncation threshold
+camps_thl = 1e-12 # CAMPS SVD truncation threshold
 camps_crit = :chi3 # CAMPS entanglement criterion (:chi3 or :entangle)
 camps_strat = :snake # CAMPS disentangler strategy (:full, :brickwork, :snake)
 
@@ -50,7 +50,7 @@ camps_strat = :snake # CAMPS disentangler strategy (:full, :brickwork, :snake)
 mps_thl = 1e-7 # MPS SVD truncation threshold
 
 # Pauli propagation
-pp_thl = 1e-5 # Threshold for truncation during PP
+pp_thl = 1e-10 # Threshold for truncation during PP
 pp_Pmax = 10_000_000 # Maximum number of Paulis for PP
 
 # output
@@ -107,6 +107,7 @@ mps_log = prefix * "mps" * suffix
 pp_log = prefix * "pp" * suffix
 
 times_methods = Dict(m => Real[] for m in methods)
+stds_methods = Dict(m => Real[] for m in methods)
 
 function init_camps(N, seed, magic_prob)
   rng = MersenneTwister(seed)
@@ -193,7 +194,9 @@ for magic_prob in magic_probs
       next!(prog)
     end
     time_campspp = mean(times_curr)
+    std_campspp = std(times_curr)
     push!(times_methods[:campspp], time_campspp)
+    push!(stds_methods[:campspp], std_campspp)
   end
 
   # == CAMPS ==================================================================
@@ -231,7 +234,9 @@ for magic_prob in magic_probs
       next!(prog)
     end
     time_camps = mean(times_curr)
+    std_camps = std(times_curr)
     push!(times_methods[:camps], time_camps)
+    push!(stds_methods[:camps], std_camps)
   end
 
   # == MPS ==================================================================
@@ -265,7 +270,9 @@ for magic_prob in magic_probs
       next!(prog)
     end
     time_mps = mean(times_curr)
+    std_mps = std(times_curr)
     push!(times_methods[:mps], time_mps)
+    push!(stds_methods[:mps], std_mps)
   end
 
   # == PP ====================================================================
@@ -304,7 +311,9 @@ for magic_prob in magic_probs
       next!(prog)
     end
     time_pp = mean(times_curr)
+    std_pp = std(times_curr)
     push!(times_methods[:pp], time_pp)
+    push!(stds_methods[:pp], std_pp)
   end
 
   # == Cross-checks (only between methods that were actually run) =============
@@ -340,5 +349,6 @@ for magic_prob in magic_probs
   end
 
   initialize_output(output, "[ignore this row]", param_info)
-  save_columns(output, magic_probs, (times_methods[m] for m in methods)...)
+  save_columns(output, magic_probs,
+    (col for m in methods for col in (times_methods[m], stds_methods[m]))...)
 end

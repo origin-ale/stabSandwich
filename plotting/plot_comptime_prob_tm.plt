@@ -15,7 +15,7 @@ set key bottom right
 
 input = 'output/comptime_prob_tm.txt'
 
-plot input using 1:2 with linespoints title "CAMPS-PP",\
-input using 1:3 with linespoints title "CAMPS",\
-input using 1:4 with linespoints title "PP"
-# input using 1:4 with linespoints title "MPS (thl 10^{-9})",\
+plot input using 1:2:3 with yerrorlines title "CAMPS-PP",\
+input using 1:4:5 with yerrorlines title "CAMPS",\
+input using 1:6:7 with yerrorlines title "PP"
+# input using 1:6:7 with yerrorlines title "MPS (thl 10^{-9})",\
