@@ -29,9 +29,9 @@ function circuit_sandwich(rotations, phases, P, c)
   return cmps.expectation(ψ_evo, sandwichstrings)
 end
 
-N = 100 # TODO -> 20
-M = 12
-maxc = 5 # TODO -> 0
+N = 20
+M = 15
+maxc = 3
 Nsamples = 50
 
 t = N+M
@@ -39,8 +39,8 @@ switchpoints = collect((M-maxc):M)
 observable = pp.PauliString(N, [:Z], [1])
 obs_string = "Z₁"
 
-out_full = "output/deep_switch_optimization_full_$(N).txt"
-out_avgs = "output/deep_switch_optimization_avgs_$(N).txt"
+out_full = "output/M$(M)_switch_optimization_full_$(N).txt"
+out_avgs = "output/M$(M)_switch_optimization_avgs_$(N).txt"
 param_info = Dict(
   "N" => N,
   "M" => M,
@@ -70,11 +70,13 @@ for c in switchpoints
     next!(prog, showvalues = [("c",c), ("sample",i)])
   end
   push!(times, times_c)
+
+  initialize_output(out_full, "$obsname, $Nsamples samples", param_info)
+  save_rows(out_full, switchpoints[1:length(times)], times)
+
+  times_avg = mean.(times)
+  times_err = @. std(times)/sqrt(Nsamples)
+
+  initialize_output(out_avgs, "$obsname averages", param_info)
+  save_columns(out_avgs, switchpoints, times_avg, times_err)
 end
-
-save_rows(out_full, switchpoints, times)
-
-times_avg = mean.(times)
-times_err = @. std(times)/sqrt(Nsamples)
-
-save_columns(out_avgs, switchpoints, times_avg, times_err)
