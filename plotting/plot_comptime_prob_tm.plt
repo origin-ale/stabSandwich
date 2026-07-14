@@ -9,9 +9,9 @@ set format y "%1g"
 set xlabel "magic probability"
 set ylabel "Time (s)"
 
-set xrange [0:0.015]
+set xrange [0:*]
 
-set key top left
+set key bottom right
 
 input = 'output/comptime_prob_tm.txt'
 
