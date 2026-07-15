@@ -21,7 +21,7 @@ ITensors.Strided.set_num_threads(nthr)
 # == Parameters ===============================================================
 # Methods to run, in output-column order. Comment out any you want to skip.
 # Available: :campspp (CAMPS-PP), :camps (CAMPS), :mps (MPS), :pp (PP)
-methods = [:campspp, :camps, :pp]
+methods = [:campspp, :pp]
 
 N = 46 # Fixed system size
 magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
