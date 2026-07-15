@@ -55,6 +55,7 @@ pp_Pmax = 10_000_000 # Maximum number of Paulis for PP
 
 # output
 output = "output/comptime_prob_tm.txt"
+resources_prefix = "output/resources_prob_tm_"
 
 # =============================================================================
 
@@ -109,6 +110,19 @@ pp_log = prefix * "pp" * suffix
 times_methods = Dict(m => Real[] for m in methods)
 stds_methods = Dict(m => Real[] for m in methods)
 
+# Per-gate bond dimension (:campspp, :camps) and per-layer n. of Paulis
+# (:campspp, :pp), averaged over samples; one data block per probability
+bd_outputs = Dict(m => resources_prefix * "bd_$m.txt"
+  for m in methods if m in (:campspp, :camps))
+np_outputs = Dict(m => resources_prefix * "NP_$m.txt"
+  for m in methods if m in (:campspp, :pp))
+for f in values(bd_outputs)
+  initialize_output(f, "[gate, mean bond dim., std. err.; one block per p]", param_info)
+end
+for f in values(np_outputs)
+  initialize_output(f, "[layer, mean n. of Paulis, std. err.; one block per p]", param_info)
+end
+
 function init_camps(N, seed, magic_prob)
   rng = MersenneTwister(seed)
   ψ, onebitinds = domainwallstate(rng, N, μ)
@@ -162,6 +176,8 @@ for magic_prob in magic_probs
 
     ψ_wu, tm_wu, gates, phases = init_camps(N, 0, magic_prob)
     times_curr = Real[]
+    bds_samples = Vector{Int}[]
+    nps_samples = Vector{Int}[]
     evs_campspp = Vector{Real}[]
     _ = @timed campspp_circuit_dynamics(
       ψ_wu,
@@ -176,7 +192,7 @@ for magic_prob in magic_probs
 
     for i in 1:samples
       ψ, tm, gates, phases = init_camps(N, i, magic_prob)
-      (evs, tstop), time, _ = @timed campspp_circuit_dynamics(
+      (evs, tstop, bds, nps), time, _ = @timed campspp_circuit_dynamics(
         ψ,
         campspp_χ,
         campspp_thl,
@@ -185,18 +201,23 @@ for magic_prob in magic_probs
         phases,
         tm,
         campspp_log,
-        layer_ends = layer_ends)
+        layer_ends = layer_ends,
+        track = true)
       if length(evs) < N/2+1
         printstyled("WARNING: CAMPS-PP sample $i for p=$magic_prob_str stopped early!")
       end
       push!(evs_campspp, evs)
       push!(times_curr, time)
+      push!(bds_samples, bds)
+      push!(nps_samples, nps)
       next!(prog)
     end
     time_campspp = mean(times_curr)
     std_campspp = std(times_curr)
     push!(times_methods[:campspp], time_campspp)
     push!(stds_methods[:campspp], std_campspp)
+    save_stats(bd_outputs[:campspp], stack_samples(bds_samples), μ, magic_prob)
+    save_stats(np_outputs[:campspp], stack_samples(nps_samples), μ, magic_prob)
   end
 
   # == CAMPS ==================================================================
@@ -205,6 +226,7 @@ for magic_prob in magic_probs
 
     ψ_wu, tm_wu, gates, phases = init_camps(N, 0, magic_prob)
     times_curr = Real[]
+    bds_samples = Vector{Int}[]
     evs_camps = Vector{Real}[]
     _ = @timed campssrc_circuit_dynamics(
       ψ_wu,
@@ -219,7 +241,7 @@ for magic_prob in magic_probs
 
     for i in 1:samples
       ψ, tm, gates, phases = init_camps(N, i, magic_prob)
-      (_, _, evs), time, _ = @timed campssrc_circuit_dynamics(
+      (_, _, evs, bds), time, _ = @timed campssrc_circuit_dynamics(
         ψ,
         gates,
         phases,
@@ -228,15 +250,18 @@ for magic_prob in magic_probs
         campssrc_log;
         criterion = camps_crit,
         strategy = camps_strat,
-        layer_ends = layer_ends)
+        layer_ends = layer_ends,
+        track = true)
       push!(evs_camps, evs)
       push!(times_curr, time)
+      push!(bds_samples, bds)
       next!(prog)
     end
     time_camps = mean(times_curr)
     std_camps = std(times_curr)
     push!(times_methods[:camps], time_camps)
     push!(stds_methods[:camps], std_camps)
+    save_stats(bd_outputs[:camps], stack_samples(bds_samples), μ, magic_prob)
   end
 
   # == MPS ==================================================================
@@ -281,6 +306,7 @@ for magic_prob in magic_probs
 
     onebitinds_wu, tm_wu, gates, phases = init_pp(N, 0, magic_prob)
     times_curr = Real[]
+    nps_samples = Vector{Int}[]
     evs_pp = Vector{Real}[]
     _ = @timed pauliprop_circuit_dynamics(
       onebitinds_wu,
@@ -294,7 +320,7 @@ for magic_prob in magic_probs
 
     for i in 1:samples
       onebitinds, tm, gates, phases = init_pp(N, i, magic_prob)
-      (_, evs), time, _ = @timed pauliprop_circuit_dynamics(
+      (_, evs, nps), time, _ = @timed pauliprop_circuit_dynamics(
         onebitinds,
         gates,
         phases,
@@ -302,18 +328,21 @@ for magic_prob in magic_probs
         pp_Pmax,
         tm,
         pp_log;
-        layer_ends = layer_ends)
+        layer_ends = layer_ends,
+        track = true)
       if length(evs) < N/2+1
         printstyled("WARNING: PP sample $i for p=$magic_prob_str stopped early!")
       end
       push!(evs_pp, evs)
       push!(times_curr, time)
+      push!(nps_samples, nps)
       next!(prog)
     end
     time_pp = mean(times_curr)
     std_pp = std(times_curr)
     push!(times_methods[:pp], time_pp)
     push!(stds_methods[:pp], std_pp)
+    save_stats(np_outputs[:pp], stack_samples(nps_samples), μ, magic_prob)
   end
 
   # == Cross-checks (only between methods that were actually run) =============

@@ -100,21 +100,33 @@ obs::pp.PauliSum,
 output;
 showprogress = false,
 k = 0,
-layer_ends = nothing)
+layer_ends = nothing,
+track = false)
   ψ = deepcopy(ψ_ext)
 
-  ψ_evo, _, s, evs_camps = camps_circuit_dynamics(
-    ψ, gates, phases, χ, obs, output; 
-    showprogress = showprogress, k = k, layer_ends = layer_ends)
+  if track
+    ψ_evo, _, s, evs_camps, bonddims = camps_circuit_dynamics(
+      ψ, gates, phases, χ, obs, output;
+      showprogress = showprogress, k = k, layer_ends = layer_ends, track = true)
 
-  s, evs_pp = pauliprop_circuit_dynamics(
-    ψ_evo, s, gates, phases, thl, Nmax, obs, output; 
-    showprogress=showprogress, layer_ends = layer_ends)
+    s, evs_pp, nterms = pauliprop_circuit_dynamics(
+      ψ_evo, s, gates, phases, thl, Nmax, obs, output;
+      showprogress = showprogress, layer_ends = layer_ends, track = true)
+  else
+    ψ_evo, _, s, evs_camps = camps_circuit_dynamics(
+      ψ, gates, phases, χ, obs, output;
+      showprogress = showprogress, k = k, layer_ends = layer_ends)
+
+    s, evs_pp = pauliprop_circuit_dynamics(
+      ψ_evo, s, gates, phases, thl, Nmax, obs, output;
+      showprogress=showprogress, layer_ends = layer_ends)
+  end
 
   evs_tot = []
   append!(evs_tot, evs_camps)
   append!(evs_tot, evs_pp)
 
+  track && return evs_tot, s, bonddims, nterms
   return evs_tot, s
 end
 
@@ -128,10 +140,11 @@ phases::Vector,
 obs::pp.PauliSum;
 showprogress = false,
 k = 0,
-layer_ends = nothing)
+layer_ends = nothing,
+track = false)
   return campspp_circuit_dynamics(
     ψ_ext, χ, thl, Nmax, gates, phases, obs, nothing;
-    showprogress = showprogress, k = k, layer_ends = layer_ends)
+    showprogress = showprogress, k = k, layer_ends = layer_ends, track = track)
 end
 
 function camps_circuit_dynamics(
@@ -142,10 +155,11 @@ phases::Vector,
 obs::pp.PauliSum;
 showprogress = false,
 k = 0,
-layer_ends = nothing)
+layer_ends = nothing,
+track = false)
   return camps_circuit_dynamics(
     ψ_ext, gates, phases, χ, obs, nothing;
-    showprogress = showprogress, k = k, layer_ends = layer_ends)
+    showprogress = showprogress, k = k, layer_ends = layer_ends, track = track)
 end
 
 function camps_circuit_dynamics(
@@ -157,18 +171,21 @@ obs::pp.PauliSum,
 output;
 showprogress = false,
 k = 0,
-layer_ends = nothing)
+layer_ends = nothing,
+track = false)
 
-  ψ = deepcopy(ψ_ext)                              
+  ψ = deepcopy(ψ_ext)
   N = length(ψ)
   M = length(gates)
   i = 0
   layer = 0
   evs_camps = []
+  bonddims = Int[]
   progress = ProgressUnknown(desc = "Evolving CAMPS… gate ", enabled = showprogress)
   obs_cmps = cmps.PauliSum(obs)
 
   append_expectation!(evs_camps, output, ψ, obs_cmps, 0)
+  track && push!(bonddims, DisentangleCAMPS.bonddim(ψ))
   layer += 1
 
   while DisentangleCAMPS.bonddim(ψ) < χ && i < M
@@ -184,6 +201,7 @@ layer_ends = nothing)
     end
 
     bd = DisentangleCAMPS.bonddim(ψ)
+    track && push!(bonddims, bd)
     next!(progress; showvalues = showvalues_χ(χ, bd, N, k))
   end
 
@@ -195,6 +213,7 @@ layer_ends = nothing)
     end
   end
 
+  track && return ψ, k, i, evs_camps, bonddims
   return ψ, k, i, evs_camps
 end
 
@@ -207,11 +226,12 @@ obs::pp.PauliSum;
 criterion = :entangle,
 strategy = :brickwork,
 showprogress = false,
-layer_ends = nothing)
+layer_ends = nothing,
+track = false)
   return campssrc_circuit_dynamics(
     ψ_ext, gates, phases, thl, obs, nothing;
     criterion = criterion, strategy = strategy,
-    showprogress = showprogress, layer_ends = layer_ends)
+    showprogress = showprogress, layer_ends = layer_ends, track = track)
 end
 
 function campssrc_circuit_dynamics(
@@ -224,7 +244,8 @@ output;
 criterion = :entangle,
 strategy = :brickwork,
 showprogress = false,
-layer_ends = nothing)
+layer_ends = nothing,
+track = false)
 
   ψ = deepcopy(ψ_ext)
   N = length(ψ)
@@ -232,12 +253,14 @@ layer_ends = nothing)
   i = 0
   layer = 0
   evs_camps = []
+  bonddims = Int[]
   progress = ProgressUnknown(desc = "Evolving CAMPS (SVD)… gate ", enabled = showprogress)
   obs_cmps = cmps.PauliSum(obs)
   crit = cmps.DisentangleCriterion(criterion)
   strat = cmps.DisentangleStrategy(strategy)
 
   append_expectation!(evs_camps, output, ψ, obs_cmps, 0)
+  track && push!(bonddims, DisentangleCAMPS.bonddim(ψ))
   layer += 1
 
   while i < M
@@ -249,11 +272,12 @@ layer_ends = nothing)
     
     if isnothing(layer_ends) || i == layer_ends[layer] # Works because || short circuits
       append_expectation!(evs_camps, output, ψ, obs_cmps, layer)
-      cmps.disentangle!(ψ, strat, N; criterion = crit, min_diff = 1e-6)
+      cmps.disentangle!(ψ, strat, Int(round(log(N))); criterion = crit, min_diff = 1e-6)
       layer += 1
     end
 
     bd = DisentangleCAMPS.bonddim(ψ)
+    track && push!(bonddims, bd)
     next!(progress; showvalues = () -> [("Bond dimension", bd)])
   end
 
@@ -264,6 +288,7 @@ layer_ends = nothing)
     end
   end
 
+  track && return ψ, i, evs_camps, bonddims
   return ψ, i, evs_camps
 end
 
@@ -276,10 +301,11 @@ thl::Real,
 Nmax::Integer,
 obs::pp.PauliSum;
 showprogress = false,
-layer_ends = nothing)
+layer_ends = nothing,
+track = false)
   return pauliprop_circuit_dynamics(
     ψ_ext, start_gate, gates, phases, thl, Nmax, obs, nothing;
-    showprogress = showprogress, layer_ends = layer_ends)
+    showprogress = showprogress, layer_ends = layer_ends, track = track)
 end
 
 function pauliprop_circuit_dynamics(
@@ -292,7 +318,8 @@ Nmax::Integer,
 obs::pp.PauliSum,
 output;
 showprogress = false,
-layer_ends = nothing)
+layer_ends = nothing,
+track = false)
 
   ψ = deepcopy(ψ_ext)
   M = length(gates)
@@ -302,7 +329,10 @@ layer_ends = nothing)
   gates_pp = []
   angles_pp = []
   evs_pp = []
+  nterms = Int[]
   progress = ProgressUnknown(desc = "Evolving with Pauli prop… gate ", enabled = showprogress)
+
+  track && push!(nterms, length(obs))
 
   while NP < Nmax && i < M
     i += 1
@@ -315,6 +345,7 @@ layer_ends = nothing)
     if isnothing(layer_ends) || i == layer_ends[layer]
       paulisum = pp.propagate(gates_pp, obs, angles_pp; min_abs_coeff = thl)
       NP = length(paulisum)
+      track && push!(nterms, NP)
       append_expectation!(evs_pp, output, ψ, paulisum, layer)
       layer += 1
     end
@@ -329,6 +360,7 @@ layer_ends = nothing)
       println(f, "# Pauli prop. stopped at gate $i ", reason, "\n\n")
     end
   end
+  track && return i, evs_pp, nterms
   return i, evs_pp
 end
 
@@ -340,10 +372,11 @@ thl::Real,
 Nmax::Integer,
 obs::pp.PauliSum;
 showprogress = false,
-layer_ends = nothing)
+layer_ends = nothing,
+track = false)
   return pauliprop_circuit_dynamics(
     onebitinds, gates, phases, thl, Nmax, obs, nothing;
-    showprogress = showprogress, layer_ends = layer_ends)
+    showprogress = showprogress, layer_ends = layer_ends, track = track)
 end
 
 function pauliprop_circuit_dynamics(
@@ -355,7 +388,8 @@ Nmax::Integer,
 obs::pp.PauliSum,
 output::Union{AbstractString, Nothing};
 showprogress = false,
-layer_ends = nothing)
+layer_ends = nothing,
+track = false)
 
   M = length(gates)
   i = 0
@@ -364,9 +398,11 @@ layer_ends = nothing)
   gates_pp = []
   angles_pp = []
   evs_pp = []
+  nterms = Int[]
   progress = ProgressUnknown(desc = "Evolving with Pauli prop… gate ", enabled = showprogress)
 
   append_expectation!(evs_pp, output, onebitinds, obs, 0)
+  track && push!(nterms, length(obs))
   layer += 1
 
   while NP < Nmax && i < M
@@ -380,6 +416,7 @@ layer_ends = nothing)
     if isnothing(layer_ends) || i == layer_ends[layer]
       paulisum = pp.propagate(gates_pp, obs, angles_pp; min_abs_coeff = thl)
       NP = length(paulisum)
+      track && push!(nterms, NP)
       append_expectation!(evs_pp, output, onebitinds, paulisum, layer)
       layer += 1
     end
@@ -394,6 +431,7 @@ layer_ends = nothing)
       println(f, "# Pauli prop. stopped at gate $i ", reason, "\n\n")
     end
   end
+  track && return i, evs_pp, nterms
   return i, evs_pp
 end
 
