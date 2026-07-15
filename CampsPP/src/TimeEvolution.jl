@@ -197,11 +197,11 @@ track = false)
 
     if isnothing(layer_ends) || i == layer_ends[layer] # Works because || short circuits
       append_expectation!(evs_camps, output, ψ, obs_cmps, layer)
+      track && push!(bonddims, DisentangleCAMPS.bonddim(ψ))
       layer += 1
     end
 
     bd = DisentangleCAMPS.bonddim(ψ)
-    track && push!(bonddims, bd)
     next!(progress; showvalues = showvalues_χ(χ, bd, N, k))
   end
 
@@ -272,12 +272,12 @@ track = false)
     
     if isnothing(layer_ends) || i == layer_ends[layer] # Works because || short circuits
       append_expectation!(evs_camps, output, ψ, obs_cmps, layer)
-      cmps.disentangle!(ψ, strat, Int(round(log(N))); criterion = crit, min_diff = 1e-6)
+      cmps.disentangle!(ψ, strat, N; criterion = crit, min_diff = 1e-6)
+      track && push!(bonddims, DisentangleCAMPS.bonddim(ψ))
       layer += 1
     end
 
     bd = DisentangleCAMPS.bonddim(ψ)
-    track && push!(bonddims, bd)
     next!(progress; showvalues = () -> [("Bond dimension", bd)])
   end
 

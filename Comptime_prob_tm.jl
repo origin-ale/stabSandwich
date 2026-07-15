@@ -43,7 +43,7 @@ campspp_Pmax = 10_000_000 # Maximum number of Paulis for s-PP
 
 # CAMPS
 camps_thl = 1e-12 # CAMPS SVD truncation threshold
-camps_crit = :chi3 # CAMPS entanglement criterion (:chi3 or :entangle)
+camps_crit = :entangle # CAMPS entanglement criterion (:chi3 or :entangle)
 camps_strat = :snake # CAMPS disentangler strategy (:full, :brickwork, :snake)
 
 # MPS
@@ -110,14 +110,14 @@ pp_log = prefix * "pp" * suffix
 times_methods = Dict(m => Real[] for m in methods)
 stds_methods = Dict(m => Real[] for m in methods)
 
-# Per-gate bond dimension (:campspp, :camps) and per-layer n. of Paulis
-# (:campspp, :pp), averaged over samples; one data block per probability
+# Per-layer bond dimension (:campspp, :camps) and n. of Paulis (:campspp, :pp),
+# averaged over samples; one data block per probability
 bd_outputs = Dict(m => resources_prefix * "bd_$m.txt"
   for m in methods if m in (:campspp, :camps))
 np_outputs = Dict(m => resources_prefix * "NP_$m.txt"
   for m in methods if m in (:campspp, :pp))
 for f in values(bd_outputs)
-  initialize_output(f, "[gate, mean bond dim., std. err.; one block per p]", param_info)
+  initialize_output(f, "[layer, mean bond dim., std. err.; one block per p]", param_info)
 end
 for f in values(np_outputs)
   initialize_output(f, "[layer, mean n. of Paulis, std. err.; one block per p]", param_info)
