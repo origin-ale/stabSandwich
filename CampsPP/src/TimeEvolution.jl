@@ -259,6 +259,11 @@ track = false)
   crit = cmps.DisentangleCriterion(criterion)
   strat = cmps.DisentangleStrategy(strategy)
 
+  # Gates are unitary and disentangling Cliffords are exact, so the norm only
+  # shrinks when the SVD cutoff in apply! actually discards weight.
+  norm0_sq = norm(ψ)^2
+  truncated = false
+
   append_expectation!(evs_camps, output, ψ, obs_cmps, 0)
   track && push!(bonddims, DisentangleCAMPS.bonddim(ψ))
   layer += 1
@@ -269,10 +274,14 @@ track = false)
     phase = phases[i]
 
     apply!(ψ, gate, phase, thl)
-    
+
+    if !truncated && norm(ψ)^2 < norm0_sq * (1 - thl)
+      truncated = true
+    end
+
     if isnothing(layer_ends) || i == layer_ends[layer] # Works because || short circuits
       append_expectation!(evs_camps, output, ψ, obs_cmps, layer)
-      cmps.disentangle!(ψ, strat, N; criterion = crit, min_diff = 1e-6)
+      truncated || cmps.disentangle!(ψ, strat, N; criterion = crit, min_diff = 1e-6)
       track && push!(bonddims, DisentangleCAMPS.bonddim(ψ))
       layer += 1
     end
