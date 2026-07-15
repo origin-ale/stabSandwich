@@ -281,7 +281,7 @@ track = false)
 
     if isnothing(layer_ends) || i == layer_ends[layer] # Works because || short circuits
       append_expectation!(evs_camps, output, ψ, obs_cmps, layer)
-      truncated || cmps.disentangle!(ψ, strat, N; criterion = crit, min_diff = 1e-6)
+      truncated || cmps.disentangle!(ψ, strat, N; criterion = crit, min_diff = 6)
       track && push!(bonddims, DisentangleCAMPS.bonddim(ψ))
       layer += 1
     end
