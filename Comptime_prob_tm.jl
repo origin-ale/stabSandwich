@@ -38,7 +38,7 @@ samples = 25
 
 # CAMPS-PP (sandwich, ie. s-)
 campspp_χ = 128 # s-CAMPS bond dimension that triggers s-PP
-campspp_thl = 1e-12 # Threshold for truncation during s-PP
+campspp_thl = 1e-10 # Threshold for truncation during s-PP
 campspp_Pmax = 10_000_000 # Maximum number of Paulis for s-PP
 
 # CAMPS
@@ -57,6 +57,9 @@ pp_Pmax = 10_000_000 # Maximum number of Paulis for PP
 output = "output/comptime_prob_tm.txt"
 gctime_output = "output/gctime_prob_tm.txt"
 resources_prefix = "output/resources_prob_tm_"
+# Mean expectation values; exponent of campspp_thl appended to file names
+campspp_thl_exp = abs(round(Int, log10(campspp_thl)))
+evs_prefix = "output/evs_prob_tm_"
 
 # =============================================================================
 
@@ -124,6 +127,12 @@ for f in values(bd_outputs)
 end
 for f in values(np_outputs)
   initialize_output(f, "[layer, mean n. of Paulis, std. err., max-sample n. of Paulis; one block per p]", param_info)
+end
+
+# Per-layer mean expectation value, averaged over samples; one block per p
+evs_outputs = Dict(m => evs_prefix * "$(m)_$(campspp_thl_exp).txt" for m in methods)
+for f in values(evs_outputs)
+  initialize_output(f, "[layer, mean expectation value, std. err.; one block per p]", param_info)
 end
 
 function init_camps(N, seed, magic_prob)
@@ -227,6 +236,7 @@ for magic_prob in magic_probs
     push!(gcstds_methods[:campspp], std(gctimes_curr) / sqrt(samples))
     save_stats_maxcol(bd_outputs[:campspp], bds_samples, μ, magic_prob)
     save_stats_maxcol(np_outputs[:campspp], nps_samples, μ, magic_prob)
+    save_stats(evs_outputs[:campspp], stack_samples(evs_campspp), μ, magic_prob)
   end
 
   # == CAMPS ==================================================================
@@ -275,6 +285,7 @@ for magic_prob in magic_probs
     push!(gctimes_methods[:camps], mean(gctimes_curr))
     push!(gcstds_methods[:camps], std(gctimes_curr) / sqrt(samples))
     save_stats_maxcol(bd_outputs[:camps], bds_samples, μ, magic_prob)
+    save_stats(evs_outputs[:camps], stack_samples(evs_camps), μ, magic_prob)
   end
 
   # == MPS ==================================================================
@@ -315,6 +326,7 @@ for magic_prob in magic_probs
     push!(stds_methods[:mps], std_mps)
     push!(gctimes_methods[:mps], mean(gctimes_curr))
     push!(gcstds_methods[:mps], std(gctimes_curr) / sqrt(samples))
+    save_stats(evs_outputs[:mps], stack_samples(evs_mps), μ, magic_prob)
   end
 
   # == PP ====================================================================
@@ -364,6 +376,7 @@ for magic_prob in magic_probs
     push!(gctimes_methods[:pp], mean(gctimes_curr))
     push!(gcstds_methods[:pp], std(gctimes_curr) / sqrt(samples))
     save_stats_maxcol(np_outputs[:pp], nps_samples, μ, magic_prob)
+    save_stats(evs_outputs[:pp], stack_samples(evs_pp), μ, magic_prob)
   end
 
   # == Cross-checks (only between methods that were actually run) =============
