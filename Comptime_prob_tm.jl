@@ -213,7 +213,7 @@ for magic_prob in magic_probs
       next!(prog)
     end
     time_campspp = mean(times_curr)
-    std_campspp = std(times_curr)
+    std_campspp = std(times_curr) / sqrt(samples)
     push!(times_methods[:campspp], time_campspp)
     push!(stds_methods[:campspp], std_campspp)
     save_stats(bd_outputs[:campspp], stack_samples(bds_samples), μ, magic_prob)
@@ -258,7 +258,7 @@ for magic_prob in magic_probs
       next!(prog)
     end
     time_camps = mean(times_curr)
-    std_camps = std(times_curr)
+    std_camps = std(times_curr) / sqrt(samples)
     push!(times_methods[:camps], time_camps)
     push!(stds_methods[:camps], std_camps)
     save_stats(bd_outputs[:camps], stack_samples(bds_samples), μ, magic_prob)
@@ -295,7 +295,7 @@ for magic_prob in magic_probs
       next!(prog)
     end
     time_mps = mean(times_curr)
-    std_mps = std(times_curr)
+    std_mps = std(times_curr) / sqrt(samples)
     push!(times_methods[:mps], time_mps)
     push!(stds_methods[:mps], std_mps)
   end
@@ -339,7 +339,7 @@ for magic_prob in magic_probs
       next!(prog)
     end
     time_pp = mean(times_curr)
-    std_pp = std(times_curr)
+    std_pp = std(times_curr) / sqrt(samples)
     push!(times_methods[:pp], time_pp)
     push!(stds_methods[:pp], std_pp)
     save_stats(np_outputs[:pp], stack_samples(nps_samples), μ, magic_prob)
