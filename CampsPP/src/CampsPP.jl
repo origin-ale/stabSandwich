@@ -14,7 +14,7 @@ export stack_samples
 export save_full_samples
 export save_stats
 export append_stats
-export save_max_sample
+export save_stats_maxcol
 
 include("Circuits.jl")
 export dopeT

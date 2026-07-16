@@ -80,24 +80,29 @@ end
 Alias for ```save_stats```, kept for backwards compatibility."""
 append_stats(output, evs, μ, magic_prob) = save_stats(output, evs, μ, magic_prob)
 
-""" ```save_max_sample(output, samples, μ, magic_prob)```
+""" ```save_stats_maxcol(output, samples, μ, magic_prob)```
 
-Append, as a separate gnuplot block, the full per-layer resource evolution of \
-the single sample that reached the highest resource value (peak over its own \
-evolution). ```samples``` is a vector of per-sample resource vectors. The block \
-is preceded by a ```# p = …, μ = …, max sample = …``` header identifying the \
-parameter point and the selected (1-based) sample index, and followed by two \
-blank lines (gnuplot block separator)."""
-function save_max_sample(output, samples, μ, magic_prob)
+Like ```save_stats```, but takes the raw per-sample resource vectors \
+```samples``` and appends, as a fourth column sharing the same layer (cycle) \
+column, the full per-layer evolution of the single sample that reached the \
+highest resource value (peak over its own evolution). The block header records \
+the selected (1-based) sample index; columns are \
+```layer, mean, error, max-sample``` and the block is followed by two blank \
+lines (gnuplot block separator)."""
+function save_stats_maxcol(output, samples, μ, magic_prob)
   isempty(samples) && return
+  evs = stack_samples(samples)
+  ev_means = [mean(skipmissing(row)) for row in eachrow(evs)]
+  ev_errs = [std(skipmissing(row))/sqrt(count(!ismissing, row)) for row in eachrow(evs)]
+  layers = collect(0:size(evs, 1) - 1)
+
   imax = argmax(maximum.(samples))
-  evo = samples[imax]
-  layers = collect(0:length(evo) - 1)
+  maxcol = samples[imax]
 
   open(output, "a") do io
     println(io, "# p = $magic_prob, μ = $μ, max sample = $imax")
   end
-  save_columns(output, layers, evo)
+  save_columns(output, layers, ev_means, ev_errs, maxcol)
   open(output, "a") do io
     print(io, "\n\n")  # two blank lines: gnuplot index (block) separator
   end

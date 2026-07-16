@@ -117,10 +117,10 @@ bd_outputs = Dict(m => resources_prefix * "bd_$m.txt"
 np_outputs = Dict(m => resources_prefix * "NP_$m.txt"
   for m in methods if m in (:campspp, :pp))
 for f in values(bd_outputs)
-  initialize_output(f, "[layer, mean bond dim., std. err.; per p: one stats block then one max-sample block (layer, bond dim.)]", param_info)
+  initialize_output(f, "[layer, mean bond dim., std. err., max-sample bond dim.; one block per p]", param_info)
 end
 for f in values(np_outputs)
-  initialize_output(f, "[layer, mean n. of Paulis, std. err.; per p: one stats block then one max-sample block (layer, n. of Paulis)]", param_info)
+  initialize_output(f, "[layer, mean n. of Paulis, std. err., max-sample n. of Paulis; one block per p]", param_info)
 end
 
 function init_camps(N, seed, magic_prob)
@@ -216,10 +216,8 @@ for magic_prob in magic_probs
     std_campspp = std(times_curr) / sqrt(samples)
     push!(times_methods[:campspp], time_campspp)
     push!(stds_methods[:campspp], std_campspp)
-    save_stats(bd_outputs[:campspp], stack_samples(bds_samples), μ, magic_prob)
-    save_stats(np_outputs[:campspp], stack_samples(nps_samples), μ, magic_prob)
-    save_max_sample(bd_outputs[:campspp], bds_samples, μ, magic_prob)
-    save_max_sample(np_outputs[:campspp], nps_samples, μ, magic_prob)
+    save_stats_maxcol(bd_outputs[:campspp], bds_samples, μ, magic_prob)
+    save_stats_maxcol(np_outputs[:campspp], nps_samples, μ, magic_prob)
   end
 
   # == CAMPS ==================================================================
@@ -263,8 +261,7 @@ for magic_prob in magic_probs
     std_camps = std(times_curr) / sqrt(samples)
     push!(times_methods[:camps], time_camps)
     push!(stds_methods[:camps], std_camps)
-    save_stats(bd_outputs[:camps], stack_samples(bds_samples), μ, magic_prob)
-    save_max_sample(bd_outputs[:camps], bds_samples, μ, magic_prob)
+    save_stats_maxcol(bd_outputs[:camps], bds_samples, μ, magic_prob)
   end
 
   # == MPS ==================================================================
@@ -345,8 +342,7 @@ for magic_prob in magic_probs
     std_pp = std(times_curr) / sqrt(samples)
     push!(times_methods[:pp], time_pp)
     push!(stds_methods[:pp], std_pp)
-    save_stats(np_outputs[:pp], stack_samples(nps_samples), μ, magic_prob)
-    save_max_sample(np_outputs[:pp], nps_samples, μ, magic_prob)
+    save_stats_maxcol(np_outputs[:pp], nps_samples, μ, magic_prob)
   end
 
   # == Cross-checks (only between methods that were actually run) =============
