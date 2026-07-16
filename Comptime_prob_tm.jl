@@ -21,15 +21,15 @@ ITensors.Strided.set_num_threads(nthr)
 # == Parameters ===============================================================
 # Methods to run, in output-column order. Comment out any you want to skip.
 # Available: :campspp (CAMPS-PP), :camps (CAMPS), :mps (MPS), :pp (PP)
-methods = [:campspp, :pp]
+methods = [:campspp]
 
 N = 46 # Fixed system size
 magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
 μ = 0.6
 
-magic_prob_min = 0.000
+magic_prob_min = 0.050
 magic_prob_spacing = 0.005
-magic_prob_max = 0.050
+magic_prob_max = 0.1
 
 samples = 25
 
@@ -55,6 +55,7 @@ pp_Pmax = 10_000_000 # Maximum number of Paulis for PP
 
 # output
 output = "output/comptime_prob_tm.txt"
+gctime_output = "output/gctime_prob_tm.txt"
 resources_prefix = "output/resources_prob_tm_"
 
 # =============================================================================
@@ -109,6 +110,8 @@ pp_log = prefix * "pp" * suffix
 
 times_methods = Dict(m => Real[] for m in methods)
 stds_methods = Dict(m => Real[] for m in methods)
+gctimes_methods = Dict(m => Real[] for m in methods)
+gcstds_methods = Dict(m => Real[] for m in methods)
 
 # Per-layer bond dimension (:campspp, :camps) and n. of Paulis (:campspp, :pp),
 # averaged over samples; one data block per probability
@@ -176,6 +179,7 @@ for magic_prob in magic_probs
 
     ψ_wu, tm_wu, gates, phases = init_camps(N, 0, magic_prob)
     times_curr = Real[]
+    gctimes_curr = Real[]
     bds_samples = Vector{Int}[]
     nps_samples = Vector{Int}[]
     evs_campspp = Vector{Real}[]
@@ -192,7 +196,7 @@ for magic_prob in magic_probs
 
     for i in 1:samples
       ψ, tm, gates, phases = init_camps(N, i, magic_prob)
-      (evs, tstop, bds, nps), time, _ = @timed campspp_circuit_dynamics(
+      (evs, tstop, bds, nps), time, _, gctime = @timed campspp_circuit_dynamics(
         ψ,
         campspp_χ,
         campspp_thl,
@@ -208,6 +212,7 @@ for magic_prob in magic_probs
       end
       push!(evs_campspp, evs)
       push!(times_curr, time)
+      push!(gctimes_curr, gctime)
       push!(bds_samples, bds)
       push!(nps_samples, nps)
       next!(prog)
@@ -216,6 +221,8 @@ for magic_prob in magic_probs
     std_campspp = std(times_curr) / sqrt(samples)
     push!(times_methods[:campspp], time_campspp)
     push!(stds_methods[:campspp], std_campspp)
+    push!(gctimes_methods[:campspp], mean(gctimes_curr))
+    push!(gcstds_methods[:campspp], std(gctimes_curr) / sqrt(samples))
     save_stats_maxcol(bd_outputs[:campspp], bds_samples, μ, magic_prob)
     save_stats_maxcol(np_outputs[:campspp], nps_samples, μ, magic_prob)
   end
@@ -226,6 +233,7 @@ for magic_prob in magic_probs
 
     ψ_wu, tm_wu, gates, phases = init_camps(N, 0, magic_prob)
     times_curr = Real[]
+    gctimes_curr = Real[]
     bds_samples = Vector{Int}[]
     evs_camps = Vector{Real}[]
     _ = @timed campssrc_circuit_dynamics(
@@ -241,7 +249,7 @@ for magic_prob in magic_probs
 
     for i in 1:samples
       ψ, tm, gates, phases = init_camps(N, i, magic_prob)
-      (_, _, evs, bds), time, _ = @timed campssrc_circuit_dynamics(
+      (_, _, evs, bds), time, _, gctime = @timed campssrc_circuit_dynamics(
         ψ,
         gates,
         phases,
@@ -254,6 +262,7 @@ for magic_prob in magic_probs
         track = true)
       push!(evs_camps, evs)
       push!(times_curr, time)
+      push!(gctimes_curr, gctime)
       push!(bds_samples, bds)
       next!(prog)
     end
@@ -261,6 +270,8 @@ for magic_prob in magic_probs
     std_camps = std(times_curr) / sqrt(samples)
     push!(times_methods[:camps], time_camps)
     push!(stds_methods[:camps], std_camps)
+    push!(gctimes_methods[:camps], mean(gctimes_curr))
+    push!(gcstds_methods[:camps], std(gctimes_curr) / sqrt(samples))
     save_stats_maxcol(bd_outputs[:camps], bds_samples, μ, magic_prob)
   end
 
@@ -270,6 +281,7 @@ for magic_prob in magic_probs
 
     ψ_wu, tm_wu, gates, phases = init_mps(N, 0, magic_prob)
     times_curr = Real[]
+    gctimes_curr = Real[]
     evs_mps = Vector{Real}[]
     _ = @timed mps_circuit_dynamics(
       ψ_wu,
@@ -282,7 +294,7 @@ for magic_prob in magic_probs
 
     for i in 1:samples
       ψ, tm, gates, phases = init_mps(N, i, magic_prob)
-      (_, evs), time, _ = @timed mps_circuit_dynamics(
+      (_, evs), time, _, gctime = @timed mps_circuit_dynamics(
         ψ,
         gates,
         phases,
@@ -292,12 +304,15 @@ for magic_prob in magic_probs
         layer_ends = layer_ends)
       push!(evs_mps, evs)
       push!(times_curr, time)
+      push!(gctimes_curr, gctime)
       next!(prog)
     end
     time_mps = mean(times_curr)
     std_mps = std(times_curr) / sqrt(samples)
     push!(times_methods[:mps], time_mps)
     push!(stds_methods[:mps], std_mps)
+    push!(gctimes_methods[:mps], mean(gctimes_curr))
+    push!(gcstds_methods[:mps], std(gctimes_curr) / sqrt(samples))
   end
 
   # == PP ====================================================================
@@ -306,6 +321,7 @@ for magic_prob in magic_probs
 
     onebitinds_wu, tm_wu, gates, phases = init_pp(N, 0, magic_prob)
     times_curr = Real[]
+    gctimes_curr = Real[]
     nps_samples = Vector{Int}[]
     evs_pp = Vector{Real}[]
     _ = @timed pauliprop_circuit_dynamics(
@@ -320,7 +336,7 @@ for magic_prob in magic_probs
 
     for i in 1:samples
       onebitinds, tm, gates, phases = init_pp(N, i, magic_prob)
-      (_, evs, nps), time, _ = @timed pauliprop_circuit_dynamics(
+      (_, evs, nps), time, _, gctime = @timed pauliprop_circuit_dynamics(
         onebitinds,
         gates,
         phases,
@@ -335,6 +351,7 @@ for magic_prob in magic_probs
       end
       push!(evs_pp, evs)
       push!(times_curr, time)
+      push!(gctimes_curr, gctime)
       push!(nps_samples, nps)
       next!(prog)
     end
@@ -342,6 +359,8 @@ for magic_prob in magic_probs
     std_pp = std(times_curr) / sqrt(samples)
     push!(times_methods[:pp], time_pp)
     push!(stds_methods[:pp], std_pp)
+    push!(gctimes_methods[:pp], mean(gctimes_curr))
+    push!(gcstds_methods[:pp], std(gctimes_curr) / sqrt(samples))
     save_stats_maxcol(np_outputs[:pp], nps_samples, μ, magic_prob)
   end
 
@@ -380,4 +399,8 @@ for magic_prob in magic_probs
   initialize_output(output, "[ignore this row]", param_info)
   save_columns(output, magic_probs,
     (col for m in methods for col in (times_methods[m], stds_methods[m]))...)
+
+  initialize_output(gctime_output, "[ignore this row]", param_info)
+  save_columns(gctime_output, magic_probs,
+    (col for m in methods for col in (gctimes_methods[m], gcstds_methods[m]))...)
 end
