@@ -62,9 +62,10 @@ Append the per-layer mean and standard error of ```evs``` as three columns \
 identifying the parameter point, and followed by two blank lines (gnuplot block \
 separator)."""
 function save_stats(output, evs, μ, magic_prob)
-  ev_means = [mean(skipmissing(row)) for row in eachrow(evs)]
-  ev_errs = [std(skipmissing(row))/sqrt(count(!ismissing, row)) for row in eachrow(evs)]
-  layers = collect(0:size(evs, 1) - 1)
+  rows = [i for i in axes(evs, 1) if any(!ismissing, view(evs, i, :))]
+  ev_means = [mean(skipmissing(evs[i, :])) for i in rows]
+  ev_errs = [std(skipmissing(evs[i, :]))/sqrt(count(!ismissing, evs[i, :])) for i in rows]
+  layers = rows .- 1
 
   open(output, "a") do io
     println(io, "# p = $magic_prob, μ = $μ")
@@ -88,16 +89,19 @@ column, the full per-layer evolution of the single sample that reached the \
 highest resource value (peak over its own evolution). The block header records \
 the selected (1-based) sample index; columns are \
 ```layer, mean, error, max-sample``` and the block is followed by two blank \
-lines (gnuplot block separator)."""
+lines (gnuplot block separator). Samples may contain leading ```missing``` \
+entries (e.g. resources of a method that starts mid-circuit): rows with no \
+data are skipped and gaps in the max-sample column are written as NaN."""
 function save_stats_maxcol(output, samples, μ, magic_prob)
   isempty(samples) && return
   evs = stack_samples(samples)
-  ev_means = [mean(skipmissing(row)) for row in eachrow(evs)]
-  ev_errs = [std(skipmissing(row))/sqrt(count(!ismissing, row)) for row in eachrow(evs)]
-  layers = collect(0:size(evs, 1) - 1)
+  rows = [i for i in axes(evs, 1) if any(!ismissing, view(evs, i, :))]
+  ev_means = [mean(skipmissing(evs[i, :])) for i in rows]
+  ev_errs = [std(skipmissing(evs[i, :]))/sqrt(count(!ismissing, evs[i, :])) for i in rows]
+  layers = rows .- 1
 
-  imax = argmax(maximum.(samples))
-  maxcol = samples[imax]
+  imax = argmax([maximum(skipmissing(s); init = -Inf) for s in samples])
+  maxcol = [coalesce(evs[i, imax], NaN) for i in rows]
 
   open(output, "a") do io
     println(io, "# p = $magic_prob, μ = $μ, max sample = $imax")

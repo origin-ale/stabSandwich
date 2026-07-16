@@ -181,7 +181,7 @@ for magic_prob in magic_probs
     times_curr = Real[]
     gctimes_curr = Real[]
     bds_samples = Vector{Int}[]
-    nps_samples = Vector{Int}[]
+    nps_samples = Vector{Union{Missing, Int}}[]
     evs_campspp = Vector{Real}[]
     _ = @timed campspp_circuit_dynamics(
       ψ_wu,
@@ -214,7 +214,9 @@ for magic_prob in magic_probs
       push!(times_curr, time)
       push!(gctimes_curr, gctime)
       push!(bds_samples, bds)
-      push!(nps_samples, nps)
+      # PP starts at the (sample-dependent) switch layer, one past the last
+      # CAMPS-recorded layer; pad so that row k is circuit layer k
+      push!(nps_samples, [fill(missing, length(bds) - 1); nps])
       next!(prog)
     end
     time_campspp = mean(times_curr)
