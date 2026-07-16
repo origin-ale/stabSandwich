@@ -80,6 +80,29 @@ end
 Alias for ```save_stats```, kept for backwards compatibility."""
 append_stats(output, evs, μ, magic_prob) = save_stats(output, evs, μ, magic_prob)
 
+""" ```save_max_sample(output, samples, μ, magic_prob)```
+
+Append, as a separate gnuplot block, the full per-layer resource evolution of \
+the single sample that reached the highest resource value (peak over its own \
+evolution). ```samples``` is a vector of per-sample resource vectors. The block \
+is preceded by a ```# p = …, μ = …, max sample = …``` header identifying the \
+parameter point and the selected (1-based) sample index, and followed by two \
+blank lines (gnuplot block separator)."""
+function save_max_sample(output, samples, μ, magic_prob)
+  isempty(samples) && return
+  imax = argmax(maximum.(samples))
+  evo = samples[imax]
+  layers = collect(0:length(evo) - 1)
+
+  open(output, "a") do io
+    println(io, "# p = $magic_prob, μ = $μ, max sample = $imax")
+  end
+  save_columns(output, layers, evo)
+  open(output, "a") do io
+    print(io, "\n\n")  # two blank lines: gnuplot index (block) separator
+  end
+end
+
 """ ```save_rows(filename, params, rows; [blockend])```
 
 Append one space-separated row per parameter point: \

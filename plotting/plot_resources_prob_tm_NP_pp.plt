@@ -1,10 +1,10 @@
 set term png size 850, 600 font ",16"
 set output "output/Resources_prob_tm_NP_pp_graph.png"
 
-datafile = "output/resources_prob_tm_NP_pp_thl10.txt"
+datafile = "output/resources_prob_tm_NP_pp.txt"
 
 set title "46-qubit XXZ circuit — Pauli string number" font ",24"
-set xlabel "Gate" font ",16"
+set xlabel "Cycle" font ",16"
 set ylabel "N. of Pauli strings" font ",16"
 set key font ",16" top left
 

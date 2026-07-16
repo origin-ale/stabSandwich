@@ -4,7 +4,7 @@ set output "output/Resources_prob_tm_bd_camps_graph.png"
 datafile = "output/resources_prob_tm_bd_camps.txt"
 
 set title "46-qubit XXZ circuit — CAMPS bond dimension" font ",24"
-set xlabel "Gate" font ",16"
+set xlabel "Cycle" font ",16"
 set ylabel "Mean bond dimension" font ",16"
 set key font ",16" top left
 
