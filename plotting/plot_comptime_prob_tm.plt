@@ -16,6 +16,6 @@ set key bottom right
 input = 'output/comptime_prob_tm.txt'
 
 plot input using 1:2:3 with yerrorlines title "CAMPS - analytical",\
-input using 1:4:5 with yerrorlines title "PP - thl 10^{-10}"
+input using 1:4:5 with yerrorlines title "PP - thl 10^{-8}"
 # input using 1:4:5 with yerrorlines title "CAMPS - search"\,
 # input using 1:6:7 with yerrorlines title "MPS (thl 10^{-9})",\
