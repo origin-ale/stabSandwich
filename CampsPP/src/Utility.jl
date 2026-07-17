@@ -81,18 +81,19 @@ end
 Alias for ```save_stats```, kept for backwards compatibility."""
 append_stats(output, evs, μ, magic_prob) = save_stats(output, evs, μ, magic_prob)
 
-""" ```save_stats_maxcol(output, samples, μ, magic_prob)```
+""" ```save_stats_maxcol(output, samples, μ, magic_prob; [extra])```
 
 Like ```save_stats```, but takes the raw per-sample resource vectors \
 ```samples``` and appends, as a fourth column sharing the same layer (cycle) \
 column, the full per-layer evolution of the single sample that reached the \
 highest resource value (peak over its own evolution). The block header records \
-the selected (1-based) sample index; columns are \
+the selected (1-based) sample index, followed by the optional ```extra``` \
+string if given; columns are \
 ```layer, mean, error, max-sample``` and the block is followed by two blank \
 lines (gnuplot block separator). Samples may contain leading ```missing``` \
 entries (e.g. resources of a method that starts mid-circuit): rows with no \
 data are skipped and gaps in the max-sample column are written as NaN."""
-function save_stats_maxcol(output, samples, μ, magic_prob)
+function save_stats_maxcol(output, samples, μ, magic_prob; extra = nothing)
   isempty(samples) && return
   evs = stack_samples(samples)
   rows = [i for i in axes(evs, 1) if any(!ismissing, view(evs, i, :))]
@@ -104,11 +105,36 @@ function save_stats_maxcol(output, samples, μ, magic_prob)
   maxcol = [coalesce(evs[i, imax], NaN) for i in rows]
 
   open(output, "a") do io
-    println(io, "# p = $magic_prob, μ = $μ, max sample = $imax")
+    header = "# p = $magic_prob, μ = $μ, max sample = $imax"
+    isnothing(extra) || (header *= ", $extra")
+    println(io, header)
   end
   save_columns(output, layers, ev_means, ev_errs, maxcol)
   open(output, "a") do io
     print(io, "\n\n")  # two blank lines: gnuplot index (block) separator
+  end
+end
+
+""" ```save_doped_gates(output, gates, doped_inds_samples, μ, magic_prob)```
+
+Append one block per parameter point listing the doped rotation gates of each \
+sample: a ```# p = …, μ = …``` header, then for each sample a \
+```# sample s: n doped gates``` line followed by one \
+```Pauli-string qubit-indices``` line per doped gate (e.g. ```XX 3 4```). \
+Samples are separated by a blank line and the block ends with two blank lines \
+(gnuplot block separator)."""
+function save_doped_gates(output, gates, doped_inds_samples, μ, magic_prob)
+  open(output, "a") do io
+    println(io, "# p = $magic_prob, μ = $μ")
+    for (s, inds) in enumerate(doped_inds_samples)
+      println(io, "# sample $s: $(length(inds)) doped gates")
+      for k in inds
+        g = gates[k]
+        println(io, join(string.(g.symbols)), " ", join(g.qinds, " "))
+      end
+      println(io)
+    end
+    println(io)  # second blank line: gnuplot index (block) separator
   end
 end
 

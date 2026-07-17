@@ -60,6 +60,8 @@ resources_prefix = "output/resources_prob_tm_"
 # Mean expectation values; exponent of campspp_thl appended to file names
 campspp_thl_exp = abs(round(Int, log10(campspp_thl)))
 evs_prefix = "output/evs_prob_tm_"
+# Doped rotation gates (Pauli string and qubits) per probability and sample
+doped_output = "output/doped_prob_tm.txt"
 
 # =============================================================================
 
@@ -135,6 +137,10 @@ for f in values(evs_outputs)
   initialize_output(f, "[layer, mean expectation value, std. err.; one block per p]", param_info)
 end
 
+initialize_output(doped_output,
+  "[doped gates: count line, then one Pauli string + qubits per gate; one set per sample, one block per p]",
+  param_info)
+
 function init_camps(N, seed, magic_prob)
   rng = MersenneTwister(seed)
   ψ, onebitinds = domainwallstate(rng, N, μ)
@@ -181,6 +187,17 @@ layer_ends = layerends(N, N ÷ 2, xxz_circuit)
 for magic_prob in magic_probs
   magic_prob_str = @sprintf("%.3f", magic_prob)
   evs_campspp = evs_camps = evs_mps = evs_pp = nothing
+
+  # Doped gates are fixed by the sample seed, hence identical across methods:
+  # record them once per probability by replaying each sample's doping RNG
+  gates_ref, phases_ref = xxz_circuit(ϕ, θ, N/2, N)
+  doped_inds_samples = map(1:samples) do i
+    doping_rng = MersenneTwister(hash((i, :doping)))
+    doped_phases = magic_doping(doping_rng, phases_ref, magic_prob;
+      magicphase = magic_phase)
+    findall(doped_phases .!= phases_ref)
+  end
+  save_doped_gates(doped_output, gates_ref, doped_inds_samples, μ, magic_prob)
 
   # == CAMPS-PP ===============================================================
   if :campspp in methods
@@ -234,8 +251,14 @@ for magic_prob in magic_probs
     push!(stds_methods[:campspp], std_campspp)
     push!(gctimes_methods[:campspp], mean(gctimes_curr))
     push!(gcstds_methods[:campspp], std(gctimes_curr) / sqrt(samples))
-    save_stats_maxcol(bd_outputs[:campspp], bds_samples, μ, magic_prob)
-    save_stats_maxcol(np_outputs[:campspp], nps_samples, μ, magic_prob)
+    # Each sample records CAMPS bond dims for cycles 0:length(bds)-1 and
+    # switches to PP during the following cycle
+    last_allcamps_cycle = minimum(length, bds_samples) - 1
+    last_allcamps_str = "last all-CAMPS cycle = $last_allcamps_cycle"
+    save_stats_maxcol(bd_outputs[:campspp], bds_samples, μ, magic_prob;
+      extra = last_allcamps_str)
+    save_stats_maxcol(np_outputs[:campspp], nps_samples, μ, magic_prob;
+      extra = last_allcamps_str)
     save_stats(evs_outputs[:campspp], stack_samples(evs_campspp), μ, magic_prob)
   end
 
