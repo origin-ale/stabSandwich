@@ -125,10 +125,10 @@ bd_outputs = Dict(m => resources_prefix * "bd_$m.txt"
 np_outputs = Dict(m => resources_prefix * "NP_$m.txt"
   for m in methods if m in (:campspp, :pp))
 for f in values(bd_outputs)
-  initialize_output(f, "[layer, mean bond dim., std. err., max-sample bond dim.; one block per p]", param_info)
+  initialize_output(f, "[layer, mean bond dim., std. err., max-sample bond dim., n. of samples; one block per p]", param_info)
 end
 for f in values(np_outputs)
-  initialize_output(f, "[layer, mean n. of Paulis, std. err., max-sample n. of Paulis; one block per p]", param_info)
+  initialize_output(f, "[layer, mean n. of Paulis, std. err., max-sample n. of Paulis, n. of samples; one block per p]", param_info)
 end
 
 # Per-layer mean expectation value, averaged over samples; one block per p
@@ -138,7 +138,7 @@ for f in values(evs_outputs)
 end
 
 initialize_output(doped_output,
-  "[doped gates: count line, then one Pauli string + qubits per gate; one set per sample, one block per p]",
+  "[doped gates: count line, then one gate position + cycle + Pauli string + qubits per gate; one set per sample, one block per p]",
   param_info)
 
 function init_camps(N, seed, magic_prob)
@@ -197,7 +197,8 @@ for magic_prob in magic_probs
       magicphase = magic_phase)
     findall(doped_phases .!= phases_ref)
   end
-  save_doped_gates(doped_output, gates_ref, doped_inds_samples, μ, magic_prob)
+  save_doped_gates(doped_output, gates_ref, doped_inds_samples, layer_ends, μ,
+    magic_prob)
 
   # == CAMPS-PP ===============================================================
   if :campspp in methods
@@ -251,14 +252,8 @@ for magic_prob in magic_probs
     push!(stds_methods[:campspp], std_campspp)
     push!(gctimes_methods[:campspp], mean(gctimes_curr))
     push!(gcstds_methods[:campspp], std(gctimes_curr) / sqrt(samples))
-    # Each sample records CAMPS bond dims for cycles 0:length(bds)-1 and
-    # switches to PP during the following cycle
-    last_allcamps_cycle = minimum(length, bds_samples) - 1
-    last_allcamps_str = "last all-CAMPS cycle = $last_allcamps_cycle"
-    save_stats_maxcol(bd_outputs[:campspp], bds_samples, μ, magic_prob;
-      extra = last_allcamps_str)
-    save_stats_maxcol(np_outputs[:campspp], nps_samples, μ, magic_prob;
-      extra = last_allcamps_str)
+    save_stats_maxcol(bd_outputs[:campspp], bds_samples, μ, magic_prob)
+    save_stats_maxcol(np_outputs[:campspp], nps_samples, μ, magic_prob)
     save_stats(evs_outputs[:campspp], stack_samples(evs_campspp), μ, magic_prob)
   end
 

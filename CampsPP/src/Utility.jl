@@ -81,22 +81,24 @@ end
 Alias for ```save_stats```, kept for backwards compatibility."""
 append_stats(output, evs, μ, magic_prob) = save_stats(output, evs, μ, magic_prob)
 
-""" ```save_stats_maxcol(output, samples, μ, magic_prob; [extra])```
+""" ```save_stats_maxcol(output, samples, μ, magic_prob)```
 
 Like ```save_stats```, but takes the raw per-sample resource vectors \
 ```samples``` and appends, as a fourth column sharing the same layer (cycle) \
 column, the full per-layer evolution of the single sample that reached the \
-highest resource value (peak over its own evolution). The block header records \
-the selected (1-based) sample index, followed by the optional ```extra``` \
-string if given; columns are \
-```layer, mean, error, max-sample``` and the block is followed by two blank \
-lines (gnuplot block separator). Samples may contain leading ```missing``` \
-entries (e.g. resources of a method that starts mid-circuit): rows with no \
-data are skipped and gaps in the max-sample column are written as NaN."""
-function save_stats_maxcol(output, samples, μ, magic_prob; extra = nothing)
+highest resource value (peak over its own evolution), and as a fifth column \
+the number of samples with data at each layer. The block header records \
+the selected (1-based) sample index; columns are \
+```layer, mean, error, max-sample, n-samples``` and the block is followed by \
+two blank lines (gnuplot block separator). Samples may contain leading \
+```missing``` entries (e.g. resources of a method that starts mid-circuit): \
+rows with no data are skipped and gaps in the max-sample column are written \
+as NaN."""
+function save_stats_maxcol(output, samples, μ, magic_prob)
   isempty(samples) && return
   evs = stack_samples(samples)
   rows = [i for i in axes(evs, 1) if any(!ismissing, view(evs, i, :))]
+  counts = [count(!ismissing, view(evs, i, :)) for i in rows]
   ev_means = [mean(skipmissing(evs[i, :])) for i in rows]
   ev_errs = [std(skipmissing(evs[i, :]))/sqrt(count(!ismissing, evs[i, :])) for i in rows]
   layers = rows .- 1
@@ -105,32 +107,33 @@ function save_stats_maxcol(output, samples, μ, magic_prob; extra = nothing)
   maxcol = [coalesce(evs[i, imax], NaN) for i in rows]
 
   open(output, "a") do io
-    header = "# p = $magic_prob, μ = $μ, max sample = $imax"
-    isnothing(extra) || (header *= ", $extra")
-    println(io, header)
+    println(io, "# p = $magic_prob, μ = $μ, max sample = $imax")
   end
-  save_columns(output, layers, ev_means, ev_errs, maxcol)
+  save_columns(output, layers, ev_means, ev_errs, maxcol, counts)
   open(output, "a") do io
     print(io, "\n\n")  # two blank lines: gnuplot index (block) separator
   end
 end
 
-""" ```save_doped_gates(output, gates, doped_inds_samples, μ, magic_prob)```
+""" ```save_doped_gates(output, gates, doped_inds_samples, layer_ends, μ, magic_prob)```
 
 Append one block per parameter point listing the doped rotation gates of each \
 sample: a ```# p = …, μ = …``` header, then for each sample a \
 ```# sample s: n doped gates``` line followed by one \
-```Pauli-string qubit-indices``` line per doped gate (e.g. ```XX 3 4```). \
-Samples are separated by a blank line and the block ends with two blank lines \
-(gnuplot block separator)."""
-function save_doped_gates(output, gates, doped_inds_samples, μ, magic_prob)
+```gate-position cycle Pauli-string qubit-indices``` line per doped gate \
+(e.g. ```17 2 XX 3 4```), where the position indexes the gates array and the \
+(1-based) cycle is derived from ```layer_ends```. Samples are separated by a \
+blank line and the block ends with two blank lines (gnuplot block separator)."""
+function save_doped_gates(output, gates, doped_inds_samples, layer_ends, μ, magic_prob)
   open(output, "a") do io
     println(io, "# p = $magic_prob, μ = $μ")
     for (s, inds) in enumerate(doped_inds_samples)
       println(io, "# sample $s: $(length(inds)) doped gates")
       for k in inds
         g = gates[k]
-        println(io, join(string.(g.symbols)), " ", join(g.qinds, " "))
+        cycle = searchsortedfirst(layer_ends, k)
+        println(io, k, " ", cycle, " ",
+          join(string.(g.symbols)), " ", join(g.qinds, " "))
       end
       println(io)
     end
