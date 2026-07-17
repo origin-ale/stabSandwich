@@ -27,7 +27,7 @@ N = 46 # Fixed system size
 magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
 μ = 0.6
 
-magic_prob_min = 0.050
+magic_prob_min = 0.000
 magic_prob_spacing = 0.005
 magic_prob_max = 0.1
 
