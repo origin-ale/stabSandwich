@@ -87,6 +87,8 @@ function getlayer(i, layer_ends)
   end
 end
 
+meanweight(psum::pp.PauliSum) = mean(pp.countweight(psum))
+
 # == Circuit evolution ==================================================================
 
 function campspp_circuit_dynamics(
@@ -109,7 +111,7 @@ track = false)
       ψ, gates, phases, χ, obs, output;
       showprogress = showprogress, k = k, layer_ends = layer_ends, track = true)
 
-    s, evs_pp, nterms = pauliprop_circuit_dynamics(
+    s, evs_pp, nterms, avgweights = pauliprop_circuit_dynamics(
       ψ_evo, s, gates, phases, thl, Nmax, obs, output;
       showprogress = showprogress, layer_ends = layer_ends, track = true)
   else
@@ -126,7 +128,7 @@ track = false)
   append!(evs_tot, evs_camps)
   append!(evs_tot, evs_pp)
 
-  track && return evs_tot, s, bonddims, nterms
+  track && return evs_tot, s, bonddims, nterms, avgweights
   return evs_tot, s
 end
 
@@ -339,9 +341,11 @@ track = false)
   angles_pp = []
   evs_pp = []
   nterms = Int[]
+  avgweights = Float64[]
   progress = ProgressUnknown(desc = "Evolving with Pauli prop… gate ", enabled = showprogress)
 
   track && push!(nterms, length(obs))
+  track && push!(avgweights, meanweight(obs))
 
   while NP < Nmax && i < M
     i += 1
@@ -355,6 +359,7 @@ track = false)
       paulisum = pp.propagate(gates_pp, obs, angles_pp; min_abs_coeff = thl)
       NP = length(paulisum)
       track && push!(nterms, NP)
+      track && push!(avgweights, meanweight(paulisum))
       append_expectation!(evs_pp, output, ψ, paulisum, layer)
       layer += 1
     end
@@ -369,7 +374,7 @@ track = false)
       println(f, "# Pauli prop. stopped at gate $i ", reason, "\n\n")
     end
   end
-  track && return i, evs_pp, nterms
+  track && return i, evs_pp, nterms, avgweights
   return i, evs_pp
 end
 
@@ -408,10 +413,12 @@ track = false)
   angles_pp = []
   evs_pp = []
   nterms = Int[]
+  avgweights = Float64[]
   progress = ProgressUnknown(desc = "Evolving with Pauli prop… gate ", enabled = showprogress)
 
   append_expectation!(evs_pp, output, onebitinds, obs, 0)
   track && push!(nterms, length(obs))
+  track && push!(avgweights, meanweight(obs))
   layer += 1
 
   while NP < Nmax && i < M
@@ -426,6 +433,7 @@ track = false)
       paulisum = pp.propagate(gates_pp, obs, angles_pp; min_abs_coeff = thl)
       NP = length(paulisum)
       track && push!(nterms, NP)
+      track && push!(avgweights, meanweight(paulisum))
       append_expectation!(evs_pp, output, onebitinds, paulisum, layer)
       layer += 1
     end
@@ -440,7 +448,7 @@ track = false)
       println(f, "# Pauli prop. stopped at gate $i ", reason, "\n\n")
     end
   end
-  track && return i, evs_pp, nterms
+  track && return i, evs_pp, nterms, avgweights
   return i, evs_pp
 end
 

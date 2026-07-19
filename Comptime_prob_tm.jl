@@ -27,11 +27,14 @@ N = 46 # Fixed system size
 magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
 μ = 0.6
 
-magic_prob_min = 0.000
+magic_prob_min = 0.060
 magic_prob_spacing = 0.005
 magic_prob_max = 0.1
 
 samples = 25
+# Base RNG seed: sample i uses seed rng_seed + i (0 reproduces historical runs;
+# change to draw an independent set of samples)
+rng_seed = 100
 
 ϕ = π/4
 θ = π/4
@@ -82,6 +85,7 @@ param_info = Dict(
   "magic_prob_spacing" => magic_prob_spacing,
   "magic_prob_max" => magic_prob_max,
   "samples" => samples,
+  "rng_seed" => rng_seed,
   "ϕ" => ϕ,
   "θ" => θ,
   "campspp_χ" => campspp_χ,
@@ -124,11 +128,16 @@ bd_outputs = Dict(m => resources_prefix * "bd_$m.txt"
   for m in methods if m in (:campspp, :camps))
 np_outputs = Dict(m => resources_prefix * "NP_$m.txt"
   for m in methods if m in (:campspp, :pp))
+pw_outputs = Dict(m => resources_prefix * "PW_$m.txt"
+  for m in methods if m in (:campspp, :pp))
 for f in values(bd_outputs)
   initialize_output(f, "[layer, mean bond dim., std. err., max-sample bond dim., n. of samples; one block per p]", param_info)
 end
 for f in values(np_outputs)
   initialize_output(f, "[layer, mean n. of Paulis, std. err., max-sample n. of Paulis, n. of samples; one block per p]", param_info)
+end
+for f in values(pw_outputs)
+  initialize_output(f, "[layer, mean avg. Pauli weight, std. err., max-sample avg. Pauli weight, n. of samples; one block per p]", param_info)
 end
 
 # Per-layer mean expectation value, averaged over samples; one block per p
@@ -192,7 +201,7 @@ for magic_prob in magic_probs
   # record them once per probability by replaying each sample's doping RNG
   gates_ref, phases_ref = xxz_circuit(ϕ, θ, N/2, N)
   doped_inds_samples = map(1:samples) do i
-    doping_rng = MersenneTwister(hash((i, :doping)))
+    doping_rng = MersenneTwister(hash((rng_seed + i, :doping)))
     doped_phases = magic_doping(doping_rng, phases_ref, magic_prob;
       magicphase = magic_phase)
     findall(doped_phases .!= phases_ref)
@@ -204,11 +213,12 @@ for magic_prob in magic_probs
   if :campspp in methods
     prog = Progress(samples; desc = "p=$magic_prob_str CAMPS-PP")
 
-    ψ_wu, tm_wu, gates, phases = init_camps(N, 0, magic_prob)
+    ψ_wu, tm_wu, gates, phases = init_camps(N, rng_seed, magic_prob)
     times_curr = Real[]
     gctimes_curr = Real[]
     bds_samples = Vector{Int}[]
     nps_samples = Vector{Union{Missing, Int}}[]
+    pws_samples = Vector{Union{Missing, Float64}}[]
     evs_campspp = Vector{Real}[]
     _ = @timed campspp_circuit_dynamics(
       ψ_wu,
@@ -222,8 +232,8 @@ for magic_prob in magic_probs
       layer_ends = layer_ends)
 
     for i in 1:samples
-      ψ, tm, gates, phases = init_camps(N, i, magic_prob)
-      (evs, tstop, bds, nps), time, _, gctime = @timed campspp_circuit_dynamics(
+      ψ, tm, gates, phases = init_camps(N, rng_seed + i, magic_prob)
+      (evs, tstop, bds, nps, pws), time, _, gctime = @timed campspp_circuit_dynamics(
         ψ,
         campspp_χ,
         campspp_thl,
@@ -244,6 +254,7 @@ for magic_prob in magic_probs
       # PP starts at the (sample-dependent) switch layer, one past the last
       # CAMPS-recorded layer; pad so that row k is circuit layer k
       push!(nps_samples, [fill(missing, length(bds) - 1); nps])
+      push!(pws_samples, [fill(missing, length(bds) - 1); pws])
       next!(prog)
     end
     time_campspp = mean(times_curr)
@@ -254,6 +265,7 @@ for magic_prob in magic_probs
     push!(gcstds_methods[:campspp], std(gctimes_curr) / sqrt(samples))
     save_stats_maxcol(bd_outputs[:campspp], bds_samples, μ, magic_prob)
     save_stats_maxcol(np_outputs[:campspp], nps_samples, μ, magic_prob)
+    save_stats_maxcol(pw_outputs[:campspp], pws_samples, μ, magic_prob)
     save_stats(evs_outputs[:campspp], stack_samples(evs_campspp), μ, magic_prob)
   end
 
@@ -261,7 +273,7 @@ for magic_prob in magic_probs
   if :camps in methods
     prog = Progress(samples; desc = "p=$magic_prob_str CAMPS")
 
-    ψ_wu, tm_wu, gates, phases = init_camps(N, 0, magic_prob)
+    ψ_wu, tm_wu, gates, phases = init_camps(N, rng_seed, magic_prob)
     times_curr = Real[]
     gctimes_curr = Real[]
     bds_samples = Vector{Int}[]
@@ -278,7 +290,7 @@ for magic_prob in magic_probs
       layer_ends = layer_ends)
 
     for i in 1:samples
-      ψ, tm, gates, phases = init_camps(N, i, magic_prob)
+      ψ, tm, gates, phases = init_camps(N, rng_seed + i, magic_prob)
       (_, _, evs, bds), time, _, gctime = @timed campssrc_circuit_dynamics(
         ψ,
         gates,
@@ -310,7 +322,7 @@ for magic_prob in magic_probs
   if :mps in methods
     prog = Progress(samples; desc = "p=$magic_prob_str MPS")
 
-    ψ_wu, tm_wu, gates, phases = init_mps(N, 0, magic_prob)
+    ψ_wu, tm_wu, gates, phases = init_mps(N, rng_seed, magic_prob)
     times_curr = Real[]
     gctimes_curr = Real[]
     evs_mps = Vector{Real}[]
@@ -324,7 +336,7 @@ for magic_prob in magic_probs
       layer_ends = layer_ends)
 
     for i in 1:samples
-      ψ, tm, gates, phases = init_mps(N, i, magic_prob)
+      ψ, tm, gates, phases = init_mps(N, rng_seed + i, magic_prob)
       (_, evs), time, _, gctime = @timed mps_circuit_dynamics(
         ψ,
         gates,
@@ -351,10 +363,11 @@ for magic_prob in magic_probs
   if :pp in methods
     prog = Progress(samples; desc = "p=$magic_prob_str PP")
 
-    onebitinds_wu, tm_wu, gates, phases = init_pp(N, 0, magic_prob)
+    onebitinds_wu, tm_wu, gates, phases = init_pp(N, rng_seed, magic_prob)
     times_curr = Real[]
     gctimes_curr = Real[]
     nps_samples = Vector{Int}[]
+    pws_samples = Vector{Float64}[]
     evs_pp = Vector{Real}[]
     _ = @timed pauliprop_circuit_dynamics(
       onebitinds_wu,
@@ -367,8 +380,8 @@ for magic_prob in magic_probs
       layer_ends = layer_ends)
 
     for i in 1:samples
-      onebitinds, tm, gates, phases = init_pp(N, i, magic_prob)
-      (_, evs, nps), time, _, gctime = @timed pauliprop_circuit_dynamics(
+      onebitinds, tm, gates, phases = init_pp(N, rng_seed + i, magic_prob)
+      (_, evs, nps, pws), time, _, gctime = @timed pauliprop_circuit_dynamics(
         onebitinds,
         gates,
         phases,
@@ -385,6 +398,7 @@ for magic_prob in magic_probs
       push!(times_curr, time)
       push!(gctimes_curr, gctime)
       push!(nps_samples, nps)
+      push!(pws_samples, pws)
       next!(prog)
     end
     time_pp = mean(times_curr)
@@ -394,6 +408,7 @@ for magic_prob in magic_probs
     push!(gctimes_methods[:pp], mean(gctimes_curr))
     push!(gcstds_methods[:pp], std(gctimes_curr) / sqrt(samples))
     save_stats_maxcol(np_outputs[:pp], nps_samples, μ, magic_prob)
+    save_stats_maxcol(pw_outputs[:pp], pws_samples, μ, magic_prob)
     save_stats(evs_outputs[:pp], stack_samples(evs_pp), μ, magic_prob)
   end
 
