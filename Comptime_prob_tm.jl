@@ -130,6 +130,8 @@ np_outputs = Dict(m => resources_prefix * "NP_$m.txt"
   for m in methods if m in (:campspp, :pp))
 pw_outputs = Dict(m => resources_prefix * "PW_$m.txt"
   for m in methods if m in (:campspp, :pp))
+pc_outputs = Dict(m => resources_prefix * "PC_$m.txt"
+  for m in methods if m in (:campspp, :pp))
 for f in values(bd_outputs)
   initialize_output(f, "[layer, mean bond dim., std. err., max-sample bond dim., n. of samples; one block per p]", param_info)
 end
@@ -138,6 +140,9 @@ for f in values(np_outputs)
 end
 for f in values(pw_outputs)
   initialize_output(f, "[layer, mean avg. Pauli weight, std. err., max-sample avg. Pauli weight, n. of samples; one block per p]", param_info)
+end
+for f in values(pc_outputs)
+  initialize_output(f, "[layer, mean avg. |Pauli coeff.|, std. err., max-sample avg. |Pauli coeff.|, n. of samples; one block per p]", param_info)
 end
 
 # Per-layer mean expectation value, averaged over samples; one block per p
@@ -219,6 +224,7 @@ for magic_prob in magic_probs
     bds_samples = Vector{Int}[]
     nps_samples = Vector{Union{Missing, Int}}[]
     pws_samples = Vector{Union{Missing, Float64}}[]
+    pcs_samples = Vector{Union{Missing, Float64}}[]
     evs_campspp = Vector{Real}[]
     _ = @timed campspp_circuit_dynamics(
       ψ_wu,
@@ -233,7 +239,7 @@ for magic_prob in magic_probs
 
     for i in 1:samples
       ψ, tm, gates, phases = init_camps(N, rng_seed + i, magic_prob)
-      (evs, tstop, bds, nps, pws), time, _, gctime = @timed campspp_circuit_dynamics(
+      (evs, tstop, bds, nps, pws, pcs), time, _, gctime = @timed campspp_circuit_dynamics(
         ψ,
         campspp_χ,
         campspp_thl,
@@ -255,6 +261,7 @@ for magic_prob in magic_probs
       # CAMPS-recorded layer; pad so that row k is circuit layer k
       push!(nps_samples, [fill(missing, length(bds) - 1); nps])
       push!(pws_samples, [fill(missing, length(bds) - 1); pws])
+      push!(pcs_samples, [fill(missing, length(bds) - 1); pcs])
       next!(prog)
     end
     time_campspp = mean(times_curr)
@@ -266,6 +273,7 @@ for magic_prob in magic_probs
     save_stats_maxcol(bd_outputs[:campspp], bds_samples, μ, magic_prob)
     save_stats_maxcol(np_outputs[:campspp], nps_samples, μ, magic_prob)
     save_stats_maxcol(pw_outputs[:campspp], pws_samples, μ, magic_prob)
+    save_stats_maxcol(pc_outputs[:campspp], pcs_samples, μ, magic_prob)
     save_stats(evs_outputs[:campspp], stack_samples(evs_campspp), μ, magic_prob)
   end
 
@@ -368,6 +376,7 @@ for magic_prob in magic_probs
     gctimes_curr = Real[]
     nps_samples = Vector{Int}[]
     pws_samples = Vector{Float64}[]
+    pcs_samples = Vector{Float64}[]
     evs_pp = Vector{Real}[]
     _ = @timed pauliprop_circuit_dynamics(
       onebitinds_wu,
@@ -381,7 +390,7 @@ for magic_prob in magic_probs
 
     for i in 1:samples
       onebitinds, tm, gates, phases = init_pp(N, rng_seed + i, magic_prob)
-      (_, evs, nps, pws), time, _, gctime = @timed pauliprop_circuit_dynamics(
+      (_, evs, nps, pws, pcs), time, _, gctime = @timed pauliprop_circuit_dynamics(
         onebitinds,
         gates,
         phases,
@@ -399,6 +408,7 @@ for magic_prob in magic_probs
       push!(gctimes_curr, gctime)
       push!(nps_samples, nps)
       push!(pws_samples, pws)
+      push!(pcs_samples, pcs)
       next!(prog)
     end
     time_pp = mean(times_curr)
@@ -409,6 +419,7 @@ for magic_prob in magic_probs
     push!(gcstds_methods[:pp], std(gctimes_curr) / sqrt(samples))
     save_stats_maxcol(np_outputs[:pp], nps_samples, μ, magic_prob)
     save_stats_maxcol(pw_outputs[:pp], pws_samples, μ, magic_prob)
+    save_stats_maxcol(pc_outputs[:pp], pcs_samples, μ, magic_prob)
     save_stats(evs_outputs[:pp], stack_samples(evs_pp), μ, magic_prob)
   end
 

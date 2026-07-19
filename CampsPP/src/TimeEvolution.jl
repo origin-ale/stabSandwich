@@ -88,6 +88,7 @@ function getlayer(i, layer_ends)
 end
 
 meanweight(psum::pp.PauliSum) = mean(pp.countweight(psum))
+meancoeff(psum::pp.PauliSum) = mean(abs, pp.coefficients(psum))
 
 # == Circuit evolution ==================================================================
 
@@ -111,7 +112,7 @@ track = false)
       ψ, gates, phases, χ, obs, output;
       showprogress = showprogress, k = k, layer_ends = layer_ends, track = true)
 
-    s, evs_pp, nterms, avgweights = pauliprop_circuit_dynamics(
+    s, evs_pp, nterms, avgweights, avgcoeffs = pauliprop_circuit_dynamics(
       ψ_evo, s, gates, phases, thl, Nmax, obs, output;
       showprogress = showprogress, layer_ends = layer_ends, track = true)
   else
@@ -128,7 +129,7 @@ track = false)
   append!(evs_tot, evs_camps)
   append!(evs_tot, evs_pp)
 
-  track && return evs_tot, s, bonddims, nterms, avgweights
+  track && return evs_tot, s, bonddims, nterms, avgweights, avgcoeffs
   return evs_tot, s
 end
 
@@ -342,10 +343,12 @@ track = false)
   evs_pp = []
   nterms = Int[]
   avgweights = Float64[]
+  avgcoeffs = Float64[]
   progress = ProgressUnknown(desc = "Evolving with Pauli prop… gate ", enabled = showprogress)
 
   track && push!(nterms, length(obs))
   track && push!(avgweights, meanweight(obs))
+  track && push!(avgcoeffs, meancoeff(obs))
 
   while NP < Nmax && i < M
     i += 1
@@ -360,6 +363,7 @@ track = false)
       NP = length(paulisum)
       track && push!(nterms, NP)
       track && push!(avgweights, meanweight(paulisum))
+      track && push!(avgcoeffs, meancoeff(paulisum))
       append_expectation!(evs_pp, output, ψ, paulisum, layer)
       layer += 1
     end
@@ -374,7 +378,7 @@ track = false)
       println(f, "# Pauli prop. stopped at gate $i ", reason, "\n\n")
     end
   end
-  track && return i, evs_pp, nterms, avgweights
+  track && return i, evs_pp, nterms, avgweights, avgcoeffs
   return i, evs_pp
 end
 
@@ -414,11 +418,13 @@ track = false)
   evs_pp = []
   nterms = Int[]
   avgweights = Float64[]
+  avgcoeffs = Float64[]
   progress = ProgressUnknown(desc = "Evolving with Pauli prop… gate ", enabled = showprogress)
 
   append_expectation!(evs_pp, output, onebitinds, obs, 0)
   track && push!(nterms, length(obs))
   track && push!(avgweights, meanweight(obs))
+  track && push!(avgcoeffs, meancoeff(obs))
   layer += 1
 
   while NP < Nmax && i < M
@@ -434,6 +440,7 @@ track = false)
       NP = length(paulisum)
       track && push!(nterms, NP)
       track && push!(avgweights, meanweight(paulisum))
+      track && push!(avgcoeffs, meancoeff(paulisum))
       append_expectation!(evs_pp, output, onebitinds, paulisum, layer)
       layer += 1
     end
@@ -448,7 +455,7 @@ track = false)
       println(f, "# Pauli prop. stopped at gate $i ", reason, "\n\n")
     end
   end
-  track && return i, evs_pp, nterms, avgweights
+  track && return i, evs_pp, nterms, avgweights, avgcoeffs
   return i, evs_pp
 end
 
