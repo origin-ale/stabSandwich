@@ -12,6 +12,8 @@ export save_rows
 export save_columns
 export stack_samples
 export save_full_samples
+export save_per_sample
+export save_peaks
 export save_stats
 export append_stats
 export save_stats_maxcol

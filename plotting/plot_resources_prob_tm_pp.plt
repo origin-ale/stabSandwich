@@ -24,7 +24,9 @@ set output "output/Resources_prob_tm_PW_pp_graph.png"
 datafile = "output/carlos_varseed_pp/resources_prob_tm_PW_pp.txt"
 set title "46-qubit XXZ circuit — PP mean Pauli weight" font ",20"
 set ylabel "Mean avg. Pauli weight" font ",16"
-unset logscale y
+set logscale xy
+set yrange [.9:10]
+set xrange [1:25]
 nb = nblocks(datafile)
 plot for [i=0:nb-1] datafile index i using 1:2:3 with yerrorlines lc i+1 title blocktitle(datafile, i)
 
@@ -33,6 +35,9 @@ set output "output/Resources_prob_tm_PC_pp_graph.png"
 datafile = "output/carlos_varseed_pp/resources_prob_tm_PC_pp.txt"
 set title "46-qubit XXZ circuit — PP mean Pauli coeff." font ",20"
 set ylabel "Mean avg. |Pauli coeff.|" font ",16"
+unset xrange
+unset yrange
+unset logscale xy
 set logscale y
 nb = nblocks(datafile)
 plot for [i=0:nb-1] datafile index i using 1:2:3 with yerrorlines lc i+1 title blocktitle(datafile, i)

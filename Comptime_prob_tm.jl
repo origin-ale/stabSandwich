@@ -145,10 +145,57 @@ for f in values(pc_outputs)
   initialize_output(f, "[layer, mean avg. |Pauli coeff.|, std. err., max-sample avg. |Pauli coeff.|, n. of samples; one block per p]", param_info)
 end
 
+# Unaveraged per-sample resources: layer-resolved, one block per sample
+bd_full_outputs = Dict(m => resources_prefix * "bd_full_$m.txt"
+  for m in keys(bd_outputs))
+np_full_outputs = Dict(m => resources_prefix * "NP_full_$m.txt"
+  for m in keys(np_outputs))
+pw_full_outputs = Dict(m => resources_prefix * "PW_full_$m.txt"
+  for m in keys(pw_outputs))
+pc_full_outputs = Dict(m => resources_prefix * "PC_full_$m.txt"
+  for m in keys(pc_outputs))
+for (f, name) in Iterators.flatten((
+    ((f, "bond dim.") for f in values(bd_full_outputs)),
+    ((f, "n. of Paulis") for f in values(np_full_outputs)),
+    ((f, "avg. Pauli weight") for f in values(pw_full_outputs)),
+    ((f, "avg. |Pauli coeff.|") for f in values(pc_full_outputs))))
+  initialize_output(f, "[layer, $name; one block per sample, one set per p]", param_info)
+end
+
+# Peak resource reached by each sample over its own evolution
+bd_peak_outputs = Dict(m => resources_prefix * "bd_peak_$m.txt"
+  for m in keys(bd_outputs))
+np_peak_outputs = Dict(m => resources_prefix * "NP_peak_$m.txt"
+  for m in keys(np_outputs))
+pw_peak_outputs = Dict(m => resources_prefix * "PW_peak_$m.txt"
+  for m in keys(pw_outputs))
+pc_peak_outputs = Dict(m => resources_prefix * "PC_peak_$m.txt"
+  for m in keys(pc_outputs))
+for (f, name) in Iterators.flatten((
+    ((f, "peak bond dim.") for f in values(bd_peak_outputs)),
+    ((f, "peak n. of Paulis") for f in values(np_peak_outputs)),
+    ((f, "peak avg. Pauli weight") for f in values(pw_peak_outputs)),
+    ((f, "peak avg. |Pauli coeff.|") for f in values(pc_peak_outputs))))
+  initialize_output(f, "[sample, $name; one block per p]", param_info)
+end
+
+# Unaveraged per-sample wall-clock and GC times
+times_full_outputs = Dict(m => "output/comptime_full_prob_tm_$m.txt" for m in methods)
+for f in values(times_full_outputs)
+  initialize_output(f, "[sample, time (s), GC time (s); one block per p]", param_info)
+end
+
 # Per-layer mean expectation value, averaged over samples; one block per p
 evs_outputs = Dict(m => evs_prefix * "$(m)_$(campspp_thl_exp).txt" for m in methods)
 for f in values(evs_outputs)
   initialize_output(f, "[layer, mean expectation value, std. err.; one block per p]", param_info)
+end
+
+# Unaveraged per-sample expectation values, one block per sample
+evs_full_outputs = Dict(m => evs_prefix * "$(m)_$(campspp_thl_exp)_full.txt"
+  for m in methods)
+for f in values(evs_full_outputs)
+  initialize_output(f, "[layer, expectation value; one block per sample, one set per p]", param_info)
 end
 
 initialize_output(doped_output,
@@ -275,6 +322,16 @@ for magic_prob in magic_probs
     save_stats_maxcol(pw_outputs[:campspp], pws_samples, μ, magic_prob)
     save_stats_maxcol(pc_outputs[:campspp], pcs_samples, μ, magic_prob)
     save_stats(evs_outputs[:campspp], stack_samples(evs_campspp), μ, magic_prob)
+    save_per_sample(times_full_outputs[:campspp], μ, magic_prob, times_curr, gctimes_curr)
+    save_full_samples(bd_full_outputs[:campspp], μ, magic_prob, stack_samples(bds_samples))
+    save_full_samples(np_full_outputs[:campspp], μ, magic_prob, stack_samples(nps_samples))
+    save_full_samples(pw_full_outputs[:campspp], μ, magic_prob, stack_samples(pws_samples))
+    save_full_samples(pc_full_outputs[:campspp], μ, magic_prob, stack_samples(pcs_samples))
+    save_full_samples(evs_full_outputs[:campspp], μ, magic_prob, stack_samples(evs_campspp))
+    save_peaks(bd_peak_outputs[:campspp], bds_samples, μ, magic_prob)
+    save_peaks(np_peak_outputs[:campspp], nps_samples, μ, magic_prob)
+    save_peaks(pw_peak_outputs[:campspp], pws_samples, μ, magic_prob)
+    save_peaks(pc_peak_outputs[:campspp], pcs_samples, μ, magic_prob)
   end
 
   # == CAMPS ==================================================================
@@ -324,6 +381,10 @@ for magic_prob in magic_probs
     push!(gcstds_methods[:camps], std(gctimes_curr) / sqrt(samples))
     save_stats_maxcol(bd_outputs[:camps], bds_samples, μ, magic_prob)
     save_stats(evs_outputs[:camps], stack_samples(evs_camps), μ, magic_prob)
+    save_per_sample(times_full_outputs[:camps], μ, magic_prob, times_curr, gctimes_curr)
+    save_full_samples(bd_full_outputs[:camps], μ, magic_prob, stack_samples(bds_samples))
+    save_full_samples(evs_full_outputs[:camps], μ, magic_prob, stack_samples(evs_camps))
+    save_peaks(bd_peak_outputs[:camps], bds_samples, μ, magic_prob)
   end
 
   # == MPS ==================================================================
@@ -365,6 +426,8 @@ for magic_prob in magic_probs
     push!(gctimes_methods[:mps], mean(gctimes_curr))
     push!(gcstds_methods[:mps], std(gctimes_curr) / sqrt(samples))
     save_stats(evs_outputs[:mps], stack_samples(evs_mps), μ, magic_prob)
+    save_per_sample(times_full_outputs[:mps], μ, magic_prob, times_curr, gctimes_curr)
+    save_full_samples(evs_full_outputs[:mps], μ, magic_prob, stack_samples(evs_mps))
   end
 
   # == PP ====================================================================
@@ -421,6 +484,14 @@ for magic_prob in magic_probs
     save_stats_maxcol(pw_outputs[:pp], pws_samples, μ, magic_prob)
     save_stats_maxcol(pc_outputs[:pp], pcs_samples, μ, magic_prob)
     save_stats(evs_outputs[:pp], stack_samples(evs_pp), μ, magic_prob)
+    save_per_sample(times_full_outputs[:pp], μ, magic_prob, times_curr, gctimes_curr)
+    save_full_samples(np_full_outputs[:pp], μ, magic_prob, stack_samples(nps_samples))
+    save_full_samples(pw_full_outputs[:pp], μ, magic_prob, stack_samples(pws_samples))
+    save_full_samples(pc_full_outputs[:pp], μ, magic_prob, stack_samples(pcs_samples))
+    save_full_samples(evs_full_outputs[:pp], μ, magic_prob, stack_samples(evs_pp))
+    save_peaks(np_peak_outputs[:pp], nps_samples, μ, magic_prob)
+    save_peaks(pw_peak_outputs[:pp], pws_samples, μ, magic_prob)
+    save_peaks(pc_peak_outputs[:pp], pcs_samples, μ, magic_prob)
   end
 
   # == Cross-checks (only between methods that were actually run) =============

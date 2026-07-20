@@ -52,7 +52,38 @@ function save_full_samples(output_full, μ, magic_prob, evs)
       end
       println(full_io)
     end
+    println(full_io)  # second blank line: gnuplot index (block) separator
   end
+end
+
+""" ```save_per_sample(output, μ, magic_prob, cols...)```
+
+Append one block per parameter point holding per-sample scalars: a \
+```# p = …, μ = …``` header, then one ```sample cols…``` row per sample, \
+followed by two blank lines (gnuplot block separator)."""
+function save_per_sample(output, μ, magic_prob, cols::AbstractVector...)
+  open(output, "a") do io
+    println(io, "# p = $magic_prob, μ = $μ")
+  end
+  save_columns(output, collect(1:maximum(length, cols)), cols...)
+  open(output, "a") do io
+    print(io, "\n\n")  # two blank lines: gnuplot index (block) separator
+  end
+end
+
+""" ```save_peaks(output, samples, μ, magic_prob)```
+
+Append one ```sample peak``` row per sample, where the peak is the maximum \
+over that sample's own evolution. Samples with no data (all ```missing```, \
+e.g. a method that never reached its switch layer) are written as NaN. \
+One block per parameter point, terminated by two blank lines."""
+function save_peaks(output, samples, μ, magic_prob)
+  isempty(samples) && return
+  peaks = map(samples) do s
+    # NaN sentinel rather than `init` so that integer resources stay integral
+    any(!ismissing, s) ? maximum(skipmissing(s)) : NaN
+  end
+  save_per_sample(output, μ, magic_prob, peaks)
 end
 
 """ ```save_stats(output, evs, μ, magic_prob)```
