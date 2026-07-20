@@ -27,7 +27,7 @@ N = 46 # Fixed system size
 magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
 μ = 0.6
 
-magic_prob_min = 0.060
+magic_prob_min = 0.000
 magic_prob_spacing = 0.005
 magic_prob_max = 0.1
 
@@ -122,6 +122,30 @@ stds_methods = Dict(m => Real[] for m in methods)
 gctimes_methods = Dict(m => Real[] for m in methods)
 gcstds_methods = Dict(m => Real[] for m in methods)
 
+# Quartiles and extrema over samples, alongside the means above;
+# q1/median/q3/min/max ordered for gnuplot `with candlesticks`
+timeq1_methods = Dict(m => Real[] for m in methods)
+timemed_methods = Dict(m => Real[] for m in methods)
+timeq3_methods = Dict(m => Real[] for m in methods)
+timemin_methods = Dict(m => Real[] for m in methods)
+timemax_methods = Dict(m => Real[] for m in methods)
+gcq1_methods = Dict(m => Real[] for m in methods)
+gcmed_methods = Dict(m => Real[] for m in methods)
+gcq3_methods = Dict(m => Real[] for m in methods)
+gcmin_methods = Dict(m => Real[] for m in methods)
+gcmax_methods = Dict(m => Real[] for m in methods)
+
+""" Push the quartiles and extrema of `vals` onto the matching per-method
+columns. """
+function push_quartiles!(q1s, meds, q3s, mins, maxs, m, vals)
+  q1, med, q3 = quantiles(vals)
+  push!(q1s[m], q1)
+  push!(meds[m], med)
+  push!(q3s[m], q3)
+  push!(mins[m], minimum(vals))
+  push!(maxs[m], maximum(vals))
+end
+
 # Per-layer bond dimension (:campspp, :camps) and n. of Paulis (:campspp, :pp),
 # averaged over samples; one data block per probability
 bd_outputs = Dict(m => resources_prefix * "bd_$m.txt"
@@ -133,16 +157,16 @@ pw_outputs = Dict(m => resources_prefix * "PW_$m.txt"
 pc_outputs = Dict(m => resources_prefix * "PC_$m.txt"
   for m in methods if m in (:campspp, :pp))
 for f in values(bd_outputs)
-  initialize_output(f, "[layer, mean bond dim., std. err., max-sample bond dim., n. of samples; one block per p]", param_info)
+  initialize_output(f, "[layer, mean bond dim., std. err., max-sample bond dim., n. of samples, q1, median, q3, min, max; one block per p]", param_info)
 end
 for f in values(np_outputs)
-  initialize_output(f, "[layer, mean n. of Paulis, std. err., max-sample n. of Paulis, n. of samples; one block per p]", param_info)
+  initialize_output(f, "[layer, mean n. of Paulis, std. err., max-sample n. of Paulis, n. of samples, q1, median, q3, min, max; one block per p]", param_info)
 end
 for f in values(pw_outputs)
-  initialize_output(f, "[layer, mean avg. Pauli weight, std. err., max-sample avg. Pauli weight, n. of samples; one block per p]", param_info)
+  initialize_output(f, "[layer, mean avg. Pauli weight, std. err., max-sample avg. Pauli weight, n. of samples, q1, median, q3, min, max; one block per p]", param_info)
 end
 for f in values(pc_outputs)
-  initialize_output(f, "[layer, mean avg. |Pauli coeff.|, std. err., max-sample avg. |Pauli coeff.|, n. of samples; one block per p]", param_info)
+  initialize_output(f, "[layer, mean avg. |Pauli coeff.|, std. err., max-sample avg. |Pauli coeff.|, n. of samples, q1, median, q3, min, max; one block per p]", param_info)
 end
 
 # Unaveraged per-sample resources: layer-resolved, one block per sample
@@ -317,6 +341,10 @@ for magic_prob in magic_probs
     push!(stds_methods[:campspp], std_campspp)
     push!(gctimes_methods[:campspp], mean(gctimes_curr))
     push!(gcstds_methods[:campspp], std(gctimes_curr) / sqrt(samples))
+    push_quartiles!(timeq1_methods, timemed_methods, timeq3_methods,
+      timemin_methods, timemax_methods, :campspp, times_curr)
+    push_quartiles!(gcq1_methods, gcmed_methods, gcq3_methods,
+      gcmin_methods, gcmax_methods, :campspp, gctimes_curr)
     save_stats_maxcol(bd_outputs[:campspp], bds_samples, μ, magic_prob)
     save_stats_maxcol(np_outputs[:campspp], nps_samples, μ, magic_prob)
     save_stats_maxcol(pw_outputs[:campspp], pws_samples, μ, magic_prob)
@@ -379,6 +407,10 @@ for magic_prob in magic_probs
     push!(stds_methods[:camps], std_camps)
     push!(gctimes_methods[:camps], mean(gctimes_curr))
     push!(gcstds_methods[:camps], std(gctimes_curr) / sqrt(samples))
+    push_quartiles!(timeq1_methods, timemed_methods, timeq3_methods,
+      timemin_methods, timemax_methods, :camps, times_curr)
+    push_quartiles!(gcq1_methods, gcmed_methods, gcq3_methods,
+      gcmin_methods, gcmax_methods, :camps, gctimes_curr)
     save_stats_maxcol(bd_outputs[:camps], bds_samples, μ, magic_prob)
     save_stats(evs_outputs[:camps], stack_samples(evs_camps), μ, magic_prob)
     save_per_sample(times_full_outputs[:camps], μ, magic_prob, times_curr, gctimes_curr)
@@ -425,6 +457,10 @@ for magic_prob in magic_probs
     push!(stds_methods[:mps], std_mps)
     push!(gctimes_methods[:mps], mean(gctimes_curr))
     push!(gcstds_methods[:mps], std(gctimes_curr) / sqrt(samples))
+    push_quartiles!(timeq1_methods, timemed_methods, timeq3_methods,
+      timemin_methods, timemax_methods, :mps, times_curr)
+    push_quartiles!(gcq1_methods, gcmed_methods, gcq3_methods,
+      gcmin_methods, gcmax_methods, :mps, gctimes_curr)
     save_stats(evs_outputs[:mps], stack_samples(evs_mps), μ, magic_prob)
     save_per_sample(times_full_outputs[:mps], μ, magic_prob, times_curr, gctimes_curr)
     save_full_samples(evs_full_outputs[:mps], μ, magic_prob, stack_samples(evs_mps))
@@ -480,6 +516,10 @@ for magic_prob in magic_probs
     push!(stds_methods[:pp], std_pp)
     push!(gctimes_methods[:pp], mean(gctimes_curr))
     push!(gcstds_methods[:pp], std(gctimes_curr) / sqrt(samples))
+    push_quartiles!(timeq1_methods, timemed_methods, timeq3_methods,
+      timemin_methods, timemax_methods, :pp, times_curr)
+    push_quartiles!(gcq1_methods, gcmed_methods, gcq3_methods,
+      gcmin_methods, gcmax_methods, :pp, gctimes_curr)
     save_stats_maxcol(np_outputs[:pp], nps_samples, μ, magic_prob)
     save_stats_maxcol(pw_outputs[:pp], pws_samples, μ, magic_prob)
     save_stats_maxcol(pc_outputs[:pp], pcs_samples, μ, magic_prob)
@@ -526,11 +566,21 @@ for magic_prob in magic_probs
     println("-"^32)
   end
 
-  initialize_output(output, "[ignore this row]", param_info)
+  # Seven columns per method: mean, std. err., then q1/median/q3/min/max
+  # (ordered for gnuplot `with candlesticks`, whiskers at the extrema)
+  initialize_output(output,
+    "[p, then per method: mean time (s), std. err., q1, median, q3, min, max]",
+    param_info)
   save_columns(output, magic_probs,
-    (col for m in methods for col in (times_methods[m], stds_methods[m]))...)
+    (col for m in methods for col in (times_methods[m], stds_methods[m],
+      timeq1_methods[m], timemed_methods[m], timeq3_methods[m],
+      timemin_methods[m], timemax_methods[m]))...)
 
-  initialize_output(gctime_output, "[ignore this row]", param_info)
+  initialize_output(gctime_output,
+    "[p, then per method: mean GC time (s), std. err., q1, median, q3, min, max]",
+    param_info)
   save_columns(gctime_output, magic_probs,
-    (col for m in methods for col in (gctimes_methods[m], gcstds_methods[m]))...)
+    (col for m in methods for col in (gctimes_methods[m], gcstds_methods[m],
+      gcq1_methods[m], gcmed_methods[m], gcq3_methods[m],
+      gcmin_methods[m], gcmax_methods[m]))...)
 end

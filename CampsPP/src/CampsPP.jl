@@ -7,6 +7,7 @@ export leftover_rotgates
 
 include("Utility.jl")
 export stringtopauli_sym
+export quantiles
 export save_three_columns
 export save_rows
 export save_columns

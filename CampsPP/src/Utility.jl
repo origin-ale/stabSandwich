@@ -40,6 +40,16 @@ function stack_samples(sample_evs)
   return evs
 end
 
+""" ```quantiles(xs)```
+
+Lower quartile, median and upper quartile of ```xs``` (ordered for gnuplot \
+```with candlesticks```). An empty ```xs``` gives NaNs."""
+function quantiles(xs)
+  isempty(xs) && return (NaN, NaN, NaN)
+  q = quantile(xs, (0.25, 0.5, 0.75))
+  return (q[1], q[2], q[3])
+end
+
 function save_full_samples(output_full, μ, magic_prob, evs)
   open(output_full, "a") do full_io
     println(full_io, "# p = $magic_prob, μ = $μ")
@@ -118,13 +128,17 @@ Like ```save_stats```, but takes the raw per-sample resource vectors \
 ```samples``` and appends, as a fourth column sharing the same layer (cycle) \
 column, the full per-layer evolution of the single sample that reached the \
 highest resource value (peak over its own evolution), and as a fifth column \
-the number of samples with data at each layer. The block header records \
+the number of samples with data at each layer, and as five further columns \
+the per-layer quartiles and extrema over the samples. The block header records \
 the selected (1-based) sample index; columns are \
-```layer, mean, error, max-sample, n-samples``` and the block is followed by \
+```layer, mean, error, max-sample, n-samples, q1, median, q3, min, max``` \
+(columns 6-10 ordered for gnuplot ```with candlesticks```, whiskers at the \
+extrema) and the block is followed by \
 two blank lines (gnuplot block separator). Samples may contain leading \
 ```missing``` entries (e.g. resources of a method that starts mid-circuit): \
 rows with no data are skipped and gaps in the max-sample column are written \
-as NaN."""
+as NaN. Note that column 4 is one sample's whole trajectory, whereas column 10 \
+is the per-layer maximum over all samples."""
 function save_stats_maxcol(output, samples, μ, magic_prob)
   isempty(samples) && return
   evs = stack_samples(samples)
@@ -132,6 +146,12 @@ function save_stats_maxcol(output, samples, μ, magic_prob)
   counts = [count(!ismissing, view(evs, i, :)) for i in rows]
   ev_means = [mean(skipmissing(evs[i, :])) for i in rows]
   ev_errs = [std(skipmissing(evs[i, :]))/sqrt(count(!ismissing, evs[i, :])) for i in rows]
+  quartiles = [quantiles(collect(skipmissing(view(evs, i, :)))) for i in rows]
+  ev_q1 = [q[1] for q in quartiles]
+  ev_medians = [q[2] for q in quartiles]
+  ev_q3 = [q[3] for q in quartiles]
+  ev_mins = [minimum(skipmissing(view(evs, i, :))) for i in rows]
+  ev_maxs = [maximum(skipmissing(view(evs, i, :))) for i in rows]
   layers = rows .- 1
 
   imax = argmax([maximum(skipmissing(s); init = -Inf) for s in samples])
@@ -140,7 +160,8 @@ function save_stats_maxcol(output, samples, μ, magic_prob)
   open(output, "a") do io
     println(io, "# p = $magic_prob, μ = $μ, max sample = $imax")
   end
-  save_columns(output, layers, ev_means, ev_errs, maxcol, counts)
+  save_columns(output, layers, ev_means, ev_errs, maxcol, counts,
+    ev_q1, ev_medians, ev_q3, ev_mins, ev_maxs)
   open(output, "a") do io
     print(io, "\n\n")  # two blank lines: gnuplot index (block) separator
   end
