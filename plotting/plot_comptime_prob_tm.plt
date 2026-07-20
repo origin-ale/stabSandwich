@@ -14,9 +14,9 @@ set yrange [0:1000]
 
 set key bottom right
 
-input = 'output/carlos10/comptime_prob_tm.txt'
+input = 'output/carlos_varseed/comptime_prob_tm.txt'
 
 plot input using 1:2:3 with yerrorlines title "CAMPS-PP, thl 10^{-10}",\
-'output/comptime_prob_tm.txt' using 1:4:5 with yerrorlines title "PP, thl 10^{-8}"
+'output/carlos_varseed_pp/comptime_prob_tm.txt' using 1:2:3 with yerrorlines title "PP, thl 10^{-10}"
 # input using 1:4:5 with yerrorlines title "CAMPS - search"\,
 # input using 1:6:7 with yerrorlines title "MPS (thl 10^{-9})",\
