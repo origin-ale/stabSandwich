@@ -40,7 +40,7 @@ rng_seed = 100
 θ = π/4
 
 # CAMPS-PP (sandwich, ie. s-)
-campspp_χ = 128 # s-CAMPS bond dimension that triggers s-PP
+campspp_χ = 64 # s-CAMPS bond dimension that triggers s-PP
 campspp_thl = 1e-10 # Threshold for truncation during s-PP
 campspp_Pmax = 10_000_000 # Maximum number of Paulis for s-PP
 
