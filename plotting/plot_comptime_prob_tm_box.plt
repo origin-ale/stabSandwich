@@ -34,7 +34,7 @@ bw = 0.0012
 set boxwidth bw absolute
 dx = 0.0009
 
-campspp = 'output/carlos_varseed/comptime_prob_tm.txt'
+campspp = 'output/carlos_varseed64/comptime_prob_tm.txt'
 pp = 'output/carlos_varseed_pp/comptime_prob_tm.txt'
 
 # == Wall-clock time ====================================================================
@@ -45,21 +45,21 @@ plot campspp using ($1-dx):col(0,Q1):col(0,MIN):col(0,MAX):col(0,Q3) \
        title "CAMPS-PP, thl 10^{-10}", \
      campspp using ($1-dx):col(0,MED):col(0,MED):col(0,MED):col(0,MED) \
        with candlesticks lw 3 lc rgb "#1b3a8c" notitle, \
-     campspp using ($1-dx):col(0,MEAN) with points pt 7 ps 0.8 \
+     campspp using ($1-dx):col(0,MEAN) with linespoints pt 7 ps 0.8 \
        lc rgb "#1b3a8c" title "CAMPS-PP mean", \
      pp using ($1+dx):col(0,Q1):col(0,MIN):col(0,MAX):col(0,Q3) \
        with candlesticks whiskerbars 0.5 lc rgb "#efb118" \
        title "PP, thl 10^{-10}", \
      pp using ($1+dx):col(0,MED):col(0,MED):col(0,MED):col(0,MED) \
        with candlesticks lw 3 lc rgb "#9c7016" notitle, \
-     pp using ($1+dx):col(0,MEAN) with points pt 7 ps 0.8 \
+     pp using ($1+dx):col(0,MEAN) with linespoints pt 7 ps 0.8 \
        lc rgb "#9c7016" title "PP mean"
 
 # == GC time ============================================================================
 set output "output/GCTimes_prob_tm_box.png"
 set ylabel "GC time (s)"
 
-campspp_gc = 'output/carlos_varseed/gctime_prob_tm.txt'
+campspp_gc = 'output/carlos_varseed64/gctime_prob_tm.txt'
 pp_gc = 'output/carlos_varseed_pp/gctime_prob_tm.txt'
 
 plot campspp_gc using ($1-dx):col(0,Q1):col(0,MIN):col(0,MAX):col(0,Q3) \
