@@ -48,7 +48,7 @@ for N in Ns
 		for sample in 1:n_samples
 			ψ = CAMPS(N)
       paulistrings = [PauliOperator(0x0, rand(Bool,N), rand(Bool,N)) for _ in 1:t]
-      angles = 2π*rand(Float64, (t,)) # Rotation angles, ie. 2* exponential phases
+      angles = fill(π/4, t) # Rotation angles, ie. 2* exponential phases
 
 			ψ_evo, k = evolve(ψ, t, paulistrings, angles)
 
