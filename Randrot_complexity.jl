@@ -8,7 +8,7 @@ using Plots
 using LaTeXStrings
 using Statistics
 
-Ns = length(ARGS) >= 1 ? parse.(Int, split(ARGS[1], ",")) : [12, 16]
+Ns = length(ARGS) >= 1 ? parse.(Int, split(ARGS[1], ",")) : [12, 24, 48]
 n_samples = length(ARGS) >= 2 ? parse(Int, ARGS[2]) : 100
 fractions = 0.1:0.1:1.1
 
