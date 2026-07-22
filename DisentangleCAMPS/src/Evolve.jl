@@ -72,8 +72,8 @@ end
 
 "```apply!(ψ, k, P, ϕ)```
 
-Apply the Pauli operator P to the CAMPS ψ with k free qubits, disentangling if possible.
-Modify ψ in-place and return the new number of free qubits."
+Apply the Pauli operator P to the CAMPS ψ with k logical qubits, disentangling if possible.
+Modify ψ in-place and return the new number of logical qubits."
 function CliffordMPS.apply!(ψ::CAMPS,
                             k::Integer,
                             P::PauliOperator,
