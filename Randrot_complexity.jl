@@ -47,7 +47,11 @@ for N in Ns
 
 		for sample in 1:n_samples
 			ψ = CAMPS(N)
-      paulistrings = [PauliOperator(0x0, rand(Bool,N), rand(Bool,N)) for _ in 1:t]
+      xbits = fill(false, N)
+      ybits = fill(false, N)
+      ybits[1] = true
+      
+      paulistrings = fill(PauliOperator(0x0, xbits, ybits),t)
       phases = fill(π/8, t)
 
 			ψ_evo, k = evolve(ψ, t, paulistrings, phases)
