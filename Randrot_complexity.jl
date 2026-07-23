@@ -48,13 +48,13 @@ for N in Ns
 		for sample in 1:n_samples
 			ψ = CAMPS(N)
       xbits = fill(false, N)
-      ybits = fill(false, N)
-      ybits[1] = true
+      zbits = fill(false, N)
+      zbits[1] = true
       
-      paulistrings = fill(PauliOperator(0x0, xbits, ybits),t)
+      paulistrings = fill(PauliOperator(0x0, xbits, zbits),t)
       phases = fill(π/8, t)
 
-			ψ_evo, k = evolve(ψ, t, paulistrings, phases)
+			ψ_evo, k = evolve_deepcliffords(ψ, t, paulistrings, phases)
 
 			push!(ee_samples, maximum(eEntropys!(ψ_evo.mps)) / N)
 			push!(sre_samples, sEntropy(ψ_evo.mps, N^2; α =2) / N)
