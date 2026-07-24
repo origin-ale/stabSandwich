@@ -21,11 +21,11 @@ ITensors.Strided.set_num_threads(nthr)
 
 
 N = 46
-t = N ÷ 4
+t = N ÷ 2
 ϕ = π/4
 θ = π/4
 μs = [0.3, 0.6, 1., 10.]
-magic_probs = [0., 0.014, 0.028]
+magic_probs = [0., 0.06]
 Nsamples = 100
 
 dope_phase = 3π/16
@@ -33,12 +33,12 @@ dope_method = "on XY"
 
 param_pairs = vec([(magic_prob, μ) for magic_prob in magic_probs, μ in μs])
 
-χ = 128
-thl = 1e-5
+χ = 64
+thl = 1e-10
 Nmax_pauli = 1_000_000
 warn_on_prestop = true
 
-prefix = "TMDxy_dbl"
+prefix = "TMDxy"
 output = "output/$(prefix)_$(N)_$(Nsamples).txt"
 output_log = "output/$(prefix)_$(N)_$(Nsamples)_log.txt"
 output_full = "output/$(prefix)_$(N)_$(Nsamples)_full.txt"
