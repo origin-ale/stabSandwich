@@ -29,7 +29,7 @@ magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
 
 magic_prob_min = 0.000
 magic_prob_spacing = 0.005
-magic_prob_max = 0.1
+magic_prob_max = 0.6
 
 samples = 25
 # Base RNG seed: sample i uses seed rng_seed + i (0 reproduces historical runs;
@@ -226,18 +226,19 @@ initialize_output(doped_output,
   "[doped gates: count line, then one gate position + cycle + Pauli string + qubits per gate; one set per sample, one block per p]",
   param_info)
 
-function init_camps(N, seed, magic_prob)
+# The doping `mask` is generated once per (sample, probability) in the main loop
+# and passed in, so the doped gates are identical across methods for a sample.
+function init_camps(N, seed, mask)
   rng = MersenneTwister(seed)
   ψ, onebitinds = domainwallstate(rng, N, μ)
   tm = transferredmagnetization(N, onebitinds)
 
   gates, phases = xxz_circuit(ϕ, θ, N/2, N)
-  doping_rng = MersenneTwister(hash((seed, :doping)))
-  phases = magic_doping(doping_rng, phases, magic_prob; magicphase = magic_phase)
+  phases = magic_doping(phases, mask; magicphase = magic_phase)
   return ψ, tm, gates, phases
 end
 
-function init_mps(N, seed, magic_prob)
+function init_mps(N, seed, mask)
   rng = MersenneTwister(seed)
   _, onebitinds = domainwallstate(rng, N, μ)
   tm = transferredmagnetization(N, onebitinds)
@@ -250,19 +251,17 @@ function init_mps(N, seed, magic_prob)
   ψ = MPS(sites, onebitinds_strs)
 
   gates, phases = xxz_circuit(ϕ, θ, N/2, N)
-  doping_rng = MersenneTwister(hash((seed, :doping)))
-  phases = magic_doping(doping_rng, phases, magic_prob; magicphase = magic_phase)
+  phases = magic_doping(phases, mask; magicphase = magic_phase)
   return ψ, tm, gates, phases
 end
 
-function init_pp(N, seed, magic_prob)
+function init_pp(N, seed, mask)
   rng = MersenneTwister(seed)
   _, onebitinds = domainwallstate(rng, N, μ)
   tm = transferredmagnetization(N, onebitinds)
 
   gates, phases = xxz_circuit(ϕ, θ, N/2, N)
-  doping_rng = MersenneTwister(hash((seed, :doping)))
-  phases = magic_doping(doping_rng, phases, magic_prob; magicphase = magic_phase)
+  phases = magic_doping(phases, mask; magicphase = magic_phase)
   return onebitinds, tm, gates, phases
 end
 
@@ -273,13 +272,18 @@ for magic_prob in magic_probs
   magic_prob_str = @sprintf("%.3f", magic_prob)
   evs_campspp = evs_camps = evs_mps = evs_pp = nothing
 
-  # Doped gates are fixed by the sample seed, hence identical across methods:
-  # record them once per probability by replaying each sample's doping RNG
+  # Doping masks are fixed by the sample seed *and* probability, so they are
+  # identical across methods for a given sample yet independent across
+  # probabilities (no monotonic nesting). Index 0 is the warm-up sample.
   gates_ref, phases_ref = xxz_circuit(ϕ, θ, N/2, N)
-  doped_inds_samples = map(1:samples) do i
-    doping_rng = MersenneTwister(hash((rng_seed + i, :doping)))
-    doped_phases = magic_doping(doping_rng, phases_ref, magic_prob;
-      magicphase = magic_phase)
+  sample_mask(i) = doping_mask(MersenneTwister(hash((rng_seed + i, magic_prob))),
+    phases_ref, magic_prob)
+  masks_samples = [sample_mask(i) for i in 1:samples]
+  mask_wu = sample_mask(0)
+
+  # Record the resulting doped gates once per probability
+  doped_inds_samples = map(masks_samples) do mask
+    doped_phases = magic_doping(phases_ref, mask; magicphase = magic_phase)
     findall(doped_phases .!= phases_ref)
   end
   save_doped_gates(doped_output, gates_ref, doped_inds_samples, layer_ends, μ,
@@ -289,7 +293,7 @@ for magic_prob in magic_probs
   if :campspp in methods
     prog = Progress(samples; desc = "p=$magic_prob_str CAMPS-PP")
 
-    ψ_wu, tm_wu, gates, phases = init_camps(N, rng_seed, magic_prob)
+    ψ_wu, tm_wu, gates, phases = init_camps(N, rng_seed, mask_wu)
     times_curr = Real[]
     gctimes_curr = Real[]
     bds_samples = Vector{Int}[]
@@ -309,7 +313,7 @@ for magic_prob in magic_probs
       layer_ends = layer_ends)
 
     for i in 1:samples
-      ψ, tm, gates, phases = init_camps(N, rng_seed + i, magic_prob)
+      ψ, tm, gates, phases = init_camps(N, rng_seed + i, masks_samples[i])
       (evs, tstop, bds, nps, pws, pcs), time, _, gctime = @timed campspp_circuit_dynamics(
         ψ,
         campspp_χ,
@@ -366,7 +370,7 @@ for magic_prob in magic_probs
   if :camps in methods
     prog = Progress(samples; desc = "p=$magic_prob_str CAMPS")
 
-    ψ_wu, tm_wu, gates, phases = init_camps(N, rng_seed, magic_prob)
+    ψ_wu, tm_wu, gates, phases = init_camps(N, rng_seed, mask_wu)
     times_curr = Real[]
     gctimes_curr = Real[]
     bds_samples = Vector{Int}[]
@@ -383,7 +387,7 @@ for magic_prob in magic_probs
       layer_ends = layer_ends)
 
     for i in 1:samples
-      ψ, tm, gates, phases = init_camps(N, rng_seed + i, magic_prob)
+      ψ, tm, gates, phases = init_camps(N, rng_seed + i, masks_samples[i])
       (_, _, evs, bds), time, _, gctime = @timed campssrc_circuit_dynamics(
         ψ,
         gates,
@@ -423,7 +427,7 @@ for magic_prob in magic_probs
   if :mps in methods
     prog = Progress(samples; desc = "p=$magic_prob_str MPS")
 
-    ψ_wu, tm_wu, gates, phases = init_mps(N, rng_seed, magic_prob)
+    ψ_wu, tm_wu, gates, phases = init_mps(N, rng_seed, mask_wu)
     times_curr = Real[]
     gctimes_curr = Real[]
     evs_mps = Vector{Real}[]
@@ -437,7 +441,7 @@ for magic_prob in magic_probs
       layer_ends = layer_ends)
 
     for i in 1:samples
-      ψ, tm, gates, phases = init_mps(N, rng_seed + i, magic_prob)
+      ψ, tm, gates, phases = init_mps(N, rng_seed + i, masks_samples[i])
       (_, evs), time, _, gctime = @timed mps_circuit_dynamics(
         ψ,
         gates,
@@ -470,7 +474,7 @@ for magic_prob in magic_probs
   if :pp in methods
     prog = Progress(samples; desc = "p=$magic_prob_str PP")
 
-    onebitinds_wu, tm_wu, gates, phases = init_pp(N, rng_seed, magic_prob)
+    onebitinds_wu, tm_wu, gates, phases = init_pp(N, rng_seed, mask_wu)
     times_curr = Real[]
     gctimes_curr = Real[]
     nps_samples = Vector{Int}[]
@@ -488,7 +492,7 @@ for magic_prob in magic_probs
       layer_ends = layer_ends)
 
     for i in 1:samples
-      onebitinds, tm, gates, phases = init_pp(N, rng_seed + i, magic_prob)
+      onebitinds, tm, gates, phases = init_pp(N, rng_seed + i, masks_samples[i])
       (_, evs, nps, pws, pcs), time, _, gctime = @timed pauliprop_circuit_dynamics(
         onebitinds,
         gates,

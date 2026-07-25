@@ -44,11 +44,24 @@ function sub_magic(phases, p; magicphase = π/8)
   return newphases
 end
 
+""" ```doping_mask(rng, phases, p)```
+
+Generate a random doping mask over the XX-YY-ZZ gate triples of an XXZ circuit: \
+a `BitVector` with one entry per triple, each `true` with probability p. \
+Pass it to `xy_magic`/`z_magic` to select which gates to dope, so that the same \
+mask reproduces the same doping regardless of the RNG state at call time."""
+function doping_mask(rng::AbstractRNG, phases, p)
+  return rand(rng, length(phases) ÷ 3) .< p
+end
+doping_mask(phases, p) = doping_mask(default_rng(), phases, p)
+
 """ ```xy_magic(phases, p; [magicphase])```
+    ```xy_magic(phases, mask; [magicphase])```
 
 Dope an XX-YY-ZZ circuit with magic \
 by adding a magic phase to the XX and YY phases,\
-default -π/8, with probability p."""
+default -π/8. Either draw doped triples with probability p, or dope exactly the \
+triples selected by a boolean `mask` (see `doping_mask`)."""
 function xy_magic(rng::AbstractRNG, phases, p; magicphase = -π/8)
   newphases = copy(phases)
   for i = 1:3:length(phases)
@@ -60,12 +73,24 @@ function xy_magic(rng::AbstractRNG, phases, p; magicphase = -π/8)
   return newphases
 end
 xy_magic(phases, p; kwargs...) = xy_magic(default_rng(), phases, p; kwargs...)
+function xy_magic(phases, mask::AbstractVector{Bool}; magicphase = -π/8)
+  newphases = copy(phases)
+  for k in eachindex(mask)
+    if mask[k]
+      newphases[3k-2] = magicphase
+      newphases[3k-1] = magicphase
+    end
+  end
+  return newphases
+end
 
 """ ```z_magic(phases, p; [magicphase])```
+    ```z_magic(phases, mask; [magicphase])```
 
 Dope an XX-YY-ZZ circuit with magic \
 by adding a magic phase to the Z phases,\
-default -π/8, with probability p."""
+default -π/8. Either draw doped triples with probability p, or dope exactly the \
+triples selected by a boolean `mask` (see `doping_mask`)."""
 function z_magic(rng::AbstractRNG, phases, p; magicphase = -π/8)
   newphases = copy(phases)
   for i = 3:3:length(phases)
@@ -76,6 +101,15 @@ function z_magic(rng::AbstractRNG, phases, p; magicphase = -π/8)
   return newphases
 end
 z_magic(phases, p; kwargs...) = z_magic(default_rng(), phases, p; kwargs...)
+function z_magic(phases, mask::AbstractVector{Bool}; magicphase = -π/8)
+  newphases = copy(phases)
+  for k in eachindex(mask)
+    if mask[k]
+      newphases[3k] = magicphase
+    end
+  end
+  return newphases
+end
 
 """ ```dopeT(N, gates, phases, layer_ends, p)```
 
