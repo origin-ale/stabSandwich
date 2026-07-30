@@ -21,7 +21,7 @@ set fit quiet nolog errorvariables
 
 # == Number of Pauli strings ============================================================
 set output "output/Resources_prob_tm_NP_campspp_graph.png"
-datafile = "output/carlos_varseed64/resources_prob_tm_NP_campspp.txt"
+datafile = "output/carlos_indep/resources_prob_tm_NP_campspp.txt"
 set title "46-qubit XXZ circuit — CAMPS-PP Pauli string number" font ",20"
 set ylabel "N. of Pauli strings" font ",16"
 set logscale y
@@ -30,7 +30,7 @@ plot for [i=0:nb-1] datafile index i using 1:2:3 with yerrorlines lc i+1 title b
 
 # == Mean Pauli weight ==================================================================
 set output "output/Resources_prob_tm_PW_campspp_graph.png"
-datafile = "output/carlos_varseed64/resources_prob_tm_PW_campspp.txt"
+datafile = "output/carlos_indep/resources_prob_tm_PW_campspp.txt"
 set title "46-qubit XXZ circuit — CAMPS-PP mean Pauli weight" font ",20"
 set ylabel "Mean avg. Pauli weight" font ",16"
 set logscale xy
@@ -80,7 +80,7 @@ plot for [i=0:nb-1] datafile index i using 1:2:3 with yerrorlines lc i+1 title f
 
 # == Mean |Pauli coefficient| ===========================================================
 set output "output/Resources_prob_tm_PC_campspp_graph.png"
-datafile = "output/carlos_varseed64/resources_prob_tm_PC_campspp.txt"
+datafile = "output/carlos_indep/resources_prob_tm_PC_campspp.txt"
 set title "46-qubit XXZ circuit — CAMPS-PP mean Pauli coeff." font ",20"
 set ylabel "Mean avg. |Pauli coeff.|" font ",16"
 unset xrange
