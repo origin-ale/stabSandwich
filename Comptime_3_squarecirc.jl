@@ -67,15 +67,15 @@ methods = [:camps, :pp, :mps]
 
 Nsamples = 100
 Nrange = [2, 4, 6, 8, 10, 12, 16, 22, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 44, 64, 90, 128]
-Nmax_mps_run = 16 # Exact MPS is only run for N ≤ Nmax_mps_run
-Nmax_pp_run = 50 # Exact PP is only run for N ≤ Nmax_pp_run
+Nmax_mps_run = 25 # Exact MPS is only run for N ≤ Nmax_mps_run
+Nmax_pp_run = 70 # Exact PP is only run for N ≤ Nmax_pp_run
 
 # Base RNG seed: sample i uses seed rng_seed + i
 rng_seed = 100
 # Warm-up circuits run (untimed) before each N, on seeds rng_seed, rng_seed-1, …
 # More than one because CAMPS branches on the Clifford nature of each rotation,
 # so a single circuit does not reach every code path
-warmup_samples = 3
+warmup_samples = 10
 
 # MPS
 cutoff_mps = 0.0 # Exact: no SVD truncation
