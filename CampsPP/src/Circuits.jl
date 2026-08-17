@@ -121,30 +121,38 @@ dopeT(N, gates, phases, layer_ends, p) =
 # == Random rotations ===================================================================
 
 """ ```rotation_circuit(t, N)```
+    ```rotation_circuit(rng, t, N)```
 
 Generate t N-qubit random Pauli rotation gates e^(iϕP), with phases ϕ returned separately."""
-function rotation_circuit(t::Integer, N::Integer)
-  randstrings = [random_paulistr_sym(N) for _ in 1:t]
-  return rotation_circuit(randstrings, N)
+function rotation_circuit(rng::AbstractRNG, t::Integer, N::Integer)
+  randstrings = [random_paulistr_sym(rng, N) for _ in 1:t]
+  return rotation_circuit(rng, randstrings, N)
 end
+rotation_circuit(t::Integer, N::Integer) = rotation_circuit(default_rng(), t, N)
 
 """ ```rotation_circuit(Ps::Vector{Vector{Symbol}}, N)```
+    ```rotation_circuit(rng, Ps::Vector{Vector{Symbol}}, N)```
 
 Generate N-qubit Pauli rotation gates e^(iϕP) with the given Ps, \
 with random phases ϕ returned separately."""
-function rotation_circuit(Ps::Vector{<:Vector}, N::Integer)
+function rotation_circuit(rng::AbstractRNG, Ps::Vector{<:Vector}, N::Integer)
   t = length(Ps)
-  randphases = 2π * rand(Float64, (t,)) # Exponential phases, ie. -1/2 * rotation angles
+  randphases = 2π * rand(rng, Float64, (t,)) # Exponential phases, ie. -1/2 * rotation angles
   return rotation_circuit(Ps, randphases, N)
 end
+rotation_circuit(Ps::Vector{<:Vector}, N::Integer) =
+  rotation_circuit(default_rng(), Ps, N)
 
 """ ```rotation_circuit(ϕs, N)```
+    ```rotation_circuit(rng, ϕs, N)```
 
 Generate N-qubit random Pauli rotation gates e^(iϕP), with given phases ϕ returned separately."""
-function rotation_circuit(ϕs::Vector{<:Real}, N::Integer)
-  randstrings = [random_paulistr_sym(N) for _ in 1:length(ϕs)]
+function rotation_circuit(rng::AbstractRNG, ϕs::Vector{<:Real}, N::Integer)
+  randstrings = [random_paulistr_sym(rng, N) for _ in 1:length(ϕs)]
   return rotation_circuit(randstrings, ϕs, N)
 end
+rotation_circuit(ϕs::Vector{<:Real}, N::Integer) =
+  rotation_circuit(default_rng(), ϕs, N)
 
 """ ```rotation_circuit(Ps::Vector{Vector{Symbol}}, ϕs, N)```
 
@@ -156,11 +164,14 @@ function rotation_circuit(Ps::Vector{<:Vector}, ϕs::Vector{<:Real}, N::Integer)
 end
 
 """ ```random_paulistr_sym(N)```
+    ```random_paulistr_sym(rng, N)```
 
 Generate a random N-qubit Pauli string as a vector of N symbols \
 ```:I```, ```:X```, ```:Y```, ```:Z``` \
 (compatible with PauliPropagation.jl)."""
-random_paulistr_sym(N::Integer) = pp.inttosymbol(rand(0:BigInt(4)^N-1), N) 
+random_paulistr_sym(rng::AbstractRNG, N::Integer) =
+  pp.inttosymbol(rand(rng, 0:BigInt(4)^N-1), N)
+random_paulistr_sym(N::Integer) = random_paulistr_sym(default_rng(), N)
 
 # == XXZ ================================================================================
 
