@@ -9,6 +9,6 @@ set ylabel "Time (s)"
 
 set key bottom
 
-plot 'output/carlos_squarecirc3/comptimes_3_squarecirc_avgs.txt' using 1:2:3 with yerrorlines title "Exact CAMPS",\
-'output/carlos_squarecirc3/comptimes_3_squarecirc_avgs.txt' using 1:4:5 with yerrorlines title "Exact PP",\
-'output/carlos_squarecirc3/comptimes_3_squarecirc_avgs.txt' using 1:6:7 with yerrorlines title "Exact MPS" lc rgb "red"
+plot 'output/carlos_squarecirc3_v2/comptimes_3_squarecirc_avgs.txt' using 1:2:3 with yerrorlines title "Exact CAMPS",\
+'output/carlos_squarecirc3_v2/comptimes_3_squarecirc_avgs.txt' using 1:4:5 with yerrorlines title "Exact PP",\
+'output/carlos_squarecirc3_v2/comptimes_3_squarecirc_avgs.txt' using 1:6:7 with yerrorlines title "Exact MPS" lc rgb "red"
