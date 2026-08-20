@@ -43,7 +43,7 @@ convert_gates(gates, N) = PauliOperator.(getpauli.(gates, N))
 # Available: :camps (CAMPS), :pp (PP)
 methods = [:camps, :pp]
 
-N = 40
+N = 32
 Nsamples = 100
 
 # Aspect ratios t/N to sweep, at fixed N

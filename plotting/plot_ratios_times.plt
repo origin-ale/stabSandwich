@@ -12,5 +12,5 @@ set ylabel "Time (s)"
 
 set key bottom
 
-plot 'output/comptimes_ratios_'.N.'_avgs.txt' using 1:2:3 with yerrorlines title "Exact CAMPS",\
-'output/comptimes_ratios_'.N.'_avgs.txt' using 1:4:5 with yerrorlines title "Exact PP"
+plot 'output/carlos_ratios/comptimes_ratios_'.N.'_avgs.txt' using 1:2:3 with yerrorlines title "Exact CAMPS",\
+'output/carlos_ratios/comptimes_ratios_'.N.'_avgs.txt' using 1:4:5 with yerrorlines title "Exact PP"
