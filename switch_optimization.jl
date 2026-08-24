@@ -30,7 +30,7 @@ function circuit_sandwich(rotations, phases, P, c)
 end
 
 N = 80
-M = 0
+M = 80
 maxc = 12
 Nsamples = 50
 
