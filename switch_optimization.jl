@@ -31,11 +31,11 @@ end
 
 N = 80
 M = 0
-maxc = 12
+maxc = -12
 Nsamples = 50
 
 t = N+M
-switchpoints = collect((N-maxc):N)
+switchpoints = collect((M-maxc):M)
 observable = pp.PauliString(N, [:Z], [1])
 obs_string = "Z₁"
 
