@@ -29,9 +29,9 @@ function circuit_sandwich(rotations, phases, P, c)
   return cmps.expectation(ψ_evo, sandwichstrings)
 end
 
-N = 20
-M = 15
-maxc = 3
+N = 80
+M = 0
+maxc = 12
 Nsamples = 50
 
 t = N+M
