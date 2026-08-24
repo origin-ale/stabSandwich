@@ -29,14 +29,13 @@ function circuit_sandwich(rotations, phases, P, c)
   return cmps.expectation(ψ_evo, sandwichstrings)
 end
 
-N = 80
-M = 0
+N = 20
+M = 12
 maxc = 12
 Nsamples = 50
 
 t = N+M
-# switchpoints = collect((M-maxc):M)
-switchpoints = collect(0:maxc)
+switchpoints = collect((M-maxc):M)
 observable = pp.PauliString(N, [:Z], [1])
 obs_string = "Z₁"
 
