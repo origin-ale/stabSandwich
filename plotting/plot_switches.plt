@@ -14,10 +14,10 @@ set xrange [*:14.5]
 set yrange [*:30]
 set key bottom
 
-plot 'output/switch/M6_switch_optimization_avgs_20.txt' using 1:2:3 with yerrorlines title "M=6",\
-'output/switch/M9_switch_optimization_avgs_20.txt' using 1:2:3 with yerrorlines title "M=9",\
-'output/switch/deep_switch_optimization_avgs_20.txt' using 1:2:3 with yerrorlines title "M=12",\
-'output/switch/M15_switch_optimization_avgs_20.txt' using 1:2:3 with yerrorlines title "M=15",\
-'output/switch/M18_switch_optimization_avgs_20.txt' using 1:2:3 with yerrorlines title "M=18"
-# 'output/switch/deep_switch_optimization_avgs_50.txt' using 1:2:3 with yerrorlines title "N=50, switch at t=62-c",\
-# 'output/switch/deep_switch_optimization_avgs_100.txt' using 1:2:3 with yerrorlines title "N=100, switch at t=112-c"
+plot 'output/carlos_switch/M6_switch_optimization_avgs_20.txt' using 1:2:3 with yerrorlines title "M=6",\
+'output/carlos_switch/M9_switch_optimization_avgs_20.txt' using 1:2:3 with yerrorlines title "M=9",\
+'output/carlos_switch/M12_switch_optimization_avgs_20.txt' using 1:2:3 with yerrorlines title "M=12",\
+'output/carlos_switch/M15_switch_optimization_avgs_20.txt' using 1:2:3 with yerrorlines title "M=15",\
+'output/carlos_switch/M18_switch_optimization_avgs_20.txt' using 1:2:3 with yerrorlines title "M=18"
+# 'output/carlos_switch/deep_switch_optimization_avgs_50.txt' using 1:2:3 with yerrorlines title "N=50, carlos_switch at t=62-c",\
+# 'output/carlos_switch/deep_switch_optimization_avgs_100.txt' using 1:2:3 with yerrorlines title "N=100, carlos_switch at t=112-c"

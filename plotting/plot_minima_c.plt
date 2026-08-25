@@ -13,7 +13,7 @@ set key font ",16" left top
 g(x) = m*x + q
 m = 0.6
 q = 1.0
-fit g(x) "output/switch/switch_minima.txt" using 1:2 via m,q
+fit g(x) "output/carlos_switch/switch_minima.txt" using 1:2 via m,q
 
-plot "output/switch/switch_minima.txt" using 1:2 with points pt 7 ps 1.5 title "optimal c",\
+plot "output/carlos_switch/switch_minima.txt" using 1:2 with points pt 7 ps 1.5 title "optimal c",\
 g(x) title sprintf("%.3f M + %.3f", m, q) lc rgb "gray"

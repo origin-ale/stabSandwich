@@ -14,7 +14,7 @@ f(x) = c + a*2**(b*x**2)
 a = 0.1
 b = 0.015
 c = 0.2
-fit f(x) "output/switch/switch_minima.txt" using 1:3:4 yerrors via a,b,c
+fit f(x) "output/carlos_switch/switch_minima.txt" using 1:3:4 yerrors via a,b,c
 
-plot "output/switch/switch_minima.txt" using 1:3:4 with yerrorlines notitle,\
+plot "output/carlos_switch/switch_minima.txt" using 1:3:4 with yerrorlines notitle,\
 f(x) notitle lc rgb "gray"
