@@ -20,12 +20,12 @@ BLAS.set_num_threads(nthr)
 ITensors.Strided.set_num_threads(nthr)
 
 
-N = 46
+N = 12
 t = N ÷ 2
 ϕ = π/4
 θ = π/4
 μs = [0.3, 0.6, 1., 10.]
-magic_probs = [0.045]
+magic_probs = [1]
 Nsamples = 100
 
 dope_phase = π/3
