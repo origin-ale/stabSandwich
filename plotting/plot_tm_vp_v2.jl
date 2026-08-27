@@ -17,7 +17,7 @@ using LsqFit
 # ----------------------------------------------------------------------------
 # Configuration (mirrors the variables at the top of the .plt file)
 # ----------------------------------------------------------------------------
-const N_plot        = "46"
+const N_plot        = "12"
 const Nsamples_plot = "100"
 
 # Doping channel: :z dopes ZZ, :xy dopes XX,YY. Controls the file prefix and
@@ -27,15 +27,14 @@ const doping_suffix, doping_label =
     doping_mode == :z  ? ("z",  "Doping with π/3 on ZZ")       :
     doping_mode == :xy ? ("xy", "Doping with 3π/16 on XX,YY")  :
     error("unknown doping_mode $doping_mode")
-const prefix_plot = "TMD" * doping_suffix * "_dbl"
+const prefix_plot = "TMD" * doping_suffix
 
 # Each entry is a list of block indices to plot (0-based: index 0 is the first
 # data block). One image is saved per entry.
 const blocksets = [
-    [0, 3, 6, 9],
-    [1, 4, 7, 10],
-    [2, 5, 8, 11],
-    # [3, 7, 11],
+    [0, 2, 4, 6],
+    [1, 3, 5, 7],
+    # [0,1,2,3]
 ]
 
 # Block indices to omit from the local-exponent plots only (the main graphs
@@ -44,7 +43,7 @@ const blocksets = [
 # plot. Set to an empty `Set{Int}()` to show every dataset.
 const localexp_exclude = Set(first.(blocksets))
 
-const datafile = joinpath("output", "$(prefix_plot)_$(N_plot)_$(Nsamples_plot).txt")
+const datafile = joinpath("output", "carlos_tmd$(N_plot)$(doping_suffix)","$(prefix_plot)_$(N_plot)_$(Nsamples_plot).txt")
 
 # ----------------------------------------------------------------------------
 # Data parsing
