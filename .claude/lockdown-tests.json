@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(//Users/alessandro/Programmi/stabSandwich/CampsPP/src/**)",
+      "Edit(//Users/alessandro/Programmi/stabSandwich/DisentangleCAMPS/src/**)",
+      "Edit(//Users/alessandro/Programmi/stabSandwich/dmrgCliffordMPS/src/**)",
+      "Edit(//Users/alessandro/Programmi/stabSandwich/.claude/**)"
+    ],
+    "blockWritesOutsideWorkingDirectories": true
+  },
+  "sandbox": {
+    "filesystem": {
+      "denyWrite": [
+        "/Users/alessandro/Programmi/stabSandwich/CampsPP/src",
+        "/Users/alessandro/Programmi/stabSandwich/DisentangleCAMPS/src",
+        "/Users/alessandro/Programmi/stabSandwich/dmrgCliffordMPS/src",
+        "/Users/alessandro/Programmi/stabSandwich/.claude"
+      ]
+    }
+  }
+}
