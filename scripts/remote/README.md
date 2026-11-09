@@ -6,7 +6,7 @@ remote machine and only read what you fetch into `output/`.
 
 | File | Where it runs | What it does |
 |---|---|---|
-| `ssh_config.example` | your `~/.ssh/config` | host `stab` through both jumps, with one shared connection |
+| `ssh_config.example` | your `~/.ssh/config` | host `carlos` through both jumps, with one shared connection |
 | `run.sh` | on the target | detached `julia` run with a lock, a run record, and checksums |
 | `fetch.sh` | locally | copies a finished run back and verifies it before installing |
 
@@ -15,22 +15,23 @@ remote machine and only read what you fetch into `output/`.
 1. Copy the entry from `ssh_config.example` into `~/.ssh/config` and fill in
    the hosts and users.
 2. On the target, clone the repo and instantiate it:
-   `git clone https://github.com/origin-ale/stabSandwich.git && cd stabSandwich && julia --project=. -e 'using Pkg; Pkg.instantiate()'`.
-   If the clone path isn't `~/stabSandwich`, set `STAB_DIR` locally, for example
+   `mkdir -p ~/campspp && cd ~/campspp && git clone https://github.com/origin-ale/stabSandwich.git && cd stabSandwich && julia --project=. -e 'using Pkg; Pkg.instantiate()'`.
+   If the clone is elsewhere, set `STAB_DIR` locally to its path relative to the
+   remote home, without `~` (your local shell would expand it), for example
    `export STAB_DIR=work/stabSandwich`.
 
 ## Each working session
 
 ```bash
-ssh -fN stab                                  # three passwords, once
-ssh stab                                      # then, on the target:
-  cd stabSandwich
+ssh -fN carlos                                # three passwords, once
+ssh carlos                                    # then, on the target:
+  cd campspp/stabSandwich
   scripts/remote/run.sh -t 8 Comptime_ratios.jl  # commit and push first; run.sh pulls
   scripts/remote/run.sh --status
   exit
 scripts/remote/fetch.sh --list                # back on your machine
 scripts/remote/fetch.sh latest                # or a run id from --list
-ssh -O exit stab
+ssh -O exit carlos
 ```
 
 ## Run directories

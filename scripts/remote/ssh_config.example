@@ -1,30 +1,30 @@
 # SSH config entry for the remote simulation machine (Phase R).
 # Copy into ~/.ssh/config and replace every <...> placeholder.
 #
-# `ssh stab` goes through both jumps. With ControlMaster, the first connection
+# `ssh carlos` goes through both jumps. With ControlMaster, the first connection
 # asks for the three passwords; later ssh/fetch.sh calls reuse it with no prompt
 # until it has been idle for ControlPersist.
 #
-#   ssh -fN stab        # open the shared connection in the background
-#   ssh -O check stab   # is it open?
-#   ssh -O exit stab    # close it at the end of the working session
+#   ssh -fN carlos      # open the shared connection in the background
+#   ssh -O check carlos # is it open?
+#   ssh -O exit carlos  # close it at the end of the working session
 #
 # Claude sessions can't use this connection: the managed sandbox (Phase S)
 # blocks ~/.ssh and Unix sockets.
 
-Host stab-jump1
+Host carlos-jump1
     HostName <first jump host>
     User <user on jump 1>
 
-Host stab-jump2
+Host carlos-jump2
     HostName <second jump host>
     User <user on jump 2>
-    ProxyJump stab-jump1
+    ProxyJump carlos-jump1
 
-Host stab
+Host carlos
     HostName <target host, as seen from jump 2>
     User <user on the target>
-    ProxyJump stab-jump2
+    ProxyJump carlos-jump2
     ControlMaster auto
     ControlPath ~/.ssh/cm-%C
     ControlPersist 4h

@@ -8,9 +8,10 @@
 #   scripts/remote/fetch.sh --status   # show the remote run in progress
 #
 # Remote location (environment variables):
-#   STAB_HOST  ssh host alias of the target  (default: stab, see ssh_config.example)
+#   STAB_HOST  ssh host alias of the target  (default: carlos, see ssh_config.example)
 #   STAB_DIR   repo clone on the target, relative to the remote home or absolute
-#              (default: stabSandwich)
+#              (default: campspp/stabSandwich). Don't write it with ~: the local
+#              shell expands that to the local home.
 #
 # Steps:
 #   1. refuses runs that haven't finished (no SHA256SUMS on the target yet),
@@ -26,8 +27,10 @@
 set -uo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
-host=${STAB_HOST:-stab}
-rdir=${STAB_DIR:-stabSandwich}
+host=${STAB_HOST:-carlos}
+rdir=${STAB_DIR:-campspp/stabSandwich}
+# A ~ in STAB_DIR was expanded by the local shell; make it remote-home-relative.
+case "$rdir" in "$HOME"/*) rdir=${rdir#"$HOME"/} ;; esac
 ssh_cmd=${STAB_SSH:-ssh}   # overridable for testing only
 
 usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
