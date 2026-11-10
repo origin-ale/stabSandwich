@@ -84,7 +84,7 @@ if magic_mode == :xy
   magic_doping = xy_magic
   magic_txt = "3π/16 on XX-YY"
 elseif magic_mode == :z
-  magic_phase = 3π/16
+  magic_phase = π/3
   magic_doping = z_magic
   magic_txt = "π/3 on ZZ"
 else

@@ -19,6 +19,10 @@ BLAS.set_num_threads(nthr)
 ITensors.Strided.set_num_threads(nthr)
 
 # == Parameters ===============================================================
+# `methods`, `magic_probs` and `samples` can be overridden from the command
+# line (see "Command-line overrides" below), e.g.
+#   julia --project=. Comptime_prob_tm.jl methods=campspp p=0,0.01 samples=25
+
 # Methods to run, in output-column order. Comment out any you want to skip.
 # Available: :campspp (CAMPS-PP), :camps (CAMPS), :mps (MPS), :pp (PP)
 methods = [:campspp]
@@ -27,9 +31,8 @@ N = 46 # Fixed system size
 magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
 μ = 0.6
 
-magic_prob_min = 0.000
-magic_prob_spacing = 0.005
-magic_prob_max = 0.6
+# Doping probabilities, as an explicit list
+magic_probs = [0.0, 0.01, 0.02, 0.04]
 
 samples = 25
 # Base RNG seed: sample i uses seed rng_seed + i (0 reproduces historical runs;
@@ -66,24 +69,48 @@ evs_prefix = "output/evs_prob_tm_"
 # Doped rotation gates (Pauli string and qubits) per probability and sample
 doped_output = "output/doped_prob_tm.txt"
 
+# Per-sample initial states (one bitstring per sample, identical for every p
+# and method) and CAMPS-PP switch points (one block per p)
+initstates_output = "output/initstates_prob_tm.txt"
+switch_output = "output/campspp_switch_prob_tm.txt"
+
 # =============================================================================
+
+# == Command-line overrides ===================================================
+# Arguments are `key=value`; lists are comma-separated, without spaces:
+#   methods=campspp,camps   p=0,0.01,0.02   samples=10
+for arg in ARGS
+  key, val = let kv = split(arg, "="; limit = 2)
+    length(kv) == 2 || error("Argument `$arg` is not of the form key=value")
+    kv
+  end
+  if key == "methods"
+    global methods = Symbol.(split(val, ","))
+  elseif key == "p"
+    global magic_probs = parse.(Float64, split(val, ","))
+  elseif key == "samples"
+    global samples = parse(Int, val)
+  else
+    error("Unrecognised argument `$key` (expected methods, p or samples)")
+  end
+end
 
 all_methods = [:campspp, :camps, :mps, :pp]
 let unknown = setdiff(methods, all_methods)
   isempty(unknown) || error("Unrecognised method(s): $unknown")
 end
 isempty(methods) && error("No methods selected to run")
-
-magic_probs = magic_prob_min:magic_prob_spacing:magic_prob_max
+allunique(methods) || error("Repeated method(s) in $methods")
+isempty(magic_probs) && error("No doping probabilities given")
+all(p -> 0 <= p <= 1, magic_probs) || error("Probabilities must lie in [0, 1]: $magic_probs")
+samples >= 1 || error("Need at least 1 sample, got $samples")
 
 param_info = Dict(
-  "methods" => methods,
+  "methods" => join(methods, ","),
   "N" => N,
   "magic_mode" => magic_mode,
   "μ" => μ,
-  "magic_prob_min" => magic_prob_min,
-  "magic_prob_spacing" => magic_prob_spacing,
-  "magic_prob_max" => magic_prob_max,
+  "magic_probs" => join(magic_probs, ","),
   "samples" => samples,
   "rng_seed" => rng_seed,
   "ϕ" => ϕ,
@@ -103,7 +130,7 @@ if magic_mode == :xy
   magic_doping = xy_magic
   magic_txt = "3π/16 on XX-YY"
 elseif magic_mode == :z
-  magic_phase = 3π/16
+  magic_phase = π/3
   magic_doping = z_magic
   magic_txt = "π/3 on ZZ"
 else
@@ -145,6 +172,12 @@ function push_quartiles!(q1s, meds, q3s, mins, maxs, m, vals)
   push!(mins[m], minimum(vals))
   push!(maxs[m], maximum(vals))
 end
+
+""" Indices of the samples whose ⟨O⟩ trajectories in `as` and `bs` differ by \
+more than `atol` at some layer, or have different lengths (one method stopped \
+early). """
+mismatched_samples(as, bs; atol) = [i for i in eachindex(as, bs)
+  if length(as[i]) != length(bs[i]) || !all(isapprox.(as[i], bs[i]; atol = atol))]
 
 # Per-layer bond dimension (:campspp, :camps) and n. of Paulis (:campspp, :pp),
 # averaged over samples; one data block per probability
@@ -226,11 +259,34 @@ initialize_output(doped_output,
   "[doped gates: count line, then one gate position + cycle + Pauli string + qubits per gate; one set per sample, one block per p]",
   param_info)
 
+if :campspp in methods
+  n_gates = length(first(xxz_circuit(ϕ, θ, N/2, N)))
+  initialize_output(switch_output,
+    "[sample, switch gate (last gate applied in CAMPS; PP starts at the next one; $n_gates = never switched), n. of magic qubits k at the switch, PP stop gate ($n_gates = end of circuit); one block per p]",
+    param_info)
+end
+
+# Initial states are drawn once per sample from seed `rng_seed + i` (index 0 is
+# the warm-up sample) and saved, so a replay can rebuild them from the file
+# instead of from the RNG. They do not depend on p or on the method.
+sample_onebitinds(i) = domainwallstate(MersenneTwister(rng_seed + i), N, μ)[2]
+onebitinds_wu = sample_onebitinds(0)
+onebitinds_samples = [sample_onebitinds(i) for i in 1:samples]
+
+initialize_output(initstates_output,
+  "[sample, initial bitstring (character j is qubit j; 1 = excited), indices of excited qubits]",
+  param_info)
+open(initstates_output, "a") do io
+  for (i, inds) in enumerate(onebitinds_samples)
+    bits = join(j in inds ? '1' : '0' for j in 1:N)
+    println(io, i, " ", bits, " ", join(inds, " "))
+  end
+end
+
 # The doping `mask` is generated once per (sample, probability) in the main loop
 # and passed in, so the doped gates are identical across methods for a sample.
-function init_camps(N, seed, mask)
-  rng = MersenneTwister(seed)
-  ψ, onebitinds = domainwallstate(rng, N, μ)
+function init_camps(N, onebitinds, mask)
+  ψ = computationalcamps(N, onebitinds)
   tm = transferredmagnetization(N, onebitinds)
 
   gates, phases = xxz_circuit(ϕ, θ, N/2, N)
@@ -238,9 +294,7 @@ function init_camps(N, seed, mask)
   return ψ, tm, gates, phases
 end
 
-function init_mps(N, seed, mask)
-  rng = MersenneTwister(seed)
-  _, onebitinds = domainwallstate(rng, N, μ)
+function init_mps(N, onebitinds, mask)
   tm = transferredmagnetization(N, onebitinds)
 
   onebitinds_strs = fill("0", N)
@@ -255,9 +309,7 @@ function init_mps(N, seed, mask)
   return ψ, tm, gates, phases
 end
 
-function init_pp(N, seed, mask)
-  rng = MersenneTwister(seed)
-  _, onebitinds = domainwallstate(rng, N, μ)
+function init_pp(N, onebitinds, mask)
   tm = transferredmagnetization(N, onebitinds)
 
   gates, phases = xxz_circuit(ϕ, θ, N/2, N)
@@ -293,7 +345,7 @@ for magic_prob in magic_probs
   if :campspp in methods
     prog = Progress(samples; desc = "p=$magic_prob_str CAMPS-PP")
 
-    ψ_wu, tm_wu, gates, phases = init_camps(N, rng_seed, mask_wu)
+    ψ_wu, tm_wu, gates, phases = init_camps(N, onebitinds_wu, mask_wu)
     times_curr = Real[]
     gctimes_curr = Real[]
     bds_samples = Vector{Int}[]
@@ -301,6 +353,9 @@ for magic_prob in magic_probs
     pws_samples = Vector{Union{Missing, Float64}}[]
     pcs_samples = Vector{Union{Missing, Float64}}[]
     evs_campspp = Vector{Real}[]
+    switch_gates = Int[]
+    switch_ks = Int[]
+    stop_gates = Int[]
     _ = @timed campspp_circuit_dynamics(
       ψ_wu,
       campspp_χ,
@@ -313,8 +368,8 @@ for magic_prob in magic_probs
       layer_ends = layer_ends)
 
     for i in 1:samples
-      ψ, tm, gates, phases = init_camps(N, rng_seed + i, masks_samples[i])
-      (evs, tstop, bds, nps, pws, pcs), time, _, gctime = @timed campspp_circuit_dynamics(
+      ψ, tm, gates, phases = init_camps(N, onebitinds_samples[i], masks_samples[i])
+      (evs, tstop, bds, nps, pws, pcs, s_switch, k_switch), time, _, gctime = @timed campspp_circuit_dynamics(
         ψ,
         campspp_χ,
         campspp_thl,
@@ -332,6 +387,9 @@ for magic_prob in magic_probs
       push!(times_curr, time)
       push!(gctimes_curr, gctime)
       push!(bds_samples, bds)
+      push!(switch_gates, s_switch)
+      push!(switch_ks, k_switch)
+      push!(stop_gates, tstop)
       # PP starts at the (sample-dependent) switch layer, one past the last
       # CAMPS-recorded layer; pad so that row k is circuit layer k
       push!(nps_samples, [fill(missing, length(bds) - 1); nps])
@@ -355,6 +413,7 @@ for magic_prob in magic_probs
     save_stats_maxcol(pc_outputs[:campspp], pcs_samples, μ, magic_prob)
     save_stats(evs_outputs[:campspp], stack_samples(evs_campspp), μ, magic_prob)
     save_per_sample(times_full_outputs[:campspp], μ, magic_prob, times_curr, gctimes_curr)
+    save_per_sample(switch_output, μ, magic_prob, switch_gates, switch_ks, stop_gates)
     save_full_samples(bd_full_outputs[:campspp], μ, magic_prob, stack_samples(bds_samples))
     save_full_samples(np_full_outputs[:campspp], μ, magic_prob, stack_samples(nps_samples))
     save_full_samples(pw_full_outputs[:campspp], μ, magic_prob, stack_samples(pws_samples))
@@ -370,7 +429,7 @@ for magic_prob in magic_probs
   if :camps in methods
     prog = Progress(samples; desc = "p=$magic_prob_str CAMPS")
 
-    ψ_wu, tm_wu, gates, phases = init_camps(N, rng_seed, mask_wu)
+    ψ_wu, tm_wu, gates, phases = init_camps(N, onebitinds_wu, mask_wu)
     times_curr = Real[]
     gctimes_curr = Real[]
     bds_samples = Vector{Int}[]
@@ -387,7 +446,7 @@ for magic_prob in magic_probs
       layer_ends = layer_ends)
 
     for i in 1:samples
-      ψ, tm, gates, phases = init_camps(N, rng_seed + i, masks_samples[i])
+      ψ, tm, gates, phases = init_camps(N, onebitinds_samples[i], masks_samples[i])
       (_, _, evs, bds), time, _, gctime = @timed campssrc_circuit_dynamics(
         ψ,
         gates,
@@ -427,7 +486,7 @@ for magic_prob in magic_probs
   if :mps in methods
     prog = Progress(samples; desc = "p=$magic_prob_str MPS")
 
-    ψ_wu, tm_wu, gates, phases = init_mps(N, rng_seed, mask_wu)
+    ψ_wu, tm_wu, gates, phases = init_mps(N, onebitinds_wu, mask_wu)
     times_curr = Real[]
     gctimes_curr = Real[]
     evs_mps = Vector{Real}[]
@@ -441,7 +500,7 @@ for magic_prob in magic_probs
       layer_ends = layer_ends)
 
     for i in 1:samples
-      ψ, tm, gates, phases = init_mps(N, rng_seed + i, masks_samples[i])
+      ψ, tm, gates, phases = init_mps(N, onebitinds_samples[i], masks_samples[i])
       (_, evs), time, _, gctime = @timed mps_circuit_dynamics(
         ψ,
         gates,
@@ -474,7 +533,7 @@ for magic_prob in magic_probs
   if :pp in methods
     prog = Progress(samples; desc = "p=$magic_prob_str PP")
 
-    onebitinds_wu, tm_wu, gates, phases = init_pp(N, rng_seed, mask_wu)
+    obi_wu, tm_wu, gates, phases = init_pp(N, onebitinds_wu, mask_wu)
     times_curr = Real[]
     gctimes_curr = Real[]
     nps_samples = Vector{Int}[]
@@ -482,7 +541,7 @@ for magic_prob in magic_probs
     pcs_samples = Vector{Float64}[]
     evs_pp = Vector{Real}[]
     _ = @timed pauliprop_circuit_dynamics(
-      onebitinds_wu,
+      obi_wu,
       gates,
       phases,
       pp_thl,
@@ -492,7 +551,7 @@ for magic_prob in magic_probs
       layer_ends = layer_ends)
 
     for i in 1:samples
-      onebitinds, tm, gates, phases = init_pp(N, rng_seed + i, masks_samples[i])
+      onebitinds, tm, gates, phases = init_pp(N, onebitinds_samples[i], masks_samples[i])
       (_, evs, nps, pws, pcs), time, _, gctime = @timed pauliprop_circuit_dynamics(
         onebitinds,
         gates,
@@ -539,33 +598,17 @@ for magic_prob in magic_probs
   end
 
   # == Cross-checks (only between methods that were actually run) =============
-  if !isnothing(evs_campspp) && !isnothing(evs_camps) &&
-      !all(isapprox(evs_campspp, evs_camps; atol = 1e-6))
-    printstyled("WARNING: p = $magic_prob_str CAMPS-PP and CAMPS do not match\n";
+  # Per sample and per layer; a sample where one method stopped early (ragged
+  # trajectories) counts as a mismatch instead of throwing DimensionMismatch
+  for (name, evs_other) in (("CAMPS", evs_camps), ("MPS", evs_mps), ("PP", evs_pp))
+    (isnothing(evs_campspp) || isnothing(evs_other)) && continue
+    bad = mismatched_samples(evs_campspp, evs_other; atol = 1e-6)
+    isempty(bad) && continue
+    printstyled("WARNING: p = $magic_prob_str CAMPS-PP and $name do not match (samples $bad)\n";
       color=:yellow)
     println("-"^32)
-    for idx in eachindex(evs_campspp)
-      println("$(evs_campspp[idx])\n$(evs_camps[idx])\n")
-    end
-    println("-"^32)
-  end
-  if !isnothing(evs_campspp) && !isnothing(evs_mps) &&
-      !all(isapprox(evs_campspp, evs_mps; atol = 1e-6))
-    printstyled("WARNING: p = $magic_prob_str CAMPS-PP and MPS do not match\n";
-      color=:yellow)
-    println("-"^32)
-    for idx in eachindex(evs_campspp)
-      println("$(evs_campspp[idx])\n $(evs_mps[idx])\n")
-    end
-    println("-"^32)
-  end
-  if !isnothing(evs_campspp) && !isnothing(evs_pp) &&
-      !all(isapprox(evs_campspp, evs_pp; atol = 1e-6))
-    printstyled("WARNING: p = $magic_prob_str CAMPS-PP and PP do not match\n";
-      color=:yellow)
-    println("-"^32)
-    for idx in eachindex(evs_campspp)
-      println("$(evs_campspp[idx])\n $(evs_pp[idx])\n")
+    for idx in bad
+      println("$(evs_campspp[idx])\n$(evs_other[idx])\n")
     end
     println("-"^32)
   end

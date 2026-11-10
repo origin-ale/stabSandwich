@@ -108,12 +108,15 @@ track = false)
   ψ = deepcopy(ψ_ext)
 
   if track
-    ψ_evo, _, s, evs_camps, bonddims = camps_circuit_dynamics(
+    # Keep the switch point: `s_switch` is the last gate applied in CAMPS
+    # (PP starts at `s_switch + 1`; it equals length(gates) if CAMPS never hit
+    # χ) and `k_switch` the number of magic qubits there
+    ψ_evo, k_switch, s_switch, evs_camps, bonddims = camps_circuit_dynamics(
       ψ, gates, phases, χ, obs, output;
       showprogress = showprogress, k = k, layer_ends = layer_ends, track = true)
 
     s, evs_pp, nterms, avgweights, avgcoeffs = pauliprop_circuit_dynamics(
-      ψ_evo, s, gates, phases, thl, Nmax, obs, output;
+      ψ_evo, s_switch, gates, phases, thl, Nmax, obs, output;
       showprogress = showprogress, layer_ends = layer_ends, track = true)
   else
     ψ_evo, _, s, evs_camps = camps_circuit_dynamics(
@@ -129,7 +132,8 @@ track = false)
   append!(evs_tot, evs_camps)
   append!(evs_tot, evs_pp)
 
-  track && return evs_tot, s, bonddims, nterms, avgweights, avgcoeffs
+  track && return evs_tot, s, bonddims, nterms, avgweights, avgcoeffs,
+    s_switch, k_switch
   return evs_tot, s
 end
 

@@ -38,7 +38,7 @@ if magic_mode == :xy
   magic_phase = 3π/16
   magic_doping = xy_magic
 elseif magic_mode == :z
-  magic_phase = 3π/16
+  magic_phase = π/3
   magic_doping = z_magic
 else
   error("Unrecognised magic_mode: $magic_mode")
