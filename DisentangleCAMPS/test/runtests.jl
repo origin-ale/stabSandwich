@@ -36,6 +36,9 @@ using Test
   @testset "Dense checks" begin
     include("TestApplyDense.jl")
   end
+  @testset "Clifford circuits at N = 46" begin
+    include("TestCliffordLargeN.jl")
+  end
   @testset "Entropies" begin
     include("TestEntropies.jl")
   end

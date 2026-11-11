@@ -7,4 +7,5 @@ include("helpers.jl")
   include("TestCircuits.jl")
   include("TestInitialize.jl")
   include("TestTimeEvolution.jl")
+  include("TestCliffordLargeN.jl")
 end
