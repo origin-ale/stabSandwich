@@ -1,10 +1,8 @@
 using Test
 import CliffordMPS as cmps
 import PauliPropagation as pp
-using PauliPropagation: getpauli
 using QuantumClifford
-
-include("../CampsPP/src/CliffordMPSPauliPropagation.jl")
+using CampsPP: _inttostabilizer
 
 # Independent encoding reference:
 #   PauliPropagation packs qubit i at bits 2*(i-1) and 2*(i-1)+1 with I=0, X=1, Y=2, Z=3.
