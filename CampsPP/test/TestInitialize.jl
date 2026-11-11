@@ -32,6 +32,21 @@ zexp(ψ, j) = real(cmps.expectation(ψ, single_z(length(ψ), j)))
     @test abs(counts_l - n * (N ÷ 2) / 2) <= 5σ
     @test abs(counts_r - n * (N ÷ 2) / 2) <= 5σ
 
+    # μ = 0.6 (the production value): p = e^0.6 / (e^0.6 + e^−0.6) = 0.7685. Each left qubit
+    # is |1⟩ with probability 1 − p, each right qubit with probability p, independently.
+    # Per-qubit frequencies over 400 fixed seeds, 5σ (σ ≈ 0.021); a different formula such
+    # as e^μ/(1 + e^μ) = 0.646 is more than 5σ away.
+    p = exp(0.6) / (exp(0.6) + exp(-0.6))
+    freq = zeros(N)
+    for seed in 1:n
+      _, o = domainwallstate(Xoshiro(seed), N, 0.6)
+      freq[o] .+= 1 / n
+    end
+    σq = sqrt(p * (1 - p) / n)
+    @test all(abs.(freq[1:N÷2] .- (1 - p)) .<= 5σq)
+    @test all(abs.(freq[N÷2+1:N] .- p) .<= 5σq)
+    @test abs(p - 0.646) > 5σq
+
     # Orientation (CONVENTIONS.md §1): with p = e^μ / (e^μ + e^−μ), a left qubit is |1⟩ with
     # probability 1 − p and a right qubit with probability p, so for large μ the
     # excitations sit on the right half.

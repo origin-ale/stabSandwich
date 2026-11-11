@@ -56,3 +56,6 @@ spec_bonds(N) = vcat([[i, i + 1] for i in 1:2:N-1], [[i, i + 1] for i in 2:2:N-1
 
 "Layer ends of a t-layer bricklayer XXZ circuit: 3(N−1)·l."
 spec_layer_ends(N, t) = [3 * (N - 1) * l for l in 1:t]
+
+"Is `v` non-increasing, up to rounding at the level of `tol`?"
+nonincreasing(v; tol = 1e-10) = all(v[i+1] <= v[i] + tol for i in 1:length(v)-1)

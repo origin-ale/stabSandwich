@@ -32,13 +32,6 @@ function test_bloch(ψ, x, y, z)
   @test bz ≈ z atol = 1e-10
 end
 
-"`gate` on qubits `inds` of an N-qubit register, as a CliffordOperator."
-function embed(gate, N, inds)
-  D = one(CliffordOperator, N)
-  apply!(D, gate, inds)
-  return D
-end
-
 # Angles away from every Clifford angle, plus Clifford ones where the formula still holds.
 const MAGIC_ANGLES = [0.0, π/8, π/4, 3π/8, π/3, π/2, -π/4, -π/8, 1.1, 2.3, -0.7]
 
@@ -122,6 +115,25 @@ const MAGIC_ANGLES = [0.0, π/8, π/4, 3π/8, π/3, π/2, -π/4, -π/8, 1.1, 2.3
       @test expval(ψ, P"YX") ≈ sin(2φ) atol = 1e-10
       @test expval(ψ, P"XI") ≈ 0.0     atol = 1e-10
     end
+  end
+end
+
+@testset "addmagicstate!: non-self-inverse two-qubit frame" begin
+  # Cdag = S₂ · CNOT(1→2) (CNOT acts first). |ψ⟩ = Cdag⁻¹|mps⟩ = CNOT · S₂† |mps⟩.
+  # |mps⟩ = (cos α|0⟩ + i sin α|1⟩)|0⟩; S₂† does nothing to |0⟩₂; CNOT gives
+  # |ψ⟩ = cos α|00⟩ + i sin α|11⟩ → ⟨XX⟩ = 0, ⟨XY⟩ = ⟨YX⟩ = sin 2α, ⟨ZZ⟩ = 1, ⟨ZI⟩ = cos 2α.
+  # The two wrong readings give different values:
+  #   Cdag|mps⟩       = S₂·CNOT|mps⟩  = cos α|00⟩ − sin α|11⟩ → ⟨XX⟩ = −sin 2α;
+  #   (CNOT·S₂)⁻¹|mps⟩ = S₂†·CNOT|mps⟩ = cos α|00⟩ + sin α|11⟩ → ⟨XX⟩ = +sin 2α.
+  for α in (π/8, π/3, -0.7)
+    ψ = CAMPS(embed(tPhase, 2, [2]) * embed(tCNOT, 2, [1, 2]))
+    addmagicstate!(ψ, 0, α)
+    @test expval(ψ, P"XX") ≈ 0.0     atol = 1e-10
+    @test expval(ψ, P"YY") ≈ 0.0     atol = 1e-10
+    @test expval(ψ, P"XY") ≈ sin(2α) atol = 1e-10
+    @test expval(ψ, P"YX") ≈ sin(2α) atol = 1e-10
+    @test expval(ψ, P"ZZ") ≈ 1.0     atol = 1e-10
+    @test expval(ψ, P"ZI") ≈ cos(2α) atol = 1e-10
   end
 end
 
@@ -212,6 +224,8 @@ end
 
     for ϕ in (π/2, -π/2)
       # General X rotation, then ±iZ: (0, sin 2ϕ₁, cos 2ϕ₁) → Z flips ⟨X⟩ and ⟨Y⟩.
+      # (The frame is still the identity here: the disentangler for Q = X at N = 1 is 1.
+      # So this is the Pauli-frame case, where the ±π/2 branch is correct.)
       @test close3(two_gates(P"X", 0.4, P"Z", ϕ), (0.0, -sin(0.8), cos(0.8)))
 
       # Known bug in the old `apply!` (plan, hard spot 6): the ±π/2 branch multiplies the

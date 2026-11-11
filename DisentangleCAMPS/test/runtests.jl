@@ -18,9 +18,12 @@ using Test
 
 # One wrapping testset: a failing file no longer aborts the run and hides the rest.
 @testset "DisentangleCAMPS" begin
+  # The self-test runs first, before QuantumClifford is loaded into this module: both
+  # export `expect`, and the self-test uses the dense reference's unqualified.
   @testset "Dense reference (self-test)" begin
     include("TestDenseReference.jl")
   end
+  include("helpers.jl")
   @testset "Golden set" begin
     include("TestGoldenSet.jl")
   end
@@ -32,5 +35,8 @@ using Test
   end
   @testset "Dense checks" begin
     include("TestApplyDense.jl")
+  end
+  @testset "Entropies" begin
+    include("TestEntropies.jl")
   end
 end

@@ -27,7 +27,7 @@ Every expected value in the tests comes from this page, the dense reference or t
   - **Signed strings.** exp(iϕ(−P)) = exp(−iϕP).
 - **Known bugs in the old `apply!`** (both methods). Only these cases are `@test_broken` on the old code, and they must pass after the port:
   1. ϕ = −π/4 and ϕ = +3π/4 are wrong in every frame, including the identity frame;
-  2. ϕ = ±π/2 is wrong when the frame is not a Pauli operator (the identity counts as Pauli), i.e. after a disentangler or a π/4 gate. With a Pauli frame it is correct.
+  2. ϕ = ±π/2 is wrong when the frame does not map P to ±P, i.e. when C†PC ≠ ±P (the old code multiplies the frame by P on the wrong side). This can only happen once the frame holds a non-Pauli Clifford, i.e. after a disentangler or a π/4 gate; with a Pauli frame, or whenever C†PC = ±P, the branch is correct.
 - **Clifford angles and tolerance.** The physical state must equal exp(iϕP)|ψ⟩ for every real ϕ. Which angles an implementation recognises as Clifford affects only frame-dependent quantities (k, the frame, bond dimensions).
   - The old code recognises |ϕ| ∈ {0, π/4, π/2, 3π/4, π}; other multiples of π/4 (5π/4, 2π, …) take the generic branch. It uses `atol = 1e-6` at 0 and the default `≈` relative tolerance elsewhere.
   - The port makes this uniform: optional `atol` and `rtol` parameters applying to every Clifford angle (user, 2026-11-11); defaults are chosen then.
@@ -36,6 +36,11 @@ Every expected value in the tests comes from this page, the dense reference or t
 - **PauliPropagation.** `PauliRotation` with angle θ is exp(−iθP/2). `propagate` takes the gate list and the angle vector in the circuit order above and returns U†OU (checked numerically). A gate (P, ϕ) is passed to PP with θ = −2ϕ. A `PauliRotation` carries no sign, so (−P, ϕ) is passed as (P, θ = +2ϕ).
 - **XXZ gate** on a bond (i, i+1): the three commuting gates (XX, ϕ_xy), (YY, ϕ_xy), (ZZ, ϕ_z), stored and applied in that order, all in the exp(iϕP) convention. `xxz_circuit(ϕ_xy, ϕ_z, t, N)` takes the angles in that order.
 - **Bricklayer layer:** bonds (1,2), (3,4), … first, then (2,3), (4,5), …, each bond getting its full XX, YY, ZZ triple before the next bond. That is N−1 bonds and 3(N−1) gates per layer for any N (135 at N=46). Layer l ends at gate 3(N−1)·l. For other circuits the caller supplies the layer ends as gate indices.
+- **Recording.** The `*_circuit_dynamics` functions return ⟨O⟩ at a list of record points.
+  - Record points are the gate indices in `layer_ends`. With `layer_ends = nothing`, every gate is a record point.
+  - Entry 1 of the result is the value at t = 0 (before any gate); entry l + 1 is the value after the gate at record point l.
+  - PP evaluates the observable, and can stop on `Nmax`, only at record points.
+  - `pauliprop_circuit_dynamics` continuing from a CAMPS state after `start_gate` gates returns only the record points after `start_gate`, with no t = 0 entry.
 - **Doping.** A mask is a Bool vector over the whole circuit, with (N−1)·n_layers entries; entry m refers to the m-th triple in gate order, i.e. gates 3m−2…3m. `xy_magic(phases, mask; magicphase)` replaces the XX and YY angles of every masked triple by `magicphase`; `z_magic` replaces the ZZ angle. `magicphase` is an angle ϕ in the exp(iϕP) convention; it has no fixed value (each script sets it). One call uses one mode for the whole mask.
 
 ## 3. Pauli strings and sums
@@ -126,5 +131,7 @@ All tolerances are absolute.
 - 2026-11-11: drafted; decisions 1–5 approved.
 - 2026-11-11: older tests that expected CPC† from `apply(P, C)`, and one that expected a disentangler without the swap, were stale and have been replaced.
 - 2026-11-11: revised after two independent reviews (one as a test author, one as the port implementer; each read only this page). Added: the terms list and one symbol per meaning; the state-frame definition of C and the frame update table; the exact scope of the two bug classes; mask indexing and `magicphase`; the PP key-type rule and the handling of signed gates; the tableau form of property 2; the definition of controlled-σ_j and of the sign s; magic-qubit bookkeeping; `expectation` on the physical state; the transferred-magnetization formula with ⌊N/2⌋ and the identity term; entropy normalisation and bond order; absolute tolerances and the definition of a sample. Removed "full-state entropies" from the frame-invariant list (the code has no such function).
+- 2026-11-11: after the adversarial test review, bug class 2 in §2 was narrowed from "the frame is not a Pauli operator" to "C†PC ≠ ±P" (the reviewer showed a non-Pauli frame where ±π/2 is correct).
+- 2026-11-11: added, with the user's approval: the recording conventions (§2).
 - 2026-11-11: added, with the user's approval: the domain-wall ensemble and its orientation (§1); the norm-drift allowance for the truncating CAMPS method and the absence of a bound for the truncated regime (§6).
 - Open follow-ups outside this page: the `transferredmagnetization` docstring (porting session); the upstream `QubitPauliSum` key layout and the new-frame check (when the commit is pinned); default `atol`/`rtol` for Clifford angles (port).

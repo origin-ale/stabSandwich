@@ -14,13 +14,6 @@ const tCX = tCNOT
 const tCY = (tId1 ⊗ tPhase) * tCNOT * inv(tId1 ⊗ tPhase)
 const tCZ = (tId1 ⊗ tHadamard) * tCNOT * (tId1 ⊗ tHadamard)
 
-"The gate `gate` acting on qubits `inds` of an N-qubit register."
-function embed(gate, N, inds)
-  D = one(CliffordOperator, N)
-  apply!(D, gate, inds)
-  return D
-end
-
 @testset "assumption pins: controlled gates and embedding" begin
   @test tCY == C"XY ZX ZI ZZ"
   @test tCZ == C"XZ ZX ZI IZ"
@@ -218,12 +211,56 @@ end
   @test paulinature(3, Cid, P"ZZZ") == log
 end
 
+@testset "paulinature: direction-sensitive frame" begin
+  # C4 = S₁ · CNOT(3→1) · H₃ is not self-inverse, so C†PC and CPC† differ. By hand
+  # (see "apply(pauli, cliff)"): Q(XIX) = +ZIY, Q(ZZI) = +ZZX, Q(IYZ) = +IYX.
+  # And Q(YIX) = IIZ:  YIX → (S₁†) XIX → (CNOT 3→1) IIX → (H₃) IIZ.
+  # With CPC† instead: XIX ↦ YIZ, which would be :logical already at k = 1.
+  dnt, log, trv = :disentanglable, :logical, :trivial
+  C4 = embed(tPhase, 3, [1]) * embed(tCNOT, 3, [3, 1]) * embed(tHadamard, 3, [3])
+  @assert inv(C4) * P"YIX" == P"+IIZ"
+
+  for P in (P"XIX", P"ZZI", P"IYZ")              # X or Y on qubit 3 only
+    @test [paulinature(k, C4, P) for k in 0:3] == [dnt, dnt, dnt, log]
+  end
+  @test [paulinature(k, C4, P"YIX") for k in 0:3] == [trv, trv, trv, log]   # Q = IIZ
+  @test paulinature(2, C4, P"-XIX") == dnt       # the sign of P does not matter
+  @test paulinature(3, C4, P"-YIX") == log
+end
+
+@testset "paulinature: seeded random against the spec rule" begin
+  rng = Xoshiro(20261112)
+  seen = Dict(:disentanglable => 0, :logical => 0, :trivial => 0)
+  mismatches = 0
+  for N in 2:6, _ in 1:80
+    k = rand(rng, 0:N)
+    C = random_clifford(rng, N)
+    # Half of the draws are built to be non-disentanglable: Q is I/Z beyond qubit k.
+    Q = random_pauli(rng, N; nophase = false, realphase = true)
+    if rand(rng, Bool)
+      for j in k+1:N
+        Q[j] = (false, Q[j][2])
+      end
+    end
+    P = C * Q                                    # so that C†PC = Q
+    nature = spec_nature(k, Q)
+    seen[nature] += 1
+    mismatches += paulinature(k, C, P) != nature
+  end
+  @test mismatches == 0
+  @test all(>=(40), values(seen))                # every branch is well represented
+end
+
 @testset "swapqubits" begin
   C = one(CliffordOperator, 3)
 
   @test swapqubits(P"XYZ", 1, 3)[1] == P"ZYX"
 
   @test swapqubits(P"IIX", 2, 3)[1] == P"IXI"
+
+  # The returned Clifford is the SWAP itself.
+  @test swapqubits(P"XYZ", 1, 3)[2] == embed(tSWAP, 3, [1, 3])
+  @test swapqubits(P"IIX", 2, 3)[2] == embed(tSWAP, 3, [2, 3])
 end
 
 @testset "findfirstfreeXY" begin

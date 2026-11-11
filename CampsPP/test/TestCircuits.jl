@@ -97,6 +97,18 @@
     end
   end
 
+  @testset "doping_mask: every position is doped with probability p" begin
+    _, phases = xxz_circuit(π/4, π/4, 4, 12)
+    n = length(phases) ÷ 3
+    p, seeds = 0.3, 400
+    freq = zeros(n)
+    for seed in 1:seeds
+      freq .+= doping_mask(Xoshiro(seed), phases, p) ./ seeds
+    end
+    σ = sqrt(p * (1 - p) / seeds)
+    @test all(abs.(freq .- p) .<= 5σ)              # no position is favoured
+  end
+
   @testset "rotation_circuit" begin
     N, t = 5, 12
     rots, phases = rotation_circuit(Xoshiro(7), t, N)
