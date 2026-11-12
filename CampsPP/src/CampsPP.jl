@@ -8,6 +8,10 @@ include("CliffordMPSPauliPropagation.jl")
 export paulivec
 export getpauli
 export leftover_rotgates
+export pauliop_from_ppterm
+
+# MagicTensors versions (converter, expectation seam), staged next to the CliffordMPS ones
+include("MagicTensorsPauliPropagation.jl")
 
 include("Utility.jl")
 export stringtopauli_sym

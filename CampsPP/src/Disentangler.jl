@@ -7,9 +7,13 @@ nontrivial on at least one other: action of a phase gate e^iϕP can be\
 incorporated without increasing the MPS bond dimension
 - ```:trivial```, trivial action on all qubits: action of phase gate can be discarded
 - ```:logical```, nontrivial action on one of the first k qubits: MPS bond dimension must increase."
-function paulinature(k::Integer, C::CliffordOperator, P::PauliOperator)
-  n = length(P)
-  Q = apply(P, C)
+paulinature(k::Integer, C::CliffordOperator, P::PauliOperator) = paulinature(k, apply(P, C))
+
+"```paulinature(k, Q)```
+
+As `paulinature(k, C, P)`, for an already mapped string Q = C^†PC (identity frame)."
+function paulinature(k::Integer, Q::PauliOperator)
+  n = length(Q)
   XQ = xbit(Q)
   ZQ = zbit(Q)
   if XQ[k+1:n] != zeros(n-k)
@@ -31,8 +35,12 @@ end
 
 "Given a Pauli string P, a Clifford operator C and the number k of free qubits,\
 build an analytical disentangling Clifford circuit."
-function disentangler(k::Integer, C::CliffordOperator, P::PauliOperator)
-  Q = apply(P, C)
+disentangler(k::Integer, C::CliffordOperator, P::PauliOperator) = disentangler(k, apply(P, C))
+
+"```disentangler(k, Q)```
+
+As `disentangler(k, C, P)`, for an already mapped string Q = C^†PC (identity frame)."
+function disentangler(k::Integer, Q::PauliOperator)
   sign = (Q.phase[1] == 0x0) ? +1 : -1
   i = findfirstfreeXY(Q, k)
   is_y = zbit(Q)[i]
@@ -53,8 +61,6 @@ function disentangler(k::Integer, C::CliffordOperator, P::PauliOperator)
 
   return Dtot, sign
 end
-
-disentangler(k::Integer, P::PauliOperator) = disentangler(k, one(CliffordOperator, length(P)), P)
 
 "Routine for ```disentangler``` to use if the first free qubit with nontrivial action is not number k+1"
 function swapqubits(P::PauliOperator, i::Integer, j::Integer)

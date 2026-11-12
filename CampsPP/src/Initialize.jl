@@ -5,16 +5,20 @@ using ITensors, ITensorMPS
 
 import PauliPropagation as pp
 import CliffordMPS as cmps
+import MagicTensors as mt
 
 # == States =============================================================================
 
-""" ```domainwallstate(rng, N, μ)```
+""" ```domainwallstate([T,] rng, N, μ)```
 
-Return an N-qubit product state from the Rosenberg et al. domain wall \
-ensemble with contrast parameter μ.
+Return an N-qubit product state of type T from the Rosenberg et al. domain wall \
+ensemble with contrast parameter μ, and its `onebitinds`. T is `cmps.CAMPS` (the
+default while the port is staged) or `MagicTensors.QubitCAMPS`; the random draws
+do not depend on T.
 """
+domainwallstate(rng, N, μ) = domainwallstate(cmps.CAMPS, rng, N, μ)
 
-function domainwallstate(rng, N, μ)
+function domainwallstate(::Type{T}, rng, N, μ) where {T}
   p = exp(μ)/(exp(μ) + exp(-μ))
 
   cliff = one(CliffordOperator, N)
@@ -31,11 +35,28 @@ function domainwallstate(rng, N, μ)
     end
   end
 
-  ψ = computationalcamps(N, onebitinds)
+  ψ = computationalcamps(T, N, onebitinds)
   return ψ, onebitinds
 end
 
-function computationalcamps(N, onebitinds)
+""" ```computationalcamps([T,] N, onebitinds)```
+
+The N-qubit computational basis state with the qubits in `onebitinds` in |1⟩, as a
+CAMPS of type T (`cmps.CAMPS`, the default while the port is staged, or
+`MagicTensors.QubitCAMPS`): the MPS is |0…0⟩ and the frame is C = ∏ X_i.
+"""
+computationalcamps(N, onebitinds) = computationalcamps(cmps.CAMPS, N, onebitinds)
+
+function computationalcamps(::Type{mt.QubitCAMPS}, N, onebitinds)
+  C = one(CliffordOperator, N)
+  for i in onebitinds
+    C[i+N] = -C[i+N] # Z_i ↦ −Z_i
+  end
+  mps = MPS(ComplexF64, siteinds("Qubit", N), "0")
+  return mt.QubitCAMPS(mps, mt.QubitCliffordUnitary(C), false)
+end
+
+function computationalcamps(::Type{cmps.CAMPS}, N, onebitinds)
   cliff = one(CliffordOperator, N)
   for i in onebitinds
     cliff[i+N] = -cliff[i+N]
@@ -48,10 +69,14 @@ end
 
 # == Observables ========================================================================
 
-""" ```transferredmagnetization(N)```
+""" ```transferredmagnetization(N, init_ones)```
 
-Return a pp.PauliSum representing the transferred magnetization (Rosenberg et al.) \
-ie. the number of 1s which appeared in the left half of the bitstring
+Return a pp.PauliSum representing the transferred magnetization of Rosenberg et al.,
+relative to the initial bitstring with 1s at `init_ones`: ΔN_L − ΔN_R, the change in the
+number of 1s in the left half (qubits 1:N÷2) minus that in the right half. It is 0 on the
+initial state. When the number of 1s is conserved it equals 2ΔN_L, i.e. it counts +2 for
+each 1 that crossed from the right half to the left (−2 for left to right); a single
+non-conserving flip changes it by ±1. The factor 2 is Rosenberg et al.'s definition.
 """
 function transferredmagnetization(N, init_ones)
   init_zeros = setdiff(1:N, init_ones)

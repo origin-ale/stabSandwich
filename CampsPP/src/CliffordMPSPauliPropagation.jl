@@ -51,7 +51,31 @@ function QuantumClifford.PauliOperator(pstr::pp.PauliString)
   coeff_to_phase = Dict(1 => 0x0, im => 0x1, -1 => 0x2, -im => 0x3)
   phase = get(coeff_to_phase, pstr.coeff, nothing)
   isnothing(phase) && throw(ArgumentError("QuantumClifford.PauliOperator only supports ±1 and ±i as phases"))
-  return PauliOperator(paulivec(pstr.term, pstr.nqubits); phase = phase)
+  return pauliop_from_ppterm(pstr.term, pstr.nqubits; phase = phase)
+end
+
+"""```pauliop_from_ppterm(term, N; phase = 0x0)```
+
+The QuantumClifford `PauliOperator` of a PauliPropagation term integer on N qubits, with
+the given phase byte. Builds the operator with QuantumClifford's own
+`PauliOperator(phase, x, z)` constructor, so it does not depend on the
+`PauliOperator(::Vector{Int})` method that CliffordMPS adds (needed by
+MagicTensorsPauliPropagation.jl after CliffordMPS is removed).
+
+Layout (test/CONVENTIONS.md §3): qubits are 1-based, j = 1…N, and
+`term = Σⱼ codeⱼ · 4^(j−1)` with codes I=0, X=1, Y=2, Z=3. So the code of qubit j is
+`(term >> 2(j−1)) & 0b11` (what `pp.getpauli(term, j)` returns): the shift counts bits from
+0 at the least significant bit, and qubit 1 sits in the lowest two bits. Qubit j of the
+result has x = (code ∈ {X, Y}), z = (code ∈ {Y, Z})."""
+function pauliop_from_ppterm(term::Integer, N::Integer; phase::UInt8 = 0x0)
+  x = Vector{Bool}(undef, N)
+  z = Vector{Bool}(undef, N)
+  for j in 1:N
+    code = Int(pp.getpauli(term, j))
+    x[j] = code == 1 || code == 2
+    z[j] = code == 2 || code == 3
+  end
+  return PauliOperator(phase, x, z)
 end
 
 # -- Extract pp.PauliStrings from pp.PauliRotations ---------------------------

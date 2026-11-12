@@ -3,6 +3,7 @@ using Revise
 using .DisentangleCAMPS
 import PauliPropagation as pp
 import CliffordMPS as cmps
+import MagicTensors as mt
 using ITensors, ITensorMPS
 
 using ProgressMeter
@@ -23,29 +24,49 @@ function append_datapoint(output::AbstractString, x::Number, y::Number)
     end
 end
 
+# == State types ========================================================================
+
+# The CAMPS paths below are generic over the old CliffordMPS `CAMPS` and the MagicTensors
+# `QubitCAMPS` while the port is staged (plan, Phase 2); the state type picks the stack.
+const AnyCAMPS = Union{cmps.CAMPS, mt.QubitCAMPS}
+
+nqubits_state(ψ::cmps.CAMPS) = length(ψ)
+nqubits_state(ψ::mt.QubitCAMPS) = mt.nsites(ψ)
+
+"Convert a PauliPropagation `PauliSum` to the Pauli-sum type that `expectation_value` accepts for this state (CliffordMPS or MagicTensors). Call once, before the time loop, in CAMPS evolution."
+convert_observable(::cmps.CAMPS, obs::pp.PauliSum) = cmps.PauliSum(obs)
+convert_observable(::mt.QubitCAMPS, obs::pp.PauliSum) = mt.QubitPauliSum(obs)
+
+expectation_value(ψ::cmps.CAMPS, obs) = cmps.expectation(ψ, obs)
+expectation_value(ψ::mt.QubitCAMPS, obs) = mt.expectation(ψ, obs)
+expectation_value(ψ::ITensorMPS.MPS, obs::cmps.PauliSum) = cmps.expectation(ψ, obs)
+expectation_value(ψ::ITensorMPS.MPS, obs::mt.QubitPauliSum) = mt.expectation(ψ, obs)
+
 # == Append expectation values ==========================================================
 
 function append_expectation!(
-out_array::Vector, out_file::AbstractString, ψ::cmps.CAMPS, obs, i::Integer)
-  ev = cmps.expectation(ψ, obs)
+out_array::Vector, out_file::AbstractString, ψ::AnyCAMPS, obs, i::Integer)
+  ev = expectation_value(ψ, obs)
   append_expectation!(out_array, out_file, ev, i)
 end
 
 function append_expectation!(
-out_array::Vector, ::Nothing, ψ::cmps.CAMPS, obs, i::Integer)
-  ev = cmps.expectation(ψ, obs)
+out_array::Vector, ::Nothing, ψ::AnyCAMPS, obs, i::Integer)
+  ev = expectation_value(ψ, obs)
   push!(out_array, real(ev))
 end
 
 function append_expectation!(
-out_array::Vector, out_file::AbstractString, ψ::ITensorMPS.MPS, obs::cmps.PauliSum, i::Integer)
-  ev = cmps.expectation(ψ, obs)
+out_array::Vector, out_file::AbstractString, ψ::ITensorMPS.MPS,
+obs::Union{cmps.PauliSum, mt.QubitPauliSum}, i::Integer)
+  ev = expectation_value(ψ, obs)
   append_expectation!(out_array, out_file, ev, i)
 end
 
 function append_expectation!(
-out_array::Vector, ::Nothing, ψ::ITensorMPS.MPS, obs::cmps.PauliSum, i::Integer)
-  ev = cmps.expectation(ψ, obs)
+out_array::Vector, ::Nothing, ψ::ITensorMPS.MPS,
+obs::Union{cmps.PauliSum, mt.QubitPauliSum}, i::Integer)
+  ev = expectation_value(ψ, obs)
   push!(out_array, real(ev))
 end
 
@@ -93,7 +114,7 @@ meancoeff(psum::pp.PauliSum) = mean(abs, pp.coefficients(psum))
 # == Circuit evolution ==================================================================
 
 function campspp_circuit_dynamics(
-ψ_ext::cmps.CAMPS,
+ψ_ext::AnyCAMPS,
 χ::Integer,
 thl::Real,
 Nmax::Integer,
@@ -138,7 +159,7 @@ track = false)
 end
 
 function campspp_circuit_dynamics(
-ψ_ext::cmps.CAMPS,
+ψ_ext::AnyCAMPS,
 χ::Integer,
 thl::Real,
 Nmax::Integer,
@@ -155,7 +176,7 @@ track = false)
 end
 
 function camps_circuit_dynamics(
-ψ_ext::cmps.CAMPS,
+ψ_ext::AnyCAMPS,
 gates::Vector,
 phases::Vector,
 χ::Integer,
@@ -170,7 +191,7 @@ track = false)
 end
 
 function camps_circuit_dynamics(
-ψ_ext::cmps.CAMPS,
+ψ_ext::AnyCAMPS,
 gates::Vector,
 phases::Vector,
 χ::Integer,
@@ -182,14 +203,14 @@ layer_ends = nothing,
 track = false)
 
   ψ = deepcopy(ψ_ext)
-  N = length(ψ)
+  N = nqubits_state(ψ)
   M = length(gates)
   i = 0
   layer = 0
   evs_camps = []
   bonddims = Int[]
   progress = ProgressUnknown(desc = "Evolving CAMPS… gate ", enabled = showprogress)
-  obs_cmps = cmps.PauliSum(obs)
+  obs_cmps = convert_observable(ψ, obs)
 
   append_expectation!(evs_camps, output, ψ, obs_cmps, 0)
   track && push!(bonddims, DisentangleCAMPS.bonddim(ψ))
@@ -309,7 +330,7 @@ track = false)
 end
 
 function pauliprop_circuit_dynamics(
-ψ_ext::cmps.CAMPS,
+ψ_ext::AnyCAMPS,
 start_gate::Integer,
 gates::Vector,
 phases::Vector,
@@ -325,7 +346,7 @@ track = false)
 end
 
 function pauliprop_circuit_dynamics(
-ψ_ext::cmps.CAMPS,
+ψ_ext::AnyCAMPS,
 start_gate::Integer,
 gates::Vector,
 phases::Vector,
@@ -480,27 +501,30 @@ function mps_circuit_dynamics(
   layer = 0
   evs = []
   progress = ProgressUnknown(desc = "Evolving MPS… gate ", enabled = showprogress)
-  obs_cmps = cmps.PauliSum(obs)
+  obs_mt = mt.QubitPauliSum(obs)
 
-  append_expectation!(evs, output, ψ, obs_cmps, 0)
+  append_expectation!(evs, output, ψ, obs_mt, 0)
   layer += 1
 
   while i < M
     i += 1
-    gate_pauli = PauliOperator(getpauli(gates[i], N))
-    I = PauliOperator(0x0, fill(false,N), fill(false,N))
-    phase = phases[i]
-    gate = cmps.PauliSum([cos(phase), im * sin(phase)], Stabilizer([I,gate_pauli]))
+    gate = rotation_gate(PauliOperator(getpauli(gates[i], N)), phases[i]) # exp(iϕP)
 
-    ψ = ITensorMPS.apply(ψ, gate; cutoff = thl)
+    mt.apply!(ψ, gate; cutoff = thl) # MPO apply, ITensorMPS densitymatrix algorithm
     normalize!(ψ)
 
     if isnothing(layer_ends) || i == layer_ends[layer] # Works because || short circuits
-      append_expectation!(evs, output, ψ, obs_cmps, layer)
+      append_expectation!(evs, output, ψ, obs_mt, layer)
       layer += 1
     end
-    ee = cmps.eEntropys!(ψ)
-    next!(progress; showvalues = showvalues_ee(ee))
+    # Entropies only for the progress display. mt.entanglement_entropy works on a copy, so
+    # the gauge of ψ (and hence what the next truncation drops) does not depend on
+    # showprogress. The old cmps.eEntropys! re-gauged ψ in place after every gate.
+    if showprogress
+      next!(progress; showvalues = showvalues_ee(mt.entanglement_entropy(ψ)))
+    else
+      next!(progress)
+    end
   end
 
   finish!(progress)
