@@ -8,10 +8,25 @@ CliffordMPS = "0b786a47-0bfe-4075-b9f4-31a5037e06a5"
 ITensorMPS = "0d1a4710-d33b-49a5-8f18-73bdf49b47e2"
 ITensors = "9136182c-28ba-11e9-034c-db9fb085ebd5"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
+MagicTensors = "ec7fc9ff-011e-4a34-a9a6-2d5e1a758b79"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 QuantumClifford = "0525e862-1e90-11e9-3e4d-1b39d7109de1"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[sources]
+CliffordMPS = {path = "../dmrgCliffordMPS"}
+MagicTensors = {rev = "72eac4b4310042ee714d784e4762121b4f965b68", url = "https://github.com/MagicTensors/MagicTensors.jl"}
+
+[compat]
+ITensorMPS = "0.3.45"
+ITensors = "0.9.25"
+Logging = "1.11.0"
+MagicTensors = "0.0.1"
+ProgressMeter = "1.11.0"
+QuantumClifford = "0.11.3"
+Revise = "3.14.3"
+Test = "1.11.0"
 
 [extras]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -19,12 +34,3 @@ Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [targets]
 test = ["LinearAlgebra", "Random"]
-
-[compat]
-ITensorMPS = "0.4.0"
-ITensors = "0.9.25"
-Logging = "1.11.0"
-ProgressMeter = "1.11.0"
-QuantumClifford = "0.11.3"
-Revise = "3.14.3"
-Test = "1.11.0"
