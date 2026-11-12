@@ -6,8 +6,8 @@ Every expected value in the tests comes from this page, the dense reference or t
 
 **Terms used on this page**
 - *Old code*: the current packages (`DisentangleCAMPS`, `CampsPP`, on the vendored `CliffordMPS`). *New code*: the port to MagicTensors.jl.
-- *Dense reference*: `DisentangleCAMPS/test/DenseReference.jl`, an exact state-vector simulator written without reading the implementation.
-- *Golden set / assumption pins*: hand-derived checks in `DisentangleCAMPS/test/TestGoldenSet.jl` and `TestEvolve.jl`.
+- *Dense reference*: `CampsPP/test/DisentangleCAMPS/DenseReference.jl`, an exact state-vector simulator written without reading the implementation.
+- *Golden set / assumption pins*: hand-derived checks in `CampsPP/test/DisentangleCAMPS/TestGoldenSet.jl` and `TestEvolve.jl`.
 - *PP*: PauliPropagation.jl (0.7.3). *QC*: QuantumClifford.jl (0.11.3).
 - Symbols: ϕ is always a gate angle in the exp(iϕP) convention; θ is only ever a PP angle; α is the angle of a magic state; |φ⟩ is an arbitrary state.
 

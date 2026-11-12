@@ -1,7 +1,7 @@
 import CliffordMPS as cmps
 import PauliPropagation as pp
 using QuantumClifford
-using DisentangleCAMPS
+using CampsPP.DisentangleCAMPS
 using ProgressMeter
 
 using Plots

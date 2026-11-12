@@ -2,7 +2,7 @@
 
 julia_version = "1.13.3"
 manifest_format = "2.1"
-project_hash = "a2cca96d9d050de624fd15b6f07808332bfdca43"
+project_hash = "45ade5a0c6b5aa57a3fa1559212c20a08d766bc0"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "bbc22a9a08a0ef6460041086d8a7b27940ed4ffd"
@@ -291,7 +291,7 @@ uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
 version = "1.18.7+0"
 
 [[deps.CampsPP]]
-deps = ["CliffordMPS", "DisentangleCAMPS", "ITensorMPS", "ITensors", "MagicTensors", "PauliPropagation", "ProgressMeter", "QuantumClifford", "Random", "Revise", "Statistics"]
+deps = ["CliffordMPS", "ITensorMPS", "ITensors", "MagicTensors", "PauliPropagation", "ProgressMeter", "QuantumClifford", "Random", "Revise", "Statistics"]
 path = "CampsPP"
 uuid = "5093fef3-1b34-48b8-8e23-46bc6a6eb350"
 version = "0.1.0"
@@ -581,12 +581,6 @@ version = "0.7.18"
     Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
     Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
     Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
-
-[[deps.DisentangleCAMPS]]
-deps = ["CliffordMPS", "ITensorMPS", "ITensors", "Logging", "MagicTensors", "ProgressMeter", "QuantumClifford", "Revise", "Test"]
-path = "DisentangleCAMPS"
-uuid = "8669911b-b2eb-4312-a450-6a1e58917cb3"
-version = "0.1.0"
 
 [[deps.Distributed]]
 deps = ["Random", "Serialization", "Sockets"]

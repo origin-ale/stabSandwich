@@ -1,7 +1,7 @@
 # Entropy functions and `evolve_deepcliffords` (T6). Expected values: CONVENTIONS.md §5,
 # computed from dense-reference states by the formulas written here, or by hand.
 
-using DisentangleCAMPS
+using CampsPP.DisentangleCAMPS
 using CliffordMPS
 using QuantumClifford
 using ITensors, ITensorMPS

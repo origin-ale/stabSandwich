@@ -1,5 +1,5 @@
 # Tests of the dense reference simulator against hand-derived facts only.
-# Run with: julia DisentangleCAMPS/test/TestDenseReference.jl
+# Run with: julia CampsPP/test/DisentangleCAMPS/TestDenseReference.jl
 include("DenseReference.jl")
 using .DenseReference
 using Test

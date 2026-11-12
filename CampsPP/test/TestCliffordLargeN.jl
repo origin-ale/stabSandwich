@@ -1,7 +1,7 @@
 # Random Clifford-angle rotation circuits at N = 46: the CampsPP dynamics against the
 # stabilizer reference (T6, large N). Expected values: StabilizerReference.jl, which
 # implements CONVENTIONS.md §2 and is checked against the dense reference in
-# DisentangleCAMPS/test/TestCliffordLargeN.jl.
+# CampsPP/test/DisentangleCAMPS/TestCliffordLargeN.jl.
 #
 # Unlike the undoped XXZ test (a bit permutation), these circuits spread the stabilizers
 # over all 46 qubits, so the CAMPS frame is a dense Clifford and PP's Pauli strings are high
@@ -9,7 +9,7 @@
 # through the old pp → cmps converter and `expectation`.
 
 isdefined(@__MODULE__, :StabilizerReference) ||
-  include(joinpath(@__DIR__, "..", "..", "DisentangleCAMPS", "test", "StabilizerReference.jl"))
+  include(joinpath(@__DIR__, "DisentangleCAMPS", "StabilizerReference.jl"))
 const SR = StabilizerReference
 
 "String over IXYZ → Hermitian PauliOperator (phase byte 0)."

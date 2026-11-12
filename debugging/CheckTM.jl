@@ -1,6 +1,6 @@
 using Revise
 using CampsPP
-using DisentangleCAMPS
+using CampsPP.DisentangleCAMPS
 using ITensors, ITensorMPS
 using Combinatorics
 

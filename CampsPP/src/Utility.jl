@@ -3,7 +3,7 @@ using Revise
 import CliffordMPS as cmps
 import PauliPropagation as pp
 using QuantumClifford
-using DisentangleCAMPS
+using .DisentangleCAMPS
 using Statistics
 
 # == Terminal input/output ==============================================================

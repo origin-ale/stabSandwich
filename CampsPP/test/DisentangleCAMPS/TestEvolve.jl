@@ -11,7 +11,7 @@
 #   exp(iφY)|0⟩ = cos φ|0⟩ −   sin φ|1⟩   →  (−sin 2φ, 0, cos 2φ)
 #   exp(iφZ)|0⟩ = e^{iφ}|0⟩               →  (0, 0, 1)
 
-using DisentangleCAMPS: addmagicstate!
+using CampsPP.DisentangleCAMPS: addmagicstate!
 using CliffordMPS
 using QuantumClifford
 using Test

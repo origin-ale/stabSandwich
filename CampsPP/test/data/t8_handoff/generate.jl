@@ -9,7 +9,7 @@
 #
 # Usage: julia --project=. t8_handoff.jl <outdir> [p] [sample] [targets…]
 
-using CampsPP, DisentangleCAMPS
+using CampsPP, CampsPP.DisentangleCAMPS
 using ITensors, ITensorMPS
 import PauliPropagation as pp
 import CliffordMPS as cmps

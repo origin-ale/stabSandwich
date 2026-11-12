@@ -5,8 +5,8 @@
 # Expected values come from DenseReference.jl only. The code's own `paulinature` is used
 # for one thing: counting which branches the random circuits reached.
 
-using DisentangleCAMPS
-using DisentangleCAMPS: paulinature, evolve_bonddim
+using CampsPP.DisentangleCAMPS
+using CampsPP.DisentangleCAMPS: paulinature, evolve_bonddim
 using CliffordMPS
 using QuantumClifford
 using LinearAlgebra: norm

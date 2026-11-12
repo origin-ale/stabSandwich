@@ -1,4 +1,4 @@
-using DisentangleCAMPS: apply, paulinature, disentangler, reducetoX, build_D, findfirstfreeXY, swapqubits
+using CampsPP.DisentangleCAMPS: apply, paulinature, disentangler, reducetoX, build_D, findfirstfreeXY, swapqubits
 using QuantumClifford
 using CliffordMPS
 using Random

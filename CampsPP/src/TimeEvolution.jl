@@ -1,6 +1,6 @@
 using Revise
 
-using DisentangleCAMPS
+using .DisentangleCAMPS
 import PauliPropagation as pp
 import CliffordMPS as cmps
 using ITensors, ITensorMPS

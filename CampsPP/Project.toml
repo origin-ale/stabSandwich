@@ -5,7 +5,6 @@ authors = ["Alessandro Cerati <alessandro.cerati@studio.unibo.it>"]
 
 [deps]
 CliffordMPS = "0b786a47-0bfe-4075-b9f4-31a5037e06a5"
-DisentangleCAMPS = "8669911b-b2eb-4312-a450-6a1e58917cb3"
 ITensorMPS = "0d1a4710-d33b-49a5-8f18-73bdf49b47e2"
 ITensors = "9136182c-28ba-11e9-034c-db9fb085ebd5"
 MagicTensors = "ec7fc9ff-011e-4a34-a9a6-2d5e1a758b79"
@@ -18,7 +17,6 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [sources]
 CliffordMPS = {path = "../dmrgCliffordMPS"}
-DisentangleCAMPS = {path = "../DisentangleCAMPS"}
 MagicTensors = {rev = "72eac4b4310042ee714d784e4762121b4f965b68", url = "https://github.com/MagicTensors/MagicTensors.jl"}
 
 [compat]
@@ -33,7 +31,9 @@ Revise = "3.14"
 Statistics = "1.11.1"
 
 [extras]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test"]
+test = ["LinearAlgebra", "Logging", "Test"]

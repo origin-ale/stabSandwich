@@ -2,7 +2,7 @@ using CampsPP
 import CliffordMPS as cmps
 import PauliPropagation as pp
 using QuantumClifford
-using DisentangleCAMPS
+using CampsPP.DisentangleCAMPS
 
 tCX = tCNOT
 tCY = (tId1 ⊗ tPhase) * tCNOT * inv(tId1 ⊗ tPhase)

@@ -1,4 +1,4 @@
-using DisentangleCAMPS
+using CampsPP.DisentangleCAMPS
 
 import Logging
 

@@ -10,7 +10,7 @@
 #
 # QuantumClifford is used only for Pauli products (`*`, phases tracked) and for `expect`
 # on a stabilizer state. Both are checked against the dense reference by the self-test in
-# DisentangleCAMPS/test/TestCliffordLargeN.jl (all 4^N strings at N ≤ 3).
+# CampsPP/test/DisentangleCAMPS/TestCliffordLargeN.jl (all 4^N strings at N ≤ 3).
 
 module StabilizerReference
 

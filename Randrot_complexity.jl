@@ -1,4 +1,4 @@
-using DisentangleCAMPS
+using CampsPP.DisentangleCAMPS
 using CliffordMPS
 
 using QuantumClifford

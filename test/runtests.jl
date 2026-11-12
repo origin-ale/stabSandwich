@@ -4,7 +4,7 @@
 using Pkg
 
 const ROOT = dirname(@__DIR__)
-const PACKAGES = ["DisentangleCAMPS", "CampsPP"]
+const PACKAGES = ["CampsPP"]   # DisentangleCAMPS was merged into CampsPP
 
 failed = String[]
 for pkg in PACKAGES

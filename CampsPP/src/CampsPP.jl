@@ -1,5 +1,9 @@
 module CampsPP
 
+# Formerly the separate package DisentangleCAMPS, merged in unchanged as a submodule.
+include("DisentangleCAMPS.jl")
+using .DisentangleCAMPS
+
 include("CliffordMPSPauliPropagation.jl")
 export paulivec
 export getpauli

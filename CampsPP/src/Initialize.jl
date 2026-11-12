@@ -1,6 +1,6 @@
 using Revise
 using CampsPP
-using DisentangleCAMPS
+using .DisentangleCAMPS
 using ITensors, ITensorMPS
 
 import PauliPropagation as pp

@@ -1,8 +1,8 @@
 # Shared helpers for the CampsPP tests. Expected values come from test/CONVENTIONS.md and
-# from the dense reference (DisentangleCAMPS/test/DenseReference.jl), never from CampsPP.
+# from the dense reference (CampsPP/test/DisentangleCAMPS/DenseReference.jl), never from CampsPP.
 
 using CampsPP
-using DisentangleCAMPS
+using CampsPP.DisentangleCAMPS
 using QuantumClifford
 using Random
 using Test
@@ -10,7 +10,7 @@ import CliffordMPS as cmps
 import PauliPropagation as pp
 
 isdefined(@__MODULE__, :DenseReference) ||
-  include(joinpath(@__DIR__, "..", "..", "DisentangleCAMPS", "test", "DenseReference.jl"))
+  include(joinpath(@__DIR__, "DisentangleCAMPS", "DenseReference.jl"))
 const DR = DenseReference
 
 const EXACT_ATOL = 1e-10          # CONVENTIONS.md §6, exact regime
