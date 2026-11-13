@@ -8,21 +8,7 @@ import MagicTensors as mt
 
 const bonddim = DisentangleCAMPS.bonddim
 
-# -- The two CAMPS stacks (plan, Phase 2: staged side by side until T-post ends) ----------
-
-# Tests that loop over STATE_TYPES run on the old CliffordMPS `CAMPS` and on the MagicTensors
-# `QubitCAMPS`. When the old code is deleted, drop `cmps.CAMPS` here.
-const STATE_TYPES = (cmps.CAMPS, mt.QubitCAMPS)
-stackname(::Type{cmps.CAMPS}) = "old CAMPS"
-stackname(::Type{mt.QubitCAMPS}) = "QubitCAMPS"
-
-"⟨ψ|O|ψ⟩ of a `pp.PauliSum` on the physical state, not normalised (CONVENTIONS.md §5)."
-state_expectation(ψ::cmps.CAMPS, O::pp.PauliSum) = cmps.expectation(ψ, O)
-state_expectation(ψ::mt.QubitCAMPS, O::pp.PauliSum) = mt.expectation(ψ, O)
-
-"The frame C† as a `CliffordOperator` copy (frame-dependent tests only)."
-frame_dagger(ψ::cmps.CAMPS) = copy(ψ.Cdag)
-frame_dagger(ψ::mt.QubitCAMPS) = copy(mt.get_clifford(ψ; daggered = true).clifford)
+# STATE_TYPES, `stackname`, `state_expectation` and `frame_dagger`: helpers.jl.
 
 # -- Test circuits and observables ------------------------------------------------------
 
@@ -113,7 +99,8 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
                      swap_dynamics(N, ones, length(layer_ends))) <= EXACT_ATOL
   end
 
-  late_switch = Bool[]   # CAMPS-PP hand-overs that happen after the first record point
+  # CAMPS-PP hand-overs that happen after the first record point, per state type
+  late_switch = Dict(T => Bool[] for T in STATE_TYPES)
   early_visible = Bool[] # would a value recorded two gates early differ from the reference?
   late_visible = Bool[]  # … and one gate late?
   # Did the layer-end disentangler change the frame? Per (state type, criterion, strategy).
@@ -138,15 +125,14 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
       push!(early_visible, maxabsdiff(ref, dense_dynamics(N, ones, gates, phases, O, rec .- 2)) > 1e-3)
       push!(late_visible, maxabsdiff(ref, dense_dynamics(N, ones, gates, phases, O, min.(rec .+ 1, M))) > 1e-3)
     end
-    ψ0 = computationalcamps(N, ones)
-
-    @testset "camps_circuit_dynamics" begin
+    @testset "camps_circuit_dynamics, $(stackname(T))" for T in STATE_TYPES
+      ψ0 = computationalcamps(T, N, ones)
       χ_camps = 10^6                              # never reached: runs the whole circuit
       ψ, k, s, evs = camps_circuit_dynamics(ψ0, gates, phases, χ_camps, O; layer_ends)
       @test s == M
       @test maxabsdiff(evs, ref) <= EXACT_ATOL
       @test 0 <= k <= N
-      ev = cmps.expectation(ψ, O)                 # CONVENTIONS.md §5: a real number
+      ev = state_expectation(ψ, O)                # CONVENTIONS.md §5: a real number
       @test abs(imag(ev)) <= EXACT_ATOL
       @test real(ev) ≈ ref[end] atol = EXACT_ATOL
       # The `track` form returns the same values, plus one bond dimension per record.
@@ -162,7 +148,9 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
       @test maxabsdiff(evs, ref) <= EXACT_ATOL
     end
 
-    @testset "campspp_circuit_dynamics, χ = $χ_campspp" for χ_campspp in (2, 4, 10^6)
+    @testset "campspp_circuit_dynamics, χ = $χ_campspp, $(stackname(T))" for T in STATE_TYPES,
+        χ_campspp in (2, 4, 10^6)
+      ψ0 = computationalcamps(T, N, ones)
       thl_campspp, Nmax_campspp = 0.0, typemax(Int)
       evs, s, bonddims, nterms, _, _, s_switch, k_switch = campspp_circuit_dynamics(
         ψ0, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, O; layer_ends, track = true)
@@ -183,8 +171,8 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
         χ_campspp == 2 && @test 0 < s_switch < M  # every configuration switches at χ = 2
         if s_switch < M
           @test bonddim(ψc) >= χ_campspp
-          @test bonddim(evolve(computationalcamps(N, ones), s_switch - 1, gates, phases)[1]) < χ_campspp
-          push!(late_switch, s_switch > first(rec))
+          @test bonddim(evolve(computationalcamps(T, N, ones), s_switch - 1, gates, phases)[1]) < χ_campspp
+          push!(late_switch[T], s_switch > first(rec))
         end
       end
     end
@@ -233,11 +221,11 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
   end
 
   @testset "the small configurations exercise the hand-over and the disentangler" begin
-    # Guards against vacuous passes above (frame-dependent facts about the old code).
-    @test count(late_switch) >= 2       # hand-overs after the first record point
+    # Guards against vacuous passes above (frame-dependent facts, checked per stack).
     @test count(early_visible) >= 2     # record points two gates early would be noticed
     @test count(late_visible) >= 2      # … and one gate late
     for T in STATE_TYPES
+      @test count(late_switch[T]) >= 2  # hand-overs after the first record point
       # The layer-end disentangler does change the frame with (:entangle, :brickwork).
       @test count(frame_changed[(T, :entangle, :brickwork)]) >= 2
       # With (:chi3, :snake), the production setting (called with min_diff = 6), it never
@@ -250,7 +238,7 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
     end
   end
 
-  @testset "CAMPS-PP continues from a CAMPS state, layer by layer" begin
+  @testset "CAMPS-PP continues from a CAMPS state, layer by layer, $(stackname(T))" for T in STATE_TYPES
     # Evolve s0 gates with CAMPS, hand over to PP for the rest. PP must record the dense
     # value at every later layer end, wherever the hand-over is. (No t = 0 entry here.)
     # N = 4 keeps the untruncated Pauli sums small (at most 4^4 terms).
@@ -262,7 +250,7 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
     ref = dense_dynamics(N, ones, gates, phases, O, le)          # t = 0, then the 3 layers
     @test maxabsdiff(ref, dense_dynamics(N, ones, gates, -phases, O, le)) > 0.05
     for s0 in (0, 5, le[1], le[1] + 1, 14, le[2], M - 1, M)
-      ψ, k = evolve(computationalcamps(N, ones), s0, gates, phases)
+      ψ, k = evolve(computationalcamps(T, N, ones), s0, gates, phases)
       s, evs = pauliprop_circuit_dynamics(ψ, s0, gates, phases, 0.0, typemax(Int), O; layer_ends = le)
       later = [l for l in 1:t if le[l] > s0]                      # layers still to come
       @test s == M
@@ -271,13 +259,13 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
     end
   end
 
-  @testset "CAMPS-PP: `thl` and `Nmax` reach the PP stage" begin
+  @testset "CAMPS-PP: `thl` and `Nmax` reach the PP stage, $(stackname(T))" for T in STATE_TYPES
     cfg = small_configs()[1]
     (; N, ones, gates, phases, layer_ends) = cfg
     M = length(gates)
     O = test_observable(N, ones)
     ref = dense_dynamics(N, ones, gates, phases, O, layer_ends)
-    ψ0 = computationalcamps(N, ones)
+    ψ0 = computationalcamps(T, N, ones)
     χ_campspp = 2
 
     # Small Nmax: PP stops at the first layer end where the sum has ≥ Nmax terms. What was
@@ -358,13 +346,13 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
     @test maxabsdiff(evs, ref[1:3]) <= EXACT_ATOL # what was computed is exact
   end
 
-  @testset "output file" begin
+  @testset "output file, $(stackname(T))" for T in STATE_TYPES
     # With a file name as `output`, every recorded value is appended as "index<TAB>value".
     cfg = small_configs()[1]
     (; N, ones, gates, phases, layer_ends) = cfg
     O = test_observable(N, ones)
     ref = dense_dynamics(N, ones, gates, phases, O, layer_ends)
-    ψ0 = computationalcamps(N, ones)
+    ψ0 = computationalcamps(T, N, ones)
     mktempdir() do dir
       path = joinpath(dir, "evs.txt")
       evs, s = campspp_circuit_dynamics(ψ0, 2, 0.0, typemax(Int), gates, phases, O, path; layer_ends)
@@ -395,7 +383,6 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
     @testset "code, N=46, $t layers" for t in (get(ENV, "STABSANDWICH_SLOW", "") == "" ? (3,) : (3, 23))
       N = 46
       _, ones = domainwallstate(Xoshiro(100), N, 0.6)
-      ψ0 = computationalcamps(N, ones)
       O = transferredmagnetization(N, ones)
       le = spec_layer_ends(N, t)
       exact = swap_dynamics(N, ones, t)
@@ -404,23 +391,26 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
       χ_campspp, thl_campspp, Nmax_campspp = 64, 1e-10, 10^6
       thl_camps = 1e-12
 
-      run_pp(phases) = campspp_circuit_dynamics(ψ0, χ_campspp, thl_campspp, Nmax_campspp,
-        gates, phases, O; layer_ends = le, track = true)
+      run_pp(T, phases) = campspp_circuit_dynamics(computationalcamps(T, N, ones), χ_campspp,
+        thl_campspp, Nmax_campspp, gates, phases, O; layer_ends = le, track = true)
       run_src(T, phases) = campssrc_circuit_dynamics(computationalcamps(T, N, ones), gates, phases,
         thl_camps, O; criterion = :chi3, strategy = :snake, layer_ends = le, track = true)
 
-      evs0, _, bds0, _, _, _, s_switch0, k0 = run_pp(undoped)
-      @test maxabsdiff(evs0, exact) <= EXACT_ATOL  # undoped run against the exact SWAP result
+      pp0 = Dict(T => run_pp(T, undoped)[1] for T in STATE_TYPES)
+      # undoped runs against the exact SWAP result
+      @test all(maxabsdiff(pp0[T], exact) <= EXACT_ATOL for T in STATE_TYPES)
       src0 = Dict(T => run_src(T, undoped)[3] for T in STATE_TYPES)
       @test all(maxabsdiff(src0[T], exact) <= EXACT_ATOL for T in STATE_TYPES)
 
       for α in (π/3, 1.234)
         _, phases, mask = doped_xxz(N, t; p = 0.3, kind = :z, magicphase = α)
         @assert count(mask) > 10
-        evs, s, bds, _, _, _, s_switch, k = run_pp(phases)
-        @test evs == evs0                          # bitwise equal to the p = 0 run
-        @test s == M && s_switch == M              # no switch to PP
-        @test all(==(1), bds) && k == 0            # frame-dependent: nothing was added
+        @testset "campspp, $(stackname(T))" for T in STATE_TYPES
+          evs, s, bds, _, _, _, s_switch, k = run_pp(T, phases)
+          @test evs == pp0[T]                      # bitwise equal to the p = 0 run
+          @test s == M && s_switch == M            # no switch to PP
+          @test all(==(1), bds) && k == 0          # frame-dependent: nothing was added
+        end
         # The truncating method sends every doped gate through an SVD and never
         # renormalises, and `expectation` is not normalised (CONVENTIONS.md §5). Over a few
         # hundred doped gates the norm drifts by rounding (measured 4e-12 on norm² at 23
@@ -438,7 +428,7 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
     end
   end
 
-  @testset "large N, Clifford only: undoped π/4 XXZ at N=46" begin
+  @testset "large N, Clifford only: undoped π/4 XXZ at N=46, $(stackname(T))" for T in STATE_TYPES
     N, t = 46, get(ENV, "STABSANDWICH_SLOW", "") == "" ? 6 : 23
     _, ones = domainwallstate(Xoshiro(100), N, 0.6)
     O = transferredmagnetization(N, ones)
@@ -446,15 +436,17 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
     exact = swap_dynamics(N, ones, t)
     @test maximum(abs, exact) >= 2                # excitations do cross the cut
     gates, phases = xxz_circuit(π/4, π/4, t, N)
-    ψ0 = computationalcamps(N, ones)
+    ψ0 = computationalcamps(T, N, ones)
 
     ψ, k, s, evs = camps_circuit_dynamics(ψ0, gates, phases, 64, O; layer_ends = le)
     @test s == length(gates) && k == 0
     @test maxabsdiff(evs, exact) <= EXACT_ATOL
     @test DisentangleCAMPS.bonddim(ψ) == 1         # frame-dependent
 
-    s, evs = pauliprop_circuit_dynamics(ones, gates, phases, 1e-10, 10^6, O; layer_ends = le)
-    @test s == length(gates)
-    @test maxabsdiff(evs, exact) <= EXACT_ATOL
+    if T === first(STATE_TYPES)                    # PP alone has no CAMPS state: run once
+      s, evs = pauliprop_circuit_dynamics(ones, gates, phases, 1e-10, 10^6, O; layer_ends = le)
+      @test s == length(gates)
+      @test maxabsdiff(evs, exact) <= EXACT_ATOL
+    end
   end
 end

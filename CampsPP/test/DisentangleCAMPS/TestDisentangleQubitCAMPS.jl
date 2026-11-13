@@ -52,9 +52,7 @@ end
 "⟨ψ|P|ψ⟩ for every P in `ops`, on the physical state C|mps⟩ (frame-invariant)."
 physical_expectations(ψ::mt.QubitCAMPS, ops) = [mt.expectation(ψ, mt.QubitPauli(P)) for P in ops]
 
-"The stored frame C† of a CAMPS, as a copy (old: the `Cdag` field; new: fetched daggered)."
-frame_dagger(ψ::cmps.CAMPS) = copy(ψ.Cdag)
-frame_dagger(ψ::mt.QubitCAMPS) = copy(mt.get_clifford(ψ; daggered = true).clifford)
+# `frame_dagger(ψ)` (the stored frame C† as a copy) comes from helpers.jl.
 
 """
 The same generic state in both stacks: a random MPS (independent copies sharing site

@@ -1,17 +1,29 @@
 # Initialize.jl against CONVENTIONS.md §1 and §5.
 
-"⟨Z_j⟩ of a CAMPS."
-zexp(ψ, j) = real(cmps.expectation(ψ, single_z(length(ψ), j)))
+"⟨Z_j⟩ of a CAMPS (either stack)."
+zexp(ψ, j) = real(state_expectation(ψ, single_z(nqubits_state(ψ), j)))
 
 @testset "Initialize" begin
-  @testset "computationalcamps" begin
+  @testset "computationalcamps, $(stackname(T))" for T in STATE_TYPES
     for (N, ones) in [(3, Int[]), (4, [1, 4]), (5, [2, 3, 5]), (6, collect(1:6))]
-      ψ = computationalcamps(N, ones)
-      @test length(ψ) == N
+      ψ = computationalcamps(T, N, ones)
+      @test ψ isa T
+      @test nqubits_state(ψ) == N
       @test all(zexp(ψ, j) ≈ (j in ones ? -1.0 : 1.0) for j in 1:N)   # |1⟩ ↔ ⟨Z⟩ = −1
-      @test real(cmps.expectation(ψ, single_x(N, 1))) ≈ 0 atol = EXACT_ATOL
+      @test real(state_expectation(ψ, single_x(N, 1))) ≈ 0 atol = EXACT_ATOL
       @test DisentangleCAMPS.bonddim(ψ) == 1                          # frame-dependent
     end
+    # The untyped form still builds the old type while the port is staged (plan, Phase 2).
+    @test computationalcamps(3, [1]) isa cmps.CAMPS
+  end
+
+  @testset "domainwallstate, $(stackname(T))" for T in STATE_TYPES
+    # The state matches the returned list, and the draws don't depend on the state type.
+    N = 10
+    ψ, ones = domainwallstate(T, Xoshiro(3), N, 0.6)
+    @test ψ isa T
+    @test all(zexp(ψ, j) ≈ (j in ones ? -1.0 : 1.0) for j in 1:N)
+    @test ones == domainwallstate(Xoshiro(3), N, 0.6)[2]
   end
 
   @testset "domainwallstate" begin
@@ -91,7 +103,9 @@ zexp(ψ, j) = real(cmps.expectation(ψ, single_z(length(ψ), j)))
     # The same numbers through the code's own evaluation paths.
     O = transferredmagnetization(N, [4, 5])
     @test pp.overlapwithcomputational(O, [3, 5]) ≈ 2
-    @test real(cmps.expectation(computationalcamps(N, [3, 5]), O)) ≈ 2 atol = EXACT_ATOL
-    @test real(cmps.expectation(computationalcamps(N, [1, 2]), O)) ≈ 4 atol = EXACT_ATOL
+    for T in STATE_TYPES
+      @test real(state_expectation(computationalcamps(T, N, [3, 5]), O)) ≈ 2 atol = EXACT_ATOL
+      @test real(state_expectation(computationalcamps(T, N, [1, 2]), O)) ≈ 4 atol = EXACT_ATOL
+    end
   end
 end

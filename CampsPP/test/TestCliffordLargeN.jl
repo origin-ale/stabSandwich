@@ -6,7 +6,8 @@
 # Unlike the undoped XXZ test (a bit permutation), these circuits spread the stabilizers
 # over all 46 qubits, so the CAMPS frame is a dense Clifford and PP's Pauli strings are high
 # weight with UInt96 keys. The hand-over tests evaluate a 46-qubit Pauli sum on such a CAMPS
-# through the old pp → cmps converter and `expectation`.
+# through the pp → CAMPS converter and `expectation` of each stack (STATE_TYPES, helpers.jl:
+# the old pp → cmps converter, and the MagicTensors seam of T8).
 
 isdefined(@__MODULE__, :StabilizerReference) ||
   include(joinpath(@__DIR__, "DisentangleCAMPS", "StabilizerReference.jl"))
@@ -87,9 +88,8 @@ end
   # The generators are spread over the register, not a bit permutation.
   @test sum(count(xbit(g) .| zbit(g)) for g in snaps[end]) / N > N / 3
 
-  ψ0 = computationalcamps(N, ones)
-
-  @testset "camps_circuit_dynamics" begin
+  @testset "camps_circuit_dynamics, $(stackname(T))" for T in STATE_TYPES
+    ψ0 = computationalcamps(T, N, ones)
     χ_camps = 64
     ψ, k, s, evs, bds = camps_circuit_dynamics(ψ0, gates, phases, χ_camps, O; layer_ends = le, track = true)
     @test s == M
@@ -108,9 +108,10 @@ end
     @test all(==(length(O)), nterms)
   end
 
-  @testset "PP continues from a CAMPS state after $s0 gates" for s0 in handovers
+  @testset "PP continues from a CAMPS state after $s0 gates, $(stackname(T))" for T in STATE_TYPES,
+      s0 in handovers
     thl_pp, Nmax_pp = 1e-10, 10^6
-    ψ, k = evolve(computationalcamps(N, ones), s0, gates, phases)
+    ψ, k = evolve(computationalcamps(T, N, ones), s0, gates, phases)
     @test k == 0                               # frame-dependent
     s, evs = pauliprop_circuit_dynamics(ψ, s0, gates, phases, thl_pp, Nmax_pp, O; layer_ends = le)
     later = [l for l in eachindex(le) if le[l] > s0]
@@ -119,7 +120,9 @@ end
     isempty(later) || @test maxabsdiff(evs, ref[later .+ 1]) <= EXACT_ATOL
   end
 
-  @testset "campspp_circuit_dynamics, χ = $χ_campspp" for χ_campspp in (1, 64)
+  @testset "campspp_circuit_dynamics, χ = $χ_campspp, $(stackname(T))" for T in STATE_TYPES,
+      χ_campspp in (1, 64)
+    ψ0 = computationalcamps(T, N, ones)
     thl_campspp, Nmax_campspp = 1e-10, 10^6
     evs, s, _, _, _, _, s_switch, k_switch = campspp_circuit_dynamics(
       ψ0, χ_campspp, thl_campspp, Nmax_campspp, gates, phases, O; layer_ends = le, track = true)
@@ -134,8 +137,9 @@ end
     @test s_switch == (χ_campspp == 1 ? 0 : M) && k_switch == 0
   end
 
-  @testset "campssrc_circuit_dynamics ($crit, $strat)" for (crit, strat) in
-      [(:chi3, :snake), (:entangle, :brickwork)]
+  @testset "campssrc_circuit_dynamics ($crit, $strat), $(stackname(T))" for T in STATE_TYPES,
+      (crit, strat) in [(:chi3, :snake), (:entangle, :brickwork)]
+    ψ0 = computationalcamps(T, N, ones)
     thl_camps = 1e-12
     ψ, s, evs = campssrc_circuit_dynamics(ψ0, gates, phases, thl_camps, O;
       criterion = crit, strategy = strat, layer_ends = le)

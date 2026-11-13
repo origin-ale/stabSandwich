@@ -1,5 +1,10 @@
 # Entropy functions and `evolve_deepcliffords` (T6). Expected values: CONVENTIONS.md §5,
 # computed from dense-reference states by the formulas written here, or by hand.
+#
+# Two families of entropy functions on a plain MPS are pinned to the same spec: the old
+# CliffordMPS `sEntropy`/`eEntropys!` and MagicTensors' `stabilizer_entropy`/
+# `entanglement_entropy` (their likely replacements in the scripts, plan Phase 6). The CAMPS
+# tests run on both stacks (STATE_TYPES, helpers.jl).
 
 using CampsPP.DisentangleCAMPS
 using CliffordMPS
@@ -48,39 +53,50 @@ const ENT_ATOL = 1e-10
   @test dense_bond_entropy(bell, 2, 1) ≈ 1 atol = 1e-12
 end
 
-@testset "sEntropy and eEntropys! on hand cases" begin
+import MagicTensors as mt
+
+# The two families, behind one interface: SRE M_α of an MPS, and the N − 1 bond entropies.
+# `eEntropys!` mutates its argument, so it gets a copy.
+const ENTROPY_FAMILIES = (
+  (name = "CliffordMPS sEntropy/eEntropys!",
+   sre = (ψ, α) -> sEntropy(ψ; α = Float64(α)), ee = ψ -> eEntropys!(copy(ψ))),
+  (name = "MagicTensors stabilizer_entropy/entanglement_entropy",
+   sre = (ψ, α) -> mt.stabilizer_entropy(ψ; α), ee = ψ -> mt.entanglement_entropy(ψ)),
+)
+
+@testset "entropies on hand cases: $(fam.name)" for fam in ENTROPY_FAMILIES
   DRm = DenseReference
   # |00⟩: both vanish.
   ψ = dense_to_mps(DRm.zero_state(2), 2)
-  @test sEntropy(ψ; α = 2.0) ≈ 0 atol = ENT_ATOL
-  @test eEntropys!(copy(ψ)) ≈ [0.0] atol = ENT_ATOL
+  @test fam.sre(ψ, 2) ≈ 0 atol = ENT_ATOL
+  @test fam.ee(ψ) ≈ [0.0] atol = ENT_ATOL
 
   # Bell state: M_α = 0 for every α, entanglement entropy 1 (log base 2).
   bell = dense_to_mps(ComplexF64[1, 0, 0, 1] ./ sqrt(2), 2)
-  @test sEntropy(bell; α = 2.0) ≈ 0 atol = ENT_ATOL
-  @test sEntropy(bell; α = 1.0) ≈ 0 atol = ENT_ATOL
-  @test sEntropy(bell; α = -1.0) ≈ 0 atol = ENT_ATOL
-  @test eEntropys!(copy(bell)) ≈ [1.0] atol = ENT_ATOL
+  @test fam.sre(bell, 2) ≈ 0 atol = ENT_ATOL
+  @test fam.sre(bell, 1) ≈ 0 atol = ENT_ATOL
+  @test fam.sre(bell, -1) ≈ 0 atol = ENT_ATOL
+  @test fam.ee(bell) ≈ [1.0] atol = ENT_ATOL
 
   # Magic qubit next to |0⟩: additive, so M₂ = log₂(4/3) + 0, not divided by N; no entanglement.
   magic = dense_to_mps(DRm.rotate(DRm.zero_state(2), "XI", π/8), 2)
-  @test sEntropy(magic; α = 2.0) ≈ log2(4/3) atol = ENT_ATOL
-  @test sEntropy(magic; α = -1.0) ≈ 0.25 atol = ENT_ATOL
-  @test eEntropys!(copy(magic)) ≈ [0.0] atol = ENT_ATOL
+  @test fam.sre(magic, 2) ≈ log2(4/3) atol = ENT_ATOL
+  @test fam.sre(magic, -1) ≈ 0.25 atol = ENT_ATOL
+  @test fam.ee(magic) ≈ [0.0] atol = ENT_ATOL
 
   # cos θ|00⟩ + i sin θ|11⟩: Schmidt probabilities (cos²θ, sin²θ).
   θ = 0.3
   ent = dense_to_mps(DRm.rotate(DRm.zero_state(2), "XX", θ), 2)
-  @test eEntropys!(copy(ent)) ≈ [h2(cos(θ)^2)] atol = ENT_ATOL
+  @test fam.ee(ent) ≈ [h2(cos(θ)^2)] atol = ENT_ATOL
 
   # GHZ on 3 qubits: a stabilizer state, one ebit across each of the N − 1 bonds.
   ghz = zeros(ComplexF64, 8); ghz[1] = ghz[8] = 1 / sqrt(2)
   ghz_mps = dense_to_mps(ghz, 3)
-  @test sEntropy(ghz_mps; α = 2.0) ≈ 0 atol = ENT_ATOL
-  @test eEntropys!(copy(ghz_mps)) ≈ [1.0, 1.0] atol = ENT_ATOL
+  @test fam.sre(ghz_mps, 2) ≈ 0 atol = ENT_ATOL
+  @test fam.ee(ghz_mps) ≈ [1.0, 1.0] atol = ENT_ATOL
 end
 
-@testset "sEntropy and eEntropys! vs dense, random states" begin
+@testset "entropies vs dense, random states: $(fam.name)" for fam in ENTROPY_FAMILIES
   DRm = DenseReference
   rng = Xoshiro(1201)
   letters = ['I', 'X', 'Y', 'Z']
@@ -90,12 +106,13 @@ end
     dense = DRm.run_circuit(DRm.zero_state(N), strs, phis)
     ψ = dense_to_mps(dense, N)
 
-    for α in (2.0, 1.0, -1.0, 3.0)
-      @test sEntropy(ψ; α) ≈ dense_sre(dense, N, α) atol = 1e-9
+    for α in (2, 1, -1, 3)
+      @test fam.sre(ψ, α) ≈ dense_sre(dense, N, α) atol = 1e-9
     end
-    @test sEntropy(ψ, [2.0, 1.0]) ≈ [dense_sre(dense, N, 2), dense_sre(dense, N, 1)] atol = 1e-9
+    fam === first(ENTROPY_FAMILIES) &&            # the old vector-of-α method
+      @test sEntropy(ψ, [2.0, 1.0]) ≈ [dense_sre(dense, N, 2), dense_sre(dense, N, 1)] atol = 1e-9
 
-    ee = eEntropys!(copy(ψ))
+    ee = fam.ee(ψ)
     @test length(ee) == N - 1                    # element b: bond between sites b and b+1
     @test ee ≈ [dense_bond_entropy(dense, N, b) for b in 1:N-1] atol = 1e-9
   end
@@ -112,26 +129,47 @@ end
   @test exact > 0.2                              # a genuinely magic state
   Random.seed!(1202)
   @test sEntropy(ψ, 4000; α = 2.0) ≈ exact atol = 0.05
+  Random.seed!(1202)
+  @test mt.stabilizer_entropy(ψ, 4000; α = 2) ≈ exact atol = 0.05
 end
 
-@testset "stabilizer Rényi entropy is frame-invariant on a CAMPS" begin
+@testset "stabilizer Rényi entropy is frame-invariant on a CAMPS, $(stackname(T))" for T in STATE_TYPES
   # CONVENTIONS.md §5: M_α of the MPS part equals M_α of the physical state.
   DRm = DenseReference
   N = 3
   rng = Xoshiro(1203)
   paulis, phis = random_circuit(rng, N, 10, [:general, :general, π/4])
-  ψ, k, _ = run_camps(N, paulis, phis)
-  @test ψ.Cdag != one(CliffordOperator, N)       # the frame is not trivial
+  ψ, k, _ = run_camps(T, N, paulis, phis)
+  @test frame_dagger(ψ) != one(CliffordOperator, N)   # the frame is not trivial
   dense = dense_state(N, paulis, phis)
-  @test sEntropy(ψ; α = 2.0) ≈ dense_sre(dense, N, 2) atol = 1e-9
-  @test sEntropy(ψ.mps; α = 2.0) ≈ dense_sre(dense, N, 2) atol = 1e-9
+  T === CAMPS && @test sEntropy(ψ; α = 2.0) ≈ dense_sre(dense, N, 2) atol = 1e-9
+  @test sEntropy(mps_part(ψ); α = 2.0) ≈ dense_sre(dense, N, 2) atol = 1e-9
+  @test mt.stabilizer_entropy(mps_part(ψ); α = 2) ≈ dense_sre(dense, N, 2) atol = 1e-9
 end
 
-# Implementation-specific: this test regenerates the random Cliffords by replaying the
-# global RNG through the old generator, `random_clifford_circuit(N, 2N^2)`. A correct port
-# that draws its Cliffords differently fails here by construction; it should take an `rng`
-# (or the Cliffords) as an argument, and this test should then pass them in.
-@testset "evolve_deepcliffords vs dense" begin
+"""
+Expected ⟨P⟩ over all 4^N strings for `evolve_deepcliffords` with the layer Cliffords
+`cliffords` (applied before the rotations of the same layer), as a function of the string.
+
+With G_s = C_s ⋯ C_1,
+  |ψ⟩ = R_t C_t ⋯ R_1 C_1 |0⟩ = G_t · Π_s exp(iϕ_s · G_s† P_s G_s) |0⟩ =: G_t |φ⟩,
+so ⟨ψ|P|ψ⟩ = ⟨φ| G_t† P G_t |φ⟩. |φ⟩ comes from the dense reference, and the conjugations
+from QuantumClifford (`inv(G) * P` = G†PG, pinned in TestGoldenSet.jl). Returns (φ, G_t).
+"""
+function deepclifford_reference(N, cliffords, paulis, phis)
+  G = one(CliffordOperator, N)
+  rotated = PauliOperator[]
+  for s in eachindex(cliffords)
+    G = cliffords[s] * G                         # C_s acts after the earlier ones
+    push!(rotated, inv(G) * paulis[s])
+  end
+  φ = DenseReference.run_circuit(DenseReference.zero_state(N), paulistr.(rotated), phis)
+  return φ, G
+end
+
+# Implementation-specific (old code only): this test regenerates the random Cliffords by
+# replaying the global RNG through the old generator, `random_clifford_circuit(N, 2N^2)`.
+@testset "evolve_deepcliffords vs dense, old CAMPS" begin
   # Layer s applies a random Clifford C_s (depth 2N², from the *global* RNG) and then the
   # rotation (P_s, ϕ_s). The Cliffords are not returned, so they are regenerated here by
   # replaying the global RNG with the same seed and the same generator call.
@@ -150,13 +188,7 @@ end
   Random.seed!(seed)
   ψ, k = evolve_deepcliffords(CAMPS(N), t, paulis, phis)
 
-  G = one(CliffordOperator, N)
-  rotated = PauliOperator[]
-  for s in 1:t
-    G = cliffords[s] * G                         # C_s acts after the earlier ones
-    push!(rotated, inv(G) * paulis[s])
-  end
-  φ = DenseReference.run_circuit(DenseReference.zero_state(N), paulistr.(rotated), phis)
+  φ, G = deepclifford_reference(N, cliffords, paulis, phis)
 
   worst = 0.0
   for str in DenseReference.all_paulis(N)
@@ -171,4 +203,37 @@ end
   # (G_t is a Clifford). This is what Randrot_complexity.jl measures.
   @test sEntropy(ψ; α = 2.0) ≈ dense_sre(φ, N, 2) atol = 1e-9
   @test length(eEntropys!(copy(ψ.mps))) == N - 1
+end
+
+# Implementation-specific: the docstring of the `QubitCAMPS` method says layer s draws its
+# Clifford as `QuantumClifford.random_clifford(rng, N)` from the `rng` passed in, so the test
+# replays a copy of that rng to regenerate the Cliffords.
+@testset "evolve_deepcliffords vs dense, QubitCAMPS" begin
+  N, t = 3, 5
+  rng = Xoshiro(1204)
+  paulis, phis = random_circuit(rng, N, t, [:general])
+
+  rng_layers = Xoshiro(4321)
+  replay = copy(rng_layers)
+  cliffords = [random_clifford(replay, N) for _ in 1:t]
+  ψ, k = evolve_deepcliffords(rng_layers, mt.QubitCAMPS(N), t, paulis, phis)
+  @test rng_layers == replay                     # the rng was used for exactly these t draws
+
+  φ, G = deepclifford_reference(N, cliffords, paulis, phis)
+  worst = 0.0
+  for str in DenseReference.all_paulis(N)
+    expected = DenseReference.expect(φ, paulistr(inv(G) * pauliop(str)))
+    ev = mt.expectation(ψ, pauliop(str))
+    worst = max(worst, abs(real(ev) - expected), abs(imag(ev)))
+  end
+  @test worst <= EXACT_ATOL
+  @test 0 <= k <= N
+  @test all(c != one(CliffordOperator, N) for c in cliffords)    # the Cliffords are not trivial
+  # The layer Cliffords matter: the same rotations without them give another state.
+  @test max_deviation(ψ, dense_state(N, paulis, phis)) > 0.1
+
+  # Entropies of the result: SRE is frame-invariant, so it must match the dense state |φ⟩.
+  @test sEntropy(mt.get_mps(ψ); α = 2.0) ≈ dense_sre(φ, N, 2) atol = 1e-9
+  @test mt.stabilizer_entropy(mt.get_mps(ψ); α = 2) ≈ dense_sre(φ, N, 2) atol = 1e-9
+  @test length(mt.entanglement_entropy(mt.get_mps(ψ))) == N - 1
 end
