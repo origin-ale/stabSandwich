@@ -8,4 +8,5 @@ include("helpers.jl")
   include("TestInitialize.jl")
   include("TestTimeEvolution.jl")
   include("TestCliffordLargeN.jl")
+  include("TestMagicTensorsPP.jl")
 end

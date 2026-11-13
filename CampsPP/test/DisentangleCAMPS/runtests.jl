@@ -42,4 +42,7 @@ using Test
   @testset "Entropies" begin
     include("TestEntropies.jl")
   end
+  @testset "Layer-end disentangler (QubitCAMPS)" begin
+    include("TestDisentangleQubitCAMPS.jl")
+  end
 end

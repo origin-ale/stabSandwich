@@ -4,8 +4,25 @@
 # Per-method parameters are kept separate on purpose (χ_camps, χ_campspp, thl_pp, …).
 
 using ITensors, ITensorMPS
+import MagicTensors as mt
 
 const bonddim = DisentangleCAMPS.bonddim
+
+# -- The two CAMPS stacks (plan, Phase 2: staged side by side until T-post ends) ----------
+
+# Tests that loop over STATE_TYPES run on the old CliffordMPS `CAMPS` and on the MagicTensors
+# `QubitCAMPS`. When the old code is deleted, drop `cmps.CAMPS` here.
+const STATE_TYPES = (cmps.CAMPS, mt.QubitCAMPS)
+stackname(::Type{cmps.CAMPS}) = "old CAMPS"
+stackname(::Type{mt.QubitCAMPS}) = "QubitCAMPS"
+
+"⟨ψ|O|ψ⟩ of a `pp.PauliSum` on the physical state, not normalised (CONVENTIONS.md §5)."
+state_expectation(ψ::cmps.CAMPS, O::pp.PauliSum) = cmps.expectation(ψ, O)
+state_expectation(ψ::mt.QubitCAMPS, O::pp.PauliSum) = mt.expectation(ψ, O)
+
+"The frame C† as a `CliffordOperator` copy (frame-dependent tests only)."
+frame_dagger(ψ::cmps.CAMPS) = copy(ψ.Cdag)
+frame_dagger(ψ::mt.QubitCAMPS) = copy(mt.get_clifford(ψ; daggered = true).clifford)
 
 # -- Test circuits and observables ------------------------------------------------------
 
@@ -99,8 +116,9 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
   late_switch = Bool[]   # CAMPS-PP hand-overs that happen after the first record point
   early_visible = Bool[] # would a value recorded two gates early differ from the reference?
   late_visible = Bool[]  # … and one gate late?
-  # Did the layer-end disentangler change the frame? Per (criterion, strategy).
-  frame_changed = Dict((:chi3, :snake) => Bool[], (:entangle, :brickwork) => Bool[])
+  # Did the layer-end disentangler change the frame? Per (state type, criterion, strategy).
+  SRC_SETTINGS = [(:chi3, :snake), (:entangle, :brickwork)]
+  frame_changed = Dict((T, c, s) => Bool[] for T in STATE_TYPES for (c, s) in SRC_SETTINGS)
 
   @testset "exact regime vs dense: $(cfg.name)" for cfg in small_configs()
     (; N, ones, gates, phases, layer_ends) = cfg
@@ -171,21 +189,40 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
       end
     end
 
-    @testset "campssrc_circuit_dynamics ($crit, $strat)" for (crit, strat) in
-        [(:chi3, :snake), (:entangle, :brickwork)]
+    src_runs = Dict()
+    @testset "campssrc_circuit_dynamics ($crit, $strat), $(stackname(T))" for T in STATE_TYPES,
+        (crit, strat) in SRC_SETTINGS
       thl_camps = 1e-15                           # SVD cutoff: nothing is discarded
-      ψ, s, evs = campssrc_circuit_dynamics(ψ0, gates, phases, thl_camps, O;
-        criterion = crit, strategy = strat, layer_ends)
+      ψ0T = computationalcamps(T, N, ones)
+      ψ, s, evs, bds = campssrc_circuit_dynamics(ψ0T, gates, phases, thl_camps, O;
+        criterion = crit, strategy = strat, layer_ends, track = true)
       @test s == M
       @test maxabsdiff(evs, ref) <= EXACT_ATOL
-      @test abs(imag(cmps.expectation(ψ, O))) <= EXACT_ATOL
+      @test abs(imag(state_expectation(ψ, O))) <= EXACT_ATOL
+      @test length(bds) == length(evs) && bds[1] == 1 && bds[end] == bonddim(ψ)
       # Frame-dependent: compare the frame with the same gates applied without the
       # layer-end disentangler.
-      plain = computationalcamps(N, ones)
+      plain = computationalcamps(T, N, ones)
       for (g, ϕ) in zip(gates, phases)
         apply!(plain, PauliOperator(getpauli(g, N)), ϕ, thl_camps)
       end
-      push!(frame_changed[(crit, strat)], ψ.Cdag != plain.Cdag)
+      push!(frame_changed[(T, crit, strat)], frame_dagger(ψ) != frame_dagger(plain))
+      src_runs[(T, crit, strat)] = (; evs, bds, frame = frame_dagger(ψ))
+    end
+
+    @testset "campssrc_circuit_dynamics: old vs new stack" begin
+      # ⟨O⟩ agrees in every setting. Frames and bond dimensions are compared only for
+      # (:chi3, :snake), where the disentangler is a no-op in both stacks: with :entangle the
+      # old tie rule picks gates by rounding on these Clifford-structured states, so its frames
+      # may legitimately differ (user decision, 2026-11-13; plan, "Phase 3 status").
+      for (crit, strat) in SRC_SETTINGS
+        old, new = src_runs[(cmps.CAMPS, crit, strat)], src_runs[(mt.QubitCAMPS, crit, strat)]
+        @test maxabsdiff(old.evs, new.evs) <= 1e-12
+        if crit == :chi3
+          @test new.frame == old.frame
+          @test new.bds == old.bds
+        end
+      end
     end
 
     @testset "mps_circuit_dynamics" begin
@@ -200,13 +237,17 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
     @test count(late_switch) >= 2       # hand-overs after the first record point
     @test count(early_visible) >= 2     # record points two gates early would be noticed
     @test count(late_visible) >= 2      # … and one gate late
-    # The layer-end disentangler does change the frame with (:entangle, :brickwork).
-    @test count(frame_changed[(:entangle, :brickwork)]) >= 2
-    # With (:chi3, :snake), the production setting (called with min_diff = 6), it never
-    # acts at these sizes: the exact-regime checks above cover that path only as a no-op.
-    # Its real coverage is the N = 46 old-vs-new replay (plan, T11). If this starts to
-    # fail, the small configurations have begun to exercise it: turn it into a positive check.
-    @test !any(frame_changed[(:chi3, :snake)])
+    for T in STATE_TYPES
+      # The layer-end disentangler does change the frame with (:entangle, :brickwork).
+      @test count(frame_changed[(T, :entangle, :brickwork)]) >= 2
+      # With (:chi3, :snake), the production setting (called with min_diff = 6), it never
+      # acts, at any N and in both stacks: the old search SVDs keep zero singular values, so
+      # :chi3 never sees an improvement (plan, "Note: the old `:chi3` disentangler never
+      # acts"; kept as a faithful no-op by user decision, 2026-11-13). Tested directly in
+      # DisentangleCAMPS/TestDisentangleQubitCAMPS.jl. If :chi3 is ever made meaningful, this
+      # must become a positive check.
+      @test !any(frame_changed[(T, :chi3, :snake)])
+    end
   end
 
   @testset "CAMPS-PP continues from a CAMPS state, layer by layer" begin
@@ -277,12 +318,12 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
     @test nonincreasing(errs)              # error does not grow as thl shrinks
   end
 
-  @testset "truncated regime: CAMPS SVD threshold" begin
+  @testset "truncated regime: CAMPS SVD threshold, $(stackname(T))" for T in STATE_TYPES
     cfg = small_configs()[1]
     (; N, ones, gates, phases, layer_ends) = cfg
     O = test_observable(N, ones)
     ref = dense_dynamics(N, ones, gates, phases, O, layer_ends)
-    ψ0 = computationalcamps(N, ones)
+    ψ0 = computationalcamps(T, N, ones)
     runs = map((1e-1, 3e-2, 1e-2, 3e-3, 1e-15)) do thl_camps
       campssrc_circuit_dynamics(ψ0, gates, phases, thl_camps, O;
         criterion = :chi3, strategy = :snake, layer_ends)[3]
@@ -365,13 +406,13 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
 
       run_pp(phases) = campspp_circuit_dynamics(ψ0, χ_campspp, thl_campspp, Nmax_campspp,
         gates, phases, O; layer_ends = le, track = true)
-      run_src(phases) = campssrc_circuit_dynamics(ψ0, gates, phases, thl_camps, O;
-        criterion = :chi3, strategy = :snake, layer_ends = le, track = true)
+      run_src(T, phases) = campssrc_circuit_dynamics(computationalcamps(T, N, ones), gates, phases,
+        thl_camps, O; criterion = :chi3, strategy = :snake, layer_ends = le, track = true)
 
       evs0, _, bds0, _, _, _, s_switch0, k0 = run_pp(undoped)
       @test maxabsdiff(evs0, exact) <= EXACT_ATOL  # undoped run against the exact SWAP result
-      _, _, src0, srcbds0 = run_src(undoped)
-      @test maxabsdiff(src0, exact) <= EXACT_ATOL
+      src0 = Dict(T => run_src(T, undoped)[3] for T in STATE_TYPES)
+      @test all(maxabsdiff(src0[T], exact) <= EXACT_ATOL for T in STATE_TYPES)
 
       for α in (π/3, 1.234)
         _, phases, mask = doped_xxz(N, t; p = 0.3, kind = :z, magicphase = α)
@@ -385,12 +426,14 @@ record_points(cfg) = isnothing(cfg.layer_ends) ? collect(eachindex(cfg.gates)) :
         # hundred doped gates the norm drifts by rounding (measured 4e-12 on norm² at 23
         # layers), which scales ⟨O⟩ ≈ 30 by the same factor. So: the norm stays within 1e-10
         # of 1, each layer agrees up to that drift, and the normalised final value agrees.
-        ψsrc, _, src, srcbds = run_src(phases)
-        drift = abs(norm(ψsrc)^2 - 1)
-        @test drift <= EXACT_ATOL
-        @test all(abs.(src .- src0) .<= EXACT_ATOL .+ abs.(src0) .* drift)
-        @test abs(src[end] / norm(ψsrc)^2 - src0[end]) <= EXACT_ATOL
-        @test all(==(1), srcbds)                   # frame-dependent
+        @testset "campssrc, $(stackname(T))" for T in STATE_TYPES
+          ψsrc, _, src, srcbds = run_src(T, phases)
+          drift = abs(norm(ψsrc)^2 - 1)
+          @test drift <= EXACT_ATOL
+          @test all(abs.(src .- src0[T]) .<= EXACT_ATOL .+ abs.(src0[T]) .* drift)
+          @test abs(src[end] / norm(ψsrc)^2 - src0[T][end]) <= EXACT_ATOL
+          @test all(==(1), srcbds)                 # frame-dependent
+        end
       end
     end
   end
