@@ -108,6 +108,18 @@ function getlayer(i, layer_ends)
   end
 end
 
+# Layer-end disentangler of `campssrc_circuit_dynamics`: up to N sweeps of `strategy` with
+# `criterion`, stopping once a sweep gains ≤ 6, with no SVD truncation. On these
+# nearest-neighbour sweeps `:chi3` never applies a gate (see DisentangleQubitCAMPS.jl).
+const LAYER_MIN_DIFF = 6
+layer_disentangler(::cmps.CAMPS, criterion, strategy, N) =
+  (cmps.DisentangleCriterion(criterion), cmps.DisentangleStrategy(strategy), N)
+layer_disentangle!(ψ::cmps.CAMPS, (crit, strat, N)) =
+  cmps.disentangle!(ψ, strat, N; criterion = crit, min_diff = LAYER_MIN_DIFF)
+layer_disentangler(::mt.QubitCAMPS, criterion, strategy, N) =
+  sweep_disentangler(criterion, strategy, N; min_diff = LAYER_MIN_DIFF)
+layer_disentangle!(ψ::mt.QubitCAMPS, de) = mt.disentangle!(de, ψ)
+
 meanweight(psum::pp.PauliSum) = mean(pp.countweight(psum))
 meancoeff(psum::pp.PauliSum) = mean(abs, pp.coefficients(psum))
 
@@ -246,7 +258,7 @@ track = false)
 end
 
 function campssrc_circuit_dynamics(
-ψ_ext::cmps.CAMPS,
+ψ_ext::AnyCAMPS,
 gates::Vector,
 phases::Vector,
 thl::Real,
@@ -263,7 +275,7 @@ track = false)
 end
 
 function campssrc_circuit_dynamics(
-ψ_ext::cmps.CAMPS,
+ψ_ext::AnyCAMPS,
 gates::Vector,
 phases::Vector,
 thl::Real,
@@ -276,16 +288,15 @@ layer_ends = nothing,
 track = false)
 
   ψ = deepcopy(ψ_ext)
-  N = length(ψ)
+  N = nqubits_state(ψ)
   M = length(gates)
   i = 0
   layer = 0
   evs_camps = []
   bonddims = Int[]
   progress = ProgressUnknown(desc = "Evolving CAMPS (SVD)… gate ", enabled = showprogress)
-  obs_cmps = cmps.PauliSum(obs)
-  crit = cmps.DisentangleCriterion(criterion)
-  strat = cmps.DisentangleStrategy(strategy)
+  obs_cmps = convert_observable(ψ, obs)
+  layer_de = layer_disentangler(ψ, criterion, strategy, N)
 
   # Gates are unitary and disentangling Cliffords are exact, so the norm only
   # shrinks when the SVD cutoff in apply! actually discards weight.
@@ -309,7 +320,7 @@ track = false)
 
     if isnothing(layer_ends) || i == layer_ends[layer] # Works because || short circuits
       append_expectation!(evs_camps, output, ψ, obs_cmps, layer)
-      truncated || cmps.disentangle!(ψ, strat, N; criterion = crit, min_diff = 6)
+      truncated || layer_disentangle!(ψ, layer_de)
       track && push!(bonddims, DisentangleCAMPS.bonddim(ψ))
       layer += 1
     end
