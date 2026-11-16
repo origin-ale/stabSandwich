@@ -56,6 +56,21 @@ investigated individually, never re-rolled or averaged away. δ is never loosene
 without your written approval. Bond dimension, n. of Paulis and times are printed
 for review and are not pass/fail.
 
+## Optional: `Randrot_complexity.jl` (local, N = 12)
+
+`randrot_complexity.jl` runs the script's computation without the plotting, on
+either stack. The old stack runs from the pre-port worktree, and the new stack
+from this branch:
+
+```bash
+julia --project=../stabSandwich-old scripts/t11/randrot_complexity.jl stack=old out="$TMPDIR/rr_old.dat"
+julia --project=. scripts/t11/randrot_complexity.jl stack=new out="$TMPDIR/rr_new.dat"
+julia scripts/t11/compare_randrot.jl "$TMPDIR/rr_old.dat" "$TMPDIR/rr_new.dat"
+```
+
+M₂/N must agree within |z| ≤ 3 at every point. EE/N depends on the frame, so it is
+compared side by side only.
+
 ## Sensitivity check (local)
 
 ```bash
