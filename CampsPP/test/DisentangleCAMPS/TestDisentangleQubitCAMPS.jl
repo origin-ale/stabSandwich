@@ -225,6 +225,108 @@ end
   @test gates_applied[:chi3] == 0
 end
 
+# -- Snake skips bonds of dimension 1 ----------------------------------------------------
+
+# The old snake (dmrgCliffordMPS/src/Disentangler.jl) re-reads the bond dimensions at the start
+# of each direction and does not search bonds of dimension 1 (a product cut has nothing to
+# disentangle). The uniform-χ ≥ 2 parity loop above never has such a bond, so a snake that
+# searches every bond would pass it. Without a cutoff (the campssrc setting) the search on a
+# dimension-1 bond finds tie-level "gains" (~1e-16), applies a gate, and grows the bond.
+
+"A random MPS with the bond dimensions `dims` (length N-1), behind a random frame, in both stacks."
+function random_state_pair_dims(rng, dims)
+  N = length(dims) + 1
+  s = siteinds("Qubit", N)
+  mps = random_mps(rng, ComplexF64, s; linkdims = dims)
+  C = random_clifford(rng, N)
+  old = cmps.CAMPS(copy(mps), inv(C))
+  new = mt.QubitCAMPS(copy(mps), mt.QubitCliffordUnitary(copy(C)), false)
+  return old, new
+end
+
+@testset "snake: product MPS (all bonds of dimension 1) is left untouched" begin
+  # Every bond is skipped, so no gate is applied, whatever the criterion or the cutoff:
+  # 0 gates, frame bitwise unchanged, all linkdims still 1. Old code is the reference.
+  for crit in (:chi3, :entangle), kw in ((;), (; cutoff = 1e-12))
+    @testset "($crit), $(isempty(kw) ? "no cutoff" : "cutoff 1e-12")" begin
+      rng = Xoshiro(hash((:product, crit, length(kw))))
+      for _ in 1:8
+        N = rand(rng, 4:6)
+        old, new = random_state_pair_dims(rng, ones(Int, N - 1))
+        frame_before = frame_dagger(new)
+        _, schedules, _ = cmps.disentangle!(old, cmps.DisentangleStrategy(:snake), 2;
+          criterion = cmps.DisentangleCriterion(crit), min_diff = 0.0, kw...)
+        num, gain, sweeps = mt.disentangle!(DQ.sweep_disentangler(crit, :snake, 2; kw...), new)
+        @test sum(length, schedules) == 0           # the old code applies nothing
+        @test num == 0
+        @test all(isempty(sw[3]) for sw in sweeps)
+        @test gain == 0
+        @test all(==(1), linkdims(mt.get_mps(new)))
+        @test all(==(1), linkdims(old.mps))
+        @test frame_dagger(new) == frame_before
+        @test frame_dagger(old) == frame_dagger(new)
+      end
+    end
+  end
+end
+
+@testset "snake: old vs new parity on mixed bond dimensions" begin
+  # Random MPS with a run of L dimension-1 bonds (L = 1 or 3-5; the rest of dimension 2 or 3).
+  # Compared as in the generic parity loop: sweeps, gain, schedule, frame (bitwise), linkdims.
+  # The schedule check is what sees a skipped bond: a bond of dimension 1 never appears in it.
+  # Why runs: a skipped bond only gets a tie-level "gain" (~1e-16, a gate that keeps the cut a
+  # product, e.g. SWAP) when BOTH of its sites are decoupled single-site blocks, i.e. two
+  # neighbouring dimension-1 bonds on each side. A lone dimension-1 bond between entangled
+  # blocks yields no such gate, so a no-skip snake is only caught by runs of L >= 3 (probe,
+  # 40 states each: no-skip differs in 0/40 for L = 1, 2 and in 4-22/40 for L = 3-5).
+  skipped_seen = Ref(0)
+  gates = Dict{Symbol, Int}()
+  for crit in (:chi3, :entangle), kw in ((;), (; cutoff = 1e-12))
+    @testset "($crit), $(isempty(kw) ? "no cutoff" : "cutoff 1e-12")" begin
+      rng = Xoshiro(hash((:mixed, crit, length(kw))))
+      for _ in 1:8
+        N = rand(rng, 8:10)
+        # Run of L ones on bonds p..q. The block of sites left of the run (sites 1..p) and the
+        # one to its right (q+1..N) must not have exactly 2 sites: a pure two-qubit state is
+        # disentangled exactly by several gates of the set, a genuine tie decided by rounding,
+        # where parity cannot be asserted (see the file header). Rejection-sample (p, q).
+        local p, q
+        while true
+          L = rand(rng, [1, 3, 4, 5])
+          p = rand(rng, 1:N-L); q = p + L - 1
+          p != 2 && N - q != 2 && break
+        end
+        dims = rand(rng, 2:3, N - 1)
+        dims[p:q] .= 1
+        old, new = random_state_pair_dims(rng, dims)
+        @test linkdims(old.mps) == linkdims(mt.get_mps(new))
+        d0 = linkdims(mt.get_mps(new))
+        max_iter = rand(rng, 1:3)
+        diffs, schedules, _ = cmps.disentangle!(old, cmps.DisentangleStrategy(:snake), max_iter;
+          criterion = cmps.DisentangleCriterion(crit), min_diff = 0.0, kw...)
+        num, gain, sweeps = mt.disentangle!(DQ.sweep_disentangler(crit, :snake, max_iter; kw...), new)
+        @test length(sweeps) == length(diffs)
+        @test all(abs(d - sw[2]) <= 1e-12 for (d, sw) in zip(diffs, sweeps))
+        @test [Tuple.(sch) for sch in schedules] ==
+              [[(cmps.entangle_set[g], b, b + 1) for (g, b) in sw[3]] for sw in sweeps]
+        @test num == sum(length, schedules)
+        @test frame_dagger(old) == frame_dagger(new)
+        @test linkdims(old.mps) == linkdims(mt.get_mps(new))
+        # Direct statement of the rule: a gate on bond b is the only thing that changes bond
+        # b's dimension, so a bond that starts at 1 is never searched and stays 1 (old schedule
+        # is the reference above; this restates it without the old code).
+        searched = Set(b for sw in sweeps for (_, b) in sw[3])
+        @test all(b -> d0[b] != 1, searched)
+        @test all(b -> linkdims(mt.get_mps(new))[b] == 1, findall(==(1), d0))
+        skipped_seen[] += count(==(1), d0)
+        gates[crit] = get(gates, crit, 0) + num
+      end
+    end
+  end
+  @test skipped_seen[] >= 32     # dimension-1 bonds really were present
+  @test gates[:entangle] >= 10   # not vacuous: the search acted on the other bonds
+end
+
 # -- :chi3 is a no-op --------------------------------------------------------------------
 
 @testset ":chi3 never applies a gate (faithful to the old code)" begin
