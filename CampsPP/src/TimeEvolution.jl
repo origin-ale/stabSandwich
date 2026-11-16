@@ -257,6 +257,20 @@ track = false)
   return ψ, k, i, evs_camps
 end
 
+"""```campssrc_circuit_dynamics(ψ, gates, phases, thl, obs[, output]; criterion = :entangle, strategy = :brickwork, showprogress = false, layer_ends = nothing, track = false)```
+
+Evolve a copy of the CAMPS ψ through the whole circuit with the truncating `apply!(ψ, P, ϕ, thl)`.
+⟨obs⟩ is recorded at the start and at every record point (the end of each layer in `layer_ends`,
+or every gate if it is `nothing`), and also appended to the file `output` if one is given. At each
+record point the layer-end disentangler (`criterion`, `strategy`, at most N sweeps, `min_diff = 6`)
+runs until the run is flagged as truncated, i.e. once norm² < (1 − thl)·norm²(t = 0); after that it
+no longer runs. Returns `(ψ, i, evs)`, plus the bond dimension at each record point if `track`.
+
+!!! warning
+    For thl ≲ 1e-13 the truncation flag is unreliable: the rounding drift of the norm (about
+    1e-14) can set it when nothing has been truncated. Whether and when the layer-end disentangler
+    runs then depends on floating-point details, and differs between the old (CliffordMPS) and new
+    (MagicTensors) stacks. Use thl ≥ 1e-11 when the disentangler's behaviour matters."""
 function campssrc_circuit_dynamics(
 ψ_ext::AnyCAMPS,
 gates::Vector,
@@ -298,8 +312,10 @@ track = false)
   obs_cmps = convert_observable(ψ, obs)
   layer_de = layer_disentangler(ψ, criterion, strategy, N)
 
-  # Gates are unitary and disentangling Cliffords are exact, so the norm only
-  # shrinks when the SVD cutoff in apply! actually discards weight.
+  # Gates are unitary and disentangling Cliffords are exact, so in exact arithmetic the norm
+  # only shrinks when the SVD cutoff in apply! discards weight. In floating point it also drifts
+  # by rounding (about 1e-14), so for thl ≲ 1e-13 this check can fire with nothing truncated
+  # (see the docstring warning).
   norm0_sq = norm(ψ)^2
   truncated = false
 

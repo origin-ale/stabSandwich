@@ -33,6 +33,18 @@ function apply(P::PauliOperator, C::CliffordOperator)
   return P_tableau[1]
 end
 
+"""```_apply_on_sites!(C, op, sites)```
+
+Compose the Clifford `op`, acting on the qubits `sites`, after C (C ← op·C, phases tracked), in
+place. Private replacement for the vendored `apply!(::CliffordOperator, ::CliffordOperator, sites)`
+of `dmrgCliffordMPS`, which QuantumClifford does not define (plan, design correction 3; a private
+name, since redefining that signature would overwrite the vendored method while it is loaded).
+`Stabilizer(C.tab)` wraps C's tableau without copying it, so the write goes to C."""
+function _apply_on_sites!(C::CliffordOperator, op::CliffordOperator, sites::AbstractVector{<:Integer})
+  apply!(Stabilizer(C.tab), op, sites)
+  return C
+end
+
 "Given a Pauli string P, a Clifford operator C and the number k of free qubits,\
 build an analytical disentangling Clifford circuit."
 disentangler(k::Integer, C::CliffordOperator, P::PauliOperator) = disentangler(k, apply(P, C))
@@ -65,14 +77,14 @@ end
 "Routine for ```disentangler``` to use if the first free qubit with nontrivial action is not number k+1"
 function swapqubits(P::PauliOperator, i::Integer, j::Integer)
   swapij = one(CliffordOperator, length(P))
-  apply!(swapij, tSWAP, [i,j])
+  _apply_on_sites!(swapij, tSWAP, [i,j])
   return apply(P, swapij), swapij
 end
 
 "Routine for ```disentangler``` to use if the first free qubit with nontrivial action is acted on by a Y"
 function reducetoX(P::PauliOperator, i::Integer)
   phasei = one(CliffordOperator, length(P))
-  apply!(phasei, tPhase, [i]) # Use 3 phase gates s.t. Y -> X instead of -X
+  _apply_on_sites!(phasei, tPhase, [i]) # Use 3 phase gates s.t. Y -> X instead of -X
   return apply(P, inv(phasei)), phasei
 end
 
@@ -89,11 +101,11 @@ function build_D(Q::PauliOperator, i::Integer)
   for j in eachindex(Q)
     if j != i
       if Q[j] == (true, false) # X
-        apply!(D, tCX, [i, j])
+        _apply_on_sites!(D, tCX, [i, j])
       elseif Q[j] == (true, true) # Y
-        apply!(D, tCY, [i, j])
+        _apply_on_sites!(D, tCY, [i, j])
       elseif Q[j] == (false, true) # Z
-        apply!(D, tCZ, [i, j])
+        _apply_on_sites!(D, tCZ, [i, j])
       end
     end
   end
