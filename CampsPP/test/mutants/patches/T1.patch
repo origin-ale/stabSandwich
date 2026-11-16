@@ -1,0 +1,11 @@
+--- a/CampsPP/src/TimeEvolution.jl
++++ b/CampsPP/src/TimeEvolution.jl
+@@ -228,7 +228,7 @@
+   track && push!(bonddims, DisentangleCAMPS.bonddim(ψ))
+   layer += 1
+ 
+-  while DisentangleCAMPS.bonddim(ψ) < χ && i < M
++  while DisentangleCAMPS.bonddim(ψ) <= χ && i < M
+     i += 1
+     gate = PauliOperator(getpauli(gates[i], N))
+     phase = phases[i]

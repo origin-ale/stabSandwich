@@ -1,0 +1,11 @@
+--- a/CampsPP/src/MagicTensorsPauliPropagation.jl
++++ b/CampsPP/src/MagicTensorsPauliPropagation.jl
+@@ -20,7 +20,7 @@
+   out = mt.QubitPauliSum(N)
+   for (term, coeff) in psum.terms
+     # A fresh key vector per term: the sum keeps the vector it is given.
+-    push!(out, mt.QubitPauli(pauliop_from_ppterm(term, N)), ComplexF64(coeff))
++    push!(out, mt.QubitPauli(pauliop_from_ppterm(term, N)), ComplexF64(conj(coeff)))
+   end
+   return out
+ end

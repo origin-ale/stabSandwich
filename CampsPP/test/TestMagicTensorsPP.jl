@@ -178,11 +178,19 @@ end
     doped = parse.(Int, split(fields["doped_gates"]))
     gates, phases = xxz_circuit(π/4, π/4, 23, N)
     phases[doped] .= 3π/16
-    ψ, k = evolve(computationalcamps(mt.QubitCAMPS, N, excited), s, gates, phases)
+    # Rebuild with the reference's own stopping rule (generate.jl: CAMPS until the bond
+    # dimension reaches χ = 64, which first happens at gate s). A plain `evolve` to gate s has
+    # no bond-dimension stop, so a broken frame or disentangler made the bond dimension blow up
+    # and hung the suite (T10 mutants E7, E8, D5); this rebuild stops as soon as it reaches 64.
+    ψ, k, s_rebuilt = DisentangleCAMPS.evolve_bonddim(
+      computationalcamps(mt.QubitCAMPS, N, excited), 64, gates, phases)
+    @test s_rebuilt == s
     # Frame-dependent parity with the old code (state.txt): k and the bond dimension.
     @test k == 37
     @test DisentangleCAMPS.bonddim(ψ) == 112
-    files = SLOW ? ("sum_0201.txt", "sum_0538.txt") : ("sum_0201.txt",)
+    # The sums only mean something on the reference state; skip them on a wrong rebuild
+    # (its failures are already reported above).
+    files = s_rebuilt == s ? (SLOW ? ("sum_0201.txt", "sum_0538.txt") : ("sum_0201.txt",)) : ()
     @testset "$f" for f in files
       lines = collect(eachline(joinpath(dir, f)))
       header = Dict(split(l[3:end], '\t')[1] => split(l[3:end], '\t')[2]

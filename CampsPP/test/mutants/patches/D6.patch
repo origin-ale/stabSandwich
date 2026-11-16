@@ -1,0 +1,11 @@
+--- a/CampsPP/src/Disentangler.jl
++++ b/CampsPP/src/Disentangler.jl
+@@ -85,7 +85,7 @@
+ function reducetoX(P::PauliOperator, i::Integer)
+   phasei = one(CliffordOperator, length(P))
+   _apply_on_sites!(phasei, tPhase, [i]) # Use 3 phase gates s.t. Y -> X instead of -X
+-  return apply(P, inv(phasei)), phasei
++  return apply(P, phasei), phasei
+ end
+ 
+ findfirstfreeXY(P::PauliOperator, k::Integer) = findfirst(xbit(P)[k+1:end]) + k

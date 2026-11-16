@@ -1,0 +1,11 @@
+--- a/CampsPP/src/TimeEvolution.jl
++++ b/CampsPP/src/TimeEvolution.jl
+@@ -389,7 +389,7 @@
+   M = length(gates)
+   i = start_gate
+   NP = 1
+-  layer = getlayer(start_gate+1, layer_ends)
++  layer = getlayer(start_gate, layer_ends)
+   gates_pp = []
+   angles_pp = []
+   evs_pp = []

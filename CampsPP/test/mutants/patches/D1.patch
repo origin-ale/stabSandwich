@@ -1,0 +1,11 @@
+--- a/CampsPP/src/Disentangler.jl
++++ b/CampsPP/src/Disentangler.jl
+@@ -16,7 +16,7 @@
+   n = length(Q)
+   XQ = xbit(Q)
+   ZQ = zbit(Q)
+-  if XQ[k+1:n] != zeros(n-k)
++  if any(XQ[k+2:n])
+     return :disentanglable
+   elseif ZQ[1:k] == zeros(k) && XQ[1:k] == zeros(k)
+     return :trivial

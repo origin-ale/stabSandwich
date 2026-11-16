@@ -1,0 +1,11 @@
+--- a/CampsPP/src/EvolveQubitCAMPS.jl
++++ b/CampsPP/src/EvolveQubitCAMPS.jl
+@@ -119,7 +119,7 @@
+     addmagicstate!(ψ, k, sign * ϕ)
+     k += 1
+   elseif nature == :logical
+-    mt.apply_to_mps!(ψ, rotation_gate(Q, ϕ))
++    mt.apply_to_mps!(ψ, rotation_gate(P, ϕ))
+   end
+   return k
+ end

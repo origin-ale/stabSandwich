@@ -1,0 +1,11 @@
+--- a/CampsPP/src/EvolveQubitCAMPS.jl
++++ b/CampsPP/src/EvolveQubitCAMPS.jl
+@@ -65,7 +65,7 @@
+   G = one(CliffordOperator, N)
+   for i in 1:2N
+     A = G[i]
+-    if comm(P, A) == 0x1
++    if comm(P, A) == 0x0
+       G[i] = n == 1 ? (im * P * A) : n == 2 ? -A : ((-im) * P * A)
+     end
+   end

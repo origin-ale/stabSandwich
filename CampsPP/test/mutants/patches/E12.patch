@@ -1,0 +1,11 @@
+--- a/CampsPP/src/EvolveQubitCAMPS.jl
++++ b/CampsPP/src/EvolveQubitCAMPS.jl
+@@ -141,7 +141,7 @@
+     apply_clifford_rotation!(ψ, P, n)
+     return nothing
+   end
+-  mt.apply_to_mps!(ψ, rotation_gate(heisenberg_image(ψ, P), ϕ); cutoff = thl)
++  mt.apply_to_mps!(ψ, rotation_gate(heisenberg_image(ψ, P), ϕ))
+   return nothing
+ end
+ 

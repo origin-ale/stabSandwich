@@ -1,0 +1,11 @@
+--- a/CampsPP/src/EvolveQubitCAMPS.jl
++++ b/CampsPP/src/EvolveQubitCAMPS.jl
+@@ -116,7 +116,7 @@
+   if nature == :disentanglable
+     D, sign = disentangler(k, Q)
+     mt.apply_to_clifford_dagger!(ψ, mt.QubitCliffordUnitary(inv(D))) # C ← C·D
+-    addmagicstate!(ψ, k, sign * ϕ)
++    addmagicstate!(ψ, k, ϕ)
+     k += 1
+   elseif nature == :logical
+     mt.apply_to_mps!(ψ, rotation_gate(Q, ϕ))

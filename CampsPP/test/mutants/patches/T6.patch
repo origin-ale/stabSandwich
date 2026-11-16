@@ -1,0 +1,10 @@
+--- a/CampsPP/src/TimeEvolution.jl
++++ b/CampsPP/src/TimeEvolution.jl
+@@ -538,7 +538,6 @@
+     gate = rotation_gate(PauliOperator(getpauli(gates[i], N)), phases[i]) # exp(iϕP)
+ 
+     mt.apply!(ψ, gate; cutoff = thl) # MPO apply, ITensorMPS densitymatrix algorithm
+-    normalize!(ψ)
+ 
+     if isnothing(layer_ends) || i == layer_ends[layer] # Works because || short circuits
+       append_expectation!(evs, output, ψ, obs_mt, layer)

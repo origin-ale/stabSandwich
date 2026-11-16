@@ -1,0 +1,11 @@
+--- a/CampsPP/src/EvolveQubitCAMPS.jl
++++ b/CampsPP/src/EvolveQubitCAMPS.jl
+@@ -53,7 +53,7 @@
+   isfinite(ϕ) || throw(ArgumentError("rotation angle must be finite, got $ϕ"))
+   m = round(Int, ϕ / (π / 4))
+   isapprox(ϕ, m * π / 4; atol = atol, rtol = rtol) || return nothing
+-  return mod(m, 4)
++  return mod(m, 2)
+ end
+ 
+ """

@@ -1,0 +1,11 @@
+--- a/CampsPP/src/EvolveQubitCAMPS.jl
++++ b/CampsPP/src/EvolveQubitCAMPS.jl
+@@ -83,7 +83,7 @@
+ 
+ "The Heisenberg image C†PC of `P` through the frame of `ψ`, sign included."
+ heisenberg_image(ψ::mt.QubitCAMPS, P::PauliOperator) =
+-  mt.conjugate(mt.QubitPauli(P), mt.get_clifford(ψ; daggered = true)).pauli
++  mt.conjugate(mt.QubitPauli(P), mt.get_clifford(ψ; daggered = false)).pauli
+ 
+ # == apply! =============================================================================
+ 

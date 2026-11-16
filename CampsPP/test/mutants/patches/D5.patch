@@ -1,0 +1,11 @@
+--- a/CampsPP/src/Disentangler.jl
++++ b/CampsPP/src/Disentangler.jl
+@@ -101,7 +101,7 @@
+   for j in eachindex(Q)
+     if j != i
+       if Q[j] == (true, false) # X
+-        _apply_on_sites!(D, tCX, [i, j])
++        _apply_on_sites!(D, tCX, [j, i])
+       elseif Q[j] == (true, true) # Y
+         _apply_on_sites!(D, tCY, [i, j])
+       elseif Q[j] == (false, true) # Z

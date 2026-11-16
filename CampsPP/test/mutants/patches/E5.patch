@@ -1,0 +1,11 @@
+--- a/CampsPP/src/EvolveQubitCAMPS.jl
++++ b/CampsPP/src/EvolveQubitCAMPS.jl
+@@ -75,7 +75,7 @@
+ "Frame update for the Clifford rotation exp(i·n·π/4·P): C ← G·C, i.e. C† ← C†·G†."
+ function apply_clifford_rotation!(ψ::mt.QubitCAMPS, P::PauliOperator, n::Integer)
+   n == 0 && return nothing
+-  Gdag = pauli_rotation_tableau(P, mod(-n, 4))
++  Gdag = pauli_rotation_tableau(P, n)
+   Cdag = mt.get_clifford(ψ; daggered = true)
+   Cdag.clifford = Cdag.clifford * Gdag
+   return nothing
