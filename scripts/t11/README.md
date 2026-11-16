@@ -30,8 +30,11 @@ scripts/remote/run.sh scripts/t11/replay_prob_tm.jl run=output/runs/20261110-150
 scripts/remote/run.sh scripts/t11/replay_prob_tm.jl run=output/runs/20261110-160640-Comptime_prob_tm
 ```
 
-Use the same thread setting as Phase 0 (`-t auto`, the `run.sh` default) so the
-times are comparable. They are indicative only, because the cluster is shared.
+**Threads:** at most 20 at once on `carlos`. `run.sh` refuses `-t auto` and anything
+above 20, and defaults to 10. The scripts also set BLAS to the same number of
+threads, so a run can use about twice its `-t`: keep `-t` at 10 or below. The Phase 0 runs and the first replays (2026-11-16) used
+`-t auto`; times from a different thread setting aren't comparable with those.
+Times are indicative only, because the cluster is shared.
 Each replay writes to `output/t11/<Phase 0 id>/`, and `run.sh` copies that into
 its own run directory.
 

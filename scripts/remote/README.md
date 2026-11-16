@@ -59,6 +59,11 @@ file and exits non-zero. Use `-f` to replace it.
 - **The record describes the code.** `run.sh` refuses to start if tracked files
   have uncommitted changes. It runs `git pull --ff-only` first unless you pass
   `--no-pull`.
+- **At most 20 threads.** This is the usage limit on `carlos`. `-t` (or
+  `$JULIA_NUM_THREADS`) must be a number or `N,M` totalling at most 20. `auto`
+  (every core) is refused, and the default is 10. Scripts that give BLAS one
+  thread per Julia thread (`Comptime_prob_tm.jl`, the T11 replay) can use about
+  twice `-t`, so `run.sh` prints a note above 10.
 - **Nothing unverified enters `output/`.** `fetch.sh` refuses unfinished runs,
   and installs nothing if the transfer is truncated or any checksum fails.
   Re-running it is safe.

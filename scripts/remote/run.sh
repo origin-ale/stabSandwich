@@ -26,8 +26,12 @@
 #               uses to reject truncated transfers; written last, so its
 #               presence means the run has finished
 #
-# THREADS defaults to $JULIA_NUM_THREADS, else "auto". The julia binary is
-# $JULIA if set, else `julia` on PATH.
+# THREADS defaults to $JULIA_NUM_THREADS, else 10. It must be a number, or N,M
+# (default and interactive pools), totalling at most 20: the usage limit on the
+# target. "auto" is refused, because it means every core. Scripts that give BLAS
+# one thread per Julia thread (Comptime_prob_tm.jl, the T11 replay) use up to
+# twice THREADS, hence the default of 10. The julia binary is $JULIA if set, else
+# `julia` on PATH.
 #
 # Stop a run with `kill <worker pid>` (shown by --status); the run is recorded
 # as killed and the lock is released.
@@ -51,6 +55,16 @@ sha256() {
 ncores() { nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo "?"; }
 
 field() { sed -n "s/^$2: //p" "$1" | tail -1; }   # field FILE KEY
+
+max_threads=20       # usage limit on the target (user, 2026-11-16)
+default_threads=10   # room for scripts that also give BLAS one thread per Julia thread
+
+total_threads() {    # "8" -> 8, "8,1" -> 9; fails on anything else ("auto", "")
+  [[ $1 =~ ^[0-9]+(,[0-9]+)?$ ]] || return 1
+  local a=${1%%,*} b=0
+  [[ $1 == *,* ]] && b=${1#*,}
+  echo $((10#$a + 10#$b))
+}
 
 lock_owner() {   # prints "pid run-id" of a live lock holder, or nothing
   [ -d "$lock" ] || return 0
@@ -139,7 +153,7 @@ if [ "${1:-}" = "--status" ]; then
 fi
 
 # ----------------------------------------------------------------- launch ---
-threads=${JULIA_NUM_THREADS:-auto}; pull=1
+threads=${JULIA_NUM_THREADS:-$default_threads}; pull=1
 while [ $# -gt 0 ]; do
   case "$1" in
     -t) [ $# -ge 2 ] || die "-t needs a value"; threads=$2; shift 2 ;;
@@ -152,6 +166,13 @@ while [ $# -gt 0 ]; do
 done
 [ $# -ge 1 ] || die "usage: run.sh [-t THREADS] [--no-pull] SCRIPT [ARGS...]"
 script=$1; shift
+
+nthreads=$(total_threads "$threads") \
+  || die "threads must be a number or N,M, not '$threads' ('auto' would use every core; the limit is $max_threads)"
+[ "$nthreads" -ge 1 ] || die "threads must be at least 1, got '$threads'"
+[ "$nthreads" -le "$max_threads" ] || die "threads '$threads' exceed the limit of $max_threads"
+[ "$nthreads" -le $((max_threads / 2)) ] \
+  || echo "run.sh: note: scripts that give BLAS one thread per Julia thread can use up to $((2 * nthreads)) threads with -t $threads" >&2
 
 cd "$repo" || die "cannot cd to $repo"
 mkdir -p "$runs"
