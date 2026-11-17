@@ -46,4 +46,21 @@ export computationalcamps
 export transferredmagnetization
 export layerends
 
+# PauliPropagation 0.7.3 creates the Pauli-string integer types it lacks (UInt24, UInt40,
+# UInt48, UInt56, …) with `@eval` the first time `getinttype` needs one. For widths below
+# 64 bits that adds BitIntegers' `hash` method, which disagrees with the `hash`
+# PauliPropagation defines for all BitIntegers types. So a `PauliSum` filled in the world
+# age where its type was created is corrupted once used in a later one (keys not found,
+# duplicated terms, wrong values; N = 9–12 and 17–28). Creating every type up to 64 bits
+# (N ≤ 32) at load time gives all later code a single `hash`. Above 64 bits BitIntegers
+# adds no `hash`, so those types are still created on demand. Not needed from
+# PauliPropagation 0.9, which creates no types at runtime.
+function __init__()
+  # `getinttype` evaluates into PauliPropagation, which is not allowed while a package
+  # that loads CampsPP is being precompiled
+  ccall(:jl_generating_output, Cint, ()) == 1 && return nothing
+  foreach(pp.getinttype, 1:32)
+  return nothing
+end
+
 end

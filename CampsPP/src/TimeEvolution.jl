@@ -110,6 +110,28 @@ layer_disentangle!(ψ::mt.QubitCAMPS, de) = mt.disentangle!(de, ψ)
 meanweight(psum::pp.PauliSum) = mean(pp.countweight(psum))
 meancoeff(psum::pp.PauliSum) = mean(abs, pp.coefficients(psum))
 
+"Σ|c|² over the terms of `psum`."
+sumsquares(psum::pp.PauliSum) = sum(abs2, pp.coefficients(psum); init = 0.0)
+
+const PP_NORM_RTOL = 1e-8
+
+"""
+    check_pp_norm(norm_obs, paulisum; rtol = PP_NORM_RTOL)
+
+Throw if Pauli propagation raised Σ|c|² above `norm_obs`, its value for the input
+observable, by more than `rtol` relative. Pauli rotations and Cliffords preserve Σ|c|² and
+truncation only removes terms, so a larger value means the propagated sum is corrupt (as
+with the PauliPropagation 0.7.3 hash bug described at `__init__` in CampsPP.jl). Throwing
+keeps its expectation values out of the output. Rounding drift is far below `rtol`.
+"""
+function check_pp_norm(norm_obs::Real, paulisum::pp.PauliSum; rtol::Real = PP_NORM_RTOL)
+  norm_out = sumsquares(paulisum)
+  norm_out > (1 + rtol) * norm_obs && error(
+    "Pauli propagation raised Σ|c|² from $norm_obs to $norm_out (relative tolerance \
+$rtol): the propagated sum is corrupt")
+  return nothing
+end
+
 # == Circuit evolution ==================================================================
 
 function campspp_circuit_dynamics(
@@ -383,6 +405,7 @@ track = false)
   nterms = Int[]
   avgweights = Float64[]
   avgcoeffs = Float64[]
+  norm_obs = sumsquares(obs)
   progress = ProgressUnknown(desc = "Evolving with Pauli prop… gate ", enabled = showprogress)
 
   track && push!(nterms, length(obs))
@@ -399,6 +422,7 @@ track = false)
 
     if isnothing(layer_ends) || i == layer_ends[layer]
       paulisum = pp.propagate(gates_pp, obs, angles_pp; min_abs_coeff = thl)
+      check_pp_norm(norm_obs, paulisum)
       NP = length(paulisum)
       track && push!(nterms, NP)
       track && push!(avgweights, meanweight(paulisum))
@@ -458,6 +482,7 @@ track = false)
   nterms = Int[]
   avgweights = Float64[]
   avgcoeffs = Float64[]
+  norm_obs = sumsquares(obs)
   progress = ProgressUnknown(desc = "Evolving with Pauli prop… gate ", enabled = showprogress)
 
   append_expectation!(evs_pp, output, onebitinds, obs, 0)
@@ -476,6 +501,7 @@ track = false)
 
     if isnothing(layer_ends) || i == layer_ends[layer]
       paulisum = pp.propagate(gates_pp, obs, angles_pp; min_abs_coeff = thl)
+      check_pp_norm(norm_obs, paulisum)
       NP = length(paulisum)
       track && push!(nterms, NP)
       track && push!(avgweights, meanweight(paulisum))
