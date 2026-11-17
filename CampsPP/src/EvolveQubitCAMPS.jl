@@ -1,8 +1,6 @@
-# MagicTensors `QubitCAMPS` versions of the functions in Evolve.jl.
-#
-# Staged side by side with the old CliffordMPS `CAMPS` methods (plan, Phase 2) and selected by
-# dispatch on the state type; the old methods stay unchanged until T-post, then this file is
-# the only implementation.
+# Evolution of MagicTensors `QubitCAMPS` states: Pauli rotations with disentangling, and the
+# circuit drivers built on them. (Until Phase 6 these were staged next to the old CliffordMPS
+# `CAMPS` methods of Evolve.jl, now deleted.)
 #
 # Frame convention (test/CONVENTIONS.md §4): `QubitCAMPS` stores the state-frame Clifford C,
 # |ψ⟩ = C |mps⟩, with a lazy `daggered` flag. Every frame write below goes through C†, fetched
@@ -14,6 +12,9 @@
 # operator product (B acts first).
 
 import MagicTensors as mt
+using QuantumClifford
+using ITensors, ITensorMPS
+using ProgressMeter
 using Random: AbstractRNG
 
 "Default absolute tolerance for recognising a Clifford angle (a multiple of π/4)."
@@ -22,6 +23,8 @@ const CLIFFORD_ATOL = 1e-10
 const CLIFFORD_RTOL = 0.0
 
 bonddim(ψ::mt.QubitCAMPS) = maximum(dim.(linkinds(mt.get_mps(ψ))); init = 1)
+
+generate_showvalues(χ, bd) = () -> [("Bond dimension (max $χ)", bd)]
 
 # == Gates ==============================================================================
 

@@ -4,7 +4,7 @@ using CampsPP.DisentangleCAMPS
 using ITensors, ITensorMPS
 
 import PauliPropagation as pp
-import CliffordMPS as cmps
+import MagicTensors as mt
 using QuantumClifford
 
 using Statistics
@@ -25,8 +25,8 @@ ITensors.Strided.set_num_threads(1)
 #   PP    — min_abs_coeff 0, every other truncation left at Inf
 
 function circuit_camps(gates, phases, P)
-  ψ, _ = evolve(cmps.CAMPS(P.nqubits), length(phases), gates, phases)
-  return real(cmps.expectation(ψ, P))
+  ψ, _ = evolve(computationalcamps(P.nqubits, Int[]), length(phases), gates, phases)
+  return real(mt.expectation(ψ, P))
 end
 
 function circuit_pp(gates, phases, P, thl)

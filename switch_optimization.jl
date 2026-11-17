@@ -4,7 +4,7 @@ using CampsPP.DisentangleCAMPS
 using ITensors, ITensorMPS
 
 import PauliPropagation as pp
-import CliffordMPS as cmps
+import MagicTensors as mt
 
 using Statistics
 using ProgressMeter
@@ -20,13 +20,13 @@ ITensors.Strided.set_num_threads(1)
 function circuit_sandwich(rotations, phases, P, c)
   N = P.nqubits
   t = length(rotations)
-  ψ_evo, _ = evolve(cmps.CAMPS(N), t-c, rotations, phases)
+  ψ_evo, _ = evolve(computationalcamps(N, Int[]), t-c, rotations, phases)
 
   leftover_rotations, leftover_angles = leftover_rotgates(t-c, rotations, phases)
 
   sandwichstrings = pp.propagate(leftover_rotations, P, leftover_angles)
 
-  return cmps.expectation(ψ_evo, sandwichstrings)
+  return mt.expectation(ψ_evo, sandwichstrings)
 end
 
 N = 20

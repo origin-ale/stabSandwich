@@ -4,7 +4,7 @@ using CampsPP.DisentangleCAMPS
 using ITensors, ITensorMPS
 
 import PauliPropagation as pp
-import CliffordMPS as cmps
+import MagicTensors as mt
 using QuantumClifford
 
 using Statistics
@@ -26,29 +26,23 @@ ITensors.Strided.set_num_threads(1)
 #   PP    — min_abs_coeff 0, every other truncation left at Inf
 
 function circuit_camps(gates, phases, P)
-  ψ, _ = evolve(cmps.CAMPS(P.nqubits), length(phases), gates, phases)
-  return real(cmps.expectation(ψ, P))
+  ψ, _ = evolve(computationalcamps(P.nqubits, Int[]), length(phases), gates, phases)
+  return real(mt.expectation(ψ, P))
 end
 
 function circuit_mps(gates, phases, P; cutoff = 0, alg = "naive")
   N = P.nqubits
-  I = PauliOperator(0x0, fill(false,N), fill(false,N))
 
-  gate_paulis = cmps.PauliOperator.(getpauli.(gates, N))
+  gate_paulis = PauliOperator.(getpauli.(gates, N))
 
-  sites = siteinds("Qubit", N)
-  states = ["Up" for _ in sites]
-  ψ = MPS(sites, states)
+  ψ = MPS(ComplexF64, siteinds("Qubit", N), "0")
 
   for i in eachindex(gate_paulis)
-    p = gate_paulis[i]
-    ϕ = phases[i]
-    g = cmps.PauliSum([cos(ϕ), im * sin(ϕ)], Stabilizer([I,p]))
-    ψ = apply(ψ, g; cutoff = cutoff, alg = alg)
+    # exp(iϕP) = cos ϕ · 1 + i sin ϕ · P as a two-term MPO, applied with ITensorMPS.apply
+    mt.apply!(ψ, rotation_gate(gate_paulis[i], phases[i]); cutoff = cutoff, alg = alg)
   end
 
-  P_cmps = cmps.PauliSum(P)
-  return real(ITensorMPS.expect(ψ, P_cmps))
+  return real(mt.expectation(ψ, mt.QubitPauliSum(P)))
 end
 
 function circuit_pp(gates, phases, P, thl)

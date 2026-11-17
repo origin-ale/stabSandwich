@@ -36,9 +36,8 @@ end
 """```_apply_on_sites!(C, op, sites)```
 
 Compose the Clifford `op`, acting on the qubits `sites`, after C (C ← op·C, phases tracked), in
-place. Private replacement for the vendored `apply!(::CliffordOperator, ::CliffordOperator, sites)`
-of `dmrgCliffordMPS`, which QuantumClifford does not define (plan, design correction 3; a private
-name, since redefining that signature would overwrite the vendored method while it is loaded).
+place. QuantumClifford has no `apply!(::CliffordOperator, ::CliffordOperator, sites)`; this
+replaces the one the old vendored CliffordMPS defined (plan, design correction 3).
 `Stabilizer(C.tab)` wraps C's tableau without copying it, so the write goes to C."""
 function _apply_on_sites!(C::CliffordOperator, op::CliffordOperator, sites::AbstractVector{<:Integer})
   apply!(Stabilizer(C.tab), op, sites)

@@ -4,7 +4,6 @@ using .DisentangleCAMPS
 using ITensors, ITensorMPS
 
 import PauliPropagation as pp
-import CliffordMPS as cmps
 import MagicTensors as mt
 
 # == States =============================================================================
@@ -12,16 +11,14 @@ import MagicTensors as mt
 """ ```domainwallstate([T,] rng, N, μ)```
 
 Return an N-qubit product state of type T from the Rosenberg et al. domain wall \
-ensemble with contrast parameter μ, and its `onebitinds`. T is `cmps.CAMPS` (the
-default while the port is staged) or `MagicTensors.QubitCAMPS`; the random draws
-do not depend on T.
+ensemble with contrast parameter μ, and its `onebitinds`. T defaults to
+`MagicTensors.QubitCAMPS`, the only state type; the random draws do not depend on T.
 """
-domainwallstate(rng, N, μ) = domainwallstate(cmps.CAMPS, rng, N, μ)
+domainwallstate(rng, N, μ) = domainwallstate(mt.QubitCAMPS, rng, N, μ)
 
 function domainwallstate(::Type{T}, rng, N, μ) where {T}
   p = exp(μ)/(exp(μ) + exp(-μ))
 
-  cliff = one(CliffordOperator, N)
   onebitinds = Int[]
 
   for i in 1:N÷2
@@ -42,10 +39,10 @@ end
 """ ```computationalcamps([T,] N, onebitinds)```
 
 The N-qubit computational basis state with the qubits in `onebitinds` in |1⟩, as a
-CAMPS of type T (`cmps.CAMPS`, the default while the port is staged, or
-`MagicTensors.QubitCAMPS`): the MPS is |0…0⟩ and the frame is C = ∏ X_i.
+CAMPS of type T (default and only type: `MagicTensors.QubitCAMPS`): the MPS is |0…0⟩
+and the frame is C = ∏ X_i.
 """
-computationalcamps(N, onebitinds) = computationalcamps(cmps.CAMPS, N, onebitinds)
+computationalcamps(N, onebitinds) = computationalcamps(mt.QubitCAMPS, N, onebitinds)
 
 function computationalcamps(::Type{mt.QubitCAMPS}, N, onebitinds)
   C = one(CliffordOperator, N)
@@ -54,17 +51,6 @@ function computationalcamps(::Type{mt.QubitCAMPS}, N, onebitinds)
   end
   mps = MPS(ComplexF64, siteinds("Qubit", N), "0")
   return mt.QubitCAMPS(mps, mt.QubitCliffordUnitary(C), false)
-end
-
-function computationalcamps(::Type{cmps.CAMPS}, N, onebitinds)
-  cliff = one(CliffordOperator, N)
-  for i in onebitinds
-    cliff[i+N] = -cliff[i+N]
-  end
-
-  ψ = cmps.CAMPS(N)
-  ψ.Cdag *= inv(cliff)
-  return ψ
 end
 
 # == Observables ========================================================================

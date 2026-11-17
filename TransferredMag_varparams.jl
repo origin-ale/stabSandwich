@@ -4,7 +4,6 @@ using CampsPP.DisentangleCAMPS
 using ITensors, ITensorMPS
 
 import PauliPropagation as pp
-import CliffordMPS as cmps
 
 using Printf
 using Random: seed!, MersenneTwister

@@ -4,17 +4,13 @@ module CampsPP
 include("DisentangleCAMPS.jl")
 using .DisentangleCAMPS
 
-include("CliffordMPSPauliPropagation.jl")
-export paulivec
+# PauliPropagation ↔ MagicTensors bridge (converter, expectation seam, pp helpers)
+include("MagicTensorsPauliPropagation.jl")
 export getpauli
 export leftover_rotgates
 export pauliop_from_ppterm
 
-# MagicTensors versions (converter, expectation seam), staged next to the CliffordMPS ones
-include("MagicTensorsPauliPropagation.jl")
-
 include("Utility.jl")
-export stringtopauli_sym
 export quantiles
 export save_three_columns
 export save_rows
@@ -29,17 +25,11 @@ export save_stats_maxcol
 export save_doped_gates
 
 include("Circuits.jl")
-export dopeT
-export dopeMagic
-export sub_magic
 export doping_mask
 export xy_magic
 export z_magic
 export rotation_circuit
-export xxz_alt_circuit
-export xxz_layer_circuit
 export xxz_circuit
-export fSim_circuit
 
 include("TimeEvolution.jl")
 export camps_circuit_dynamics

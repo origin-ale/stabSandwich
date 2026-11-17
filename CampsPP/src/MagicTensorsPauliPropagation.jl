@@ -1,7 +1,7 @@
 # Bridge between PauliPropagation and MagicTensors: the pp → `QubitPauliSum` converter, the
 # `expectation` seam for `pp.PauliSum` observables on a `QubitCAMPS`, and the evolve wrappers
-# taking pp gates. Staged next to CliffordMPSPauliPropagation.jl (plan, Phase 2), which keeps
-# the old CliffordMPS versions until T-post.
+# taking pp gates, plus the pp → QuantumClifford helpers they use (formerly in
+# CliffordMPSPauliPropagation.jl, deleted with the old CliffordMPS stack in Phase 6).
 
 import MagicTensors as mt
 import PauliPropagation as pp
@@ -83,3 +83,42 @@ DisentangleCAMPS.evolve(ψ::mt.QubitCAMPS,
                         phases::Vector{<:Real};
                         kwargs...) =
 DisentangleCAMPS.evolve(ψ, t, PauliOperator.(getpauli.(paulirots, mt.nsites(ψ))), phases; kwargs...)
+
+# -- pp.PauliString -> QuantumClifford.PauliOperator ----------------------------------
+
+function QuantumClifford.PauliOperator(pstr::pp.PauliString)
+  coeff_to_phase = Dict(1 => 0x0, im => 0x1, -1 => 0x2, -im => 0x3)
+  phase = get(coeff_to_phase, pstr.coeff, nothing)
+  isnothing(phase) && throw(ArgumentError("QuantumClifford.PauliOperator only supports ±1 and ±i as phases"))
+  return pauliop_from_ppterm(pstr.term, pstr.nqubits; phase = phase)
+end
+
+"""```pauliop_from_ppterm(term, N; phase = 0x0)```
+
+The QuantumClifford `PauliOperator` of a PauliPropagation term integer on N qubits, with
+the given phase byte, built with QuantumClifford's own `PauliOperator(phase, x, z)`
+constructor.
+
+Layout (test/CONVENTIONS.md §3): qubits are 1-based, j = 1…N, and
+`term = Σⱼ codeⱼ · 4^(j−1)` with codes I=0, X=1, Y=2, Z=3. So the code of qubit j is
+`(term >> 2(j−1)) & 0b11` (what `pp.getpauli(term, j)` returns): the shift counts bits from
+0 at the least significant bit, and qubit 1 sits in the lowest two bits. Qubit j of the
+result has x = (code ∈ {X, Y}), z = (code ∈ {Y, Z})."""
+function pauliop_from_ppterm(term::Integer, N::Integer; phase::UInt8 = 0x0)
+  x = Vector{Bool}(undef, N)
+  z = Vector{Bool}(undef, N)
+  for j in 1:N
+    code = Int(pp.getpauli(term, j))
+    x[j] = code == 1 || code == 2
+    z[j] = code == 2 || code == 3
+  end
+  return PauliOperator(phase, x, z)
+end
+
+# -- Extract pp.PauliStrings from pp.PauliRotations ------------------------------------
+
+getpauli(rot::pp.PauliRotation, N::Integer) = pp.PauliString(N, rot.symbols, rot.qinds)
+
+# -- Leftover gates after a CAMPS evolution up to gate s ---------------------------------
+
+leftover_rotgates(s::Integer, rotations, phases) = rotations[s+1:end], -2 .* phases[s+1:end]

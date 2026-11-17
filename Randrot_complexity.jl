@@ -1,5 +1,6 @@
+using CampsPP
 using CampsPP.DisentangleCAMPS
-using CliffordMPS
+import MagicTensors as mt
 
 using QuantumClifford
 using ITensors, ITensorMPS
@@ -7,9 +8,24 @@ using ProgressMeter
 using Plots
 using LaTeXStrings
 using Statistics
+using Random
+
+# For t/N = 0.1:0.1:1.1, `n_samples` random states built from t layers of (uniformly random
+# N-qubit Clifford, then a rotation about a random Pauli string at angle 4π·rand), recording
+# max_b S_E(b)/N of the CAMPS's MPS part and the N²-sample estimate of M₂/N.
+#
+#   julia --project=. Randrot_complexity.jl [Ns [n_samples [rng_seed]]]
+#   e.g. julia --project=. Randrot_complexity.jl 12,24,48 100 1100
+#
+# Reproducible: for each N, `Xoshiro(rng_seed + N)` drives the Pauli strings, the angles and
+# the random Cliffords, so a run with one N reproduces that N's part of a run with several.
+# The M₂ sampling (`mt.stabilizer_entropy`) draws from the global RNG and takes no RNG
+# argument, so the global RNG is reseeded at the start of each N from a draw of that N's
+# generator (not with the same seed: two Xoshiro streams seeded alike would coincide).
 
 Ns = length(ARGS) >= 1 ? parse.(Int, split(ARGS[1], ",")) : [12, 24, 48]
 n_samples = length(ARGS) >= 2 ? parse(Int, ARGS[2]) : 100
+rng_seed = length(ARGS) >= 3 ? parse(Int, ARGS[3]) : 1100
 fractions = 0.1:0.1:1.1
 
 results_ee = Dict{Int, Vector{Float64}}()
@@ -22,6 +38,7 @@ generate_showvalues(toN, sample) = () -> [("t/N",toN), ("sample", sample)]
 function save_results(path, Ns, results_ee, results_ee_err, results_sre, results_sre_err, fractions)
 	done = filter(N -> haskey(results_ee, N), Ns)
 	open(path, "w") do io
+		println(io, "# rng_seed = $rng_seed, n_samples = $n_samples")
 		for (i, N) in enumerate(done)
 			println(io, "# N = $N")
 			println(io, "# t/N avg_EE err_EE avg_SRE err_SRE")
@@ -33,7 +50,22 @@ function save_results(path, Ns, results_ee, results_ee_err, results_sre, results
 	end
 end
 
+""" One sample: (max bond entropy / N, sampled M₂ / N) after t layers. """
+function sample_complexity(rng, N, t)
+	ψ = computationalcamps(N, Int[])
+	paulistrings = [PauliOperator(0x0, rand(rng, Bool, N), rand(rng, Bool, N)) for _ in 1:t]
+	angles = 4π * rand(rng, Float64, (t,))
+
+	ψ_evo, _ = evolve_deepcliffords(rng, ψ, t, paulistrings, angles)
+
+	mps = mt.get_mps(ψ_evo)
+	return maximum(mt.entanglement_entropy(mps)) / N, mt.stabilizer_entropy(mps, N^2; α = 2) / N
+end
+
 for N in Ns
+	rng = Xoshiro(rng_seed + N)
+	Random.seed!(rand(rng, UInt64)) # global RNG, used by the M₂ sampling
+
 	ee_vals = Float64[]
 	ee_err_vals = Float64[]
 	sre_vals = Float64[]
@@ -46,14 +78,9 @@ for N in Ns
 		sre_samples = Float64[]
 
 		for sample in 1:n_samples
-			ψ = CAMPS(N)
-      paulistrings = [PauliOperator(0x0, rand(Bool,N), rand(Bool,N)) for _ in 1:t]
-      angles = 4π * rand(Float64, (t,))
-
-			ψ_evo, k = evolve_deepcliffords(ψ, t, paulistrings, angles)
-
-			push!(ee_samples, maximum(eEntropys!(ψ_evo.mps)) / N)
-			push!(sre_samples, sEntropy(ψ_evo.mps, N^2; α =2) / N)
+			ee, sre = sample_complexity(rng, N, t)
+			push!(ee_samples, ee)
+			push!(sre_samples, sre)
 			next!(progressbar, showvalues=generate_showvalues(f, sample))
 		end
 

@@ -2,7 +2,6 @@ using Revise
 
 using .DisentangleCAMPS
 import PauliPropagation as pp
-import CliffordMPS as cmps
 import MagicTensors as mt
 using ITensors, ITensorMPS
 
@@ -26,46 +25,38 @@ end
 
 # == State types ========================================================================
 
-# The CAMPS paths below are generic over the old CliffordMPS `CAMPS` and the MagicTensors
-# `QubitCAMPS` while the port is staged (plan, Phase 2); the state type picks the stack.
-const AnyCAMPS = Union{cmps.CAMPS, mt.QubitCAMPS}
-
-nqubits_state(ψ::cmps.CAMPS) = length(ψ)
 nqubits_state(ψ::mt.QubitCAMPS) = mt.nsites(ψ)
 
-"Convert a PauliPropagation `PauliSum` to the Pauli-sum type that `expectation_value` accepts for this state (CliffordMPS or MagicTensors). Call once, before the time loop, in CAMPS evolution."
-convert_observable(::cmps.CAMPS, obs::pp.PauliSum) = cmps.PauliSum(obs)
+"Convert a PauliPropagation `PauliSum` to the `MagicTensors.QubitPauliSum` that `expectation_value` accepts. Call once, before the time loop, in CAMPS evolution."
 convert_observable(::mt.QubitCAMPS, obs::pp.PauliSum) = mt.QubitPauliSum(obs)
 
-expectation_value(ψ::cmps.CAMPS, obs) = cmps.expectation(ψ, obs)
 expectation_value(ψ::mt.QubitCAMPS, obs) = mt.expectation(ψ, obs)
-expectation_value(ψ::ITensorMPS.MPS, obs::cmps.PauliSum) = cmps.expectation(ψ, obs)
 expectation_value(ψ::ITensorMPS.MPS, obs::mt.QubitPauliSum) = mt.expectation(ψ, obs)
 
 # == Append expectation values ==========================================================
 
 function append_expectation!(
-out_array::Vector, out_file::AbstractString, ψ::AnyCAMPS, obs, i::Integer)
+out_array::Vector, out_file::AbstractString, ψ::mt.QubitCAMPS, obs, i::Integer)
   ev = expectation_value(ψ, obs)
   append_expectation!(out_array, out_file, ev, i)
 end
 
 function append_expectation!(
-out_array::Vector, ::Nothing, ψ::AnyCAMPS, obs, i::Integer)
+out_array::Vector, ::Nothing, ψ::mt.QubitCAMPS, obs, i::Integer)
   ev = expectation_value(ψ, obs)
   push!(out_array, real(ev))
 end
 
 function append_expectation!(
 out_array::Vector, out_file::AbstractString, ψ::ITensorMPS.MPS,
-obs::Union{cmps.PauliSum, mt.QubitPauliSum}, i::Integer)
+obs::mt.QubitPauliSum, i::Integer)
   ev = expectation_value(ψ, obs)
   append_expectation!(out_array, out_file, ev, i)
 end
 
 function append_expectation!(
 out_array::Vector, ::Nothing, ψ::ITensorMPS.MPS,
-obs::Union{cmps.PauliSum, mt.QubitPauliSum}, i::Integer)
+obs::mt.QubitPauliSum, i::Integer)
   ev = expectation_value(ψ, obs)
   push!(out_array, real(ev))
 end
@@ -112,10 +103,6 @@ end
 # `criterion`, stopping once a sweep gains ≤ 6, with no SVD truncation. On these
 # nearest-neighbour sweeps `:chi3` never applies a gate (see DisentangleQubitCAMPS.jl).
 const LAYER_MIN_DIFF = 6
-layer_disentangler(::cmps.CAMPS, criterion, strategy, N) =
-  (cmps.DisentangleCriterion(criterion), cmps.DisentangleStrategy(strategy), N)
-layer_disentangle!(ψ::cmps.CAMPS, (crit, strat, N)) =
-  cmps.disentangle!(ψ, strat, N; criterion = crit, min_diff = LAYER_MIN_DIFF)
 layer_disentangler(::mt.QubitCAMPS, criterion, strategy, N) =
   sweep_disentangler(criterion, strategy, N; min_diff = LAYER_MIN_DIFF)
 layer_disentangle!(ψ::mt.QubitCAMPS, de) = mt.disentangle!(de, ψ)
@@ -126,7 +113,7 @@ meancoeff(psum::pp.PauliSum) = mean(abs, pp.coefficients(psum))
 # == Circuit evolution ==================================================================
 
 function campspp_circuit_dynamics(
-ψ_ext::AnyCAMPS,
+ψ_ext::mt.QubitCAMPS,
 χ::Integer,
 thl::Real,
 Nmax::Integer,
@@ -171,7 +158,7 @@ track = false)
 end
 
 function campspp_circuit_dynamics(
-ψ_ext::AnyCAMPS,
+ψ_ext::mt.QubitCAMPS,
 χ::Integer,
 thl::Real,
 Nmax::Integer,
@@ -188,7 +175,7 @@ track = false)
 end
 
 function camps_circuit_dynamics(
-ψ_ext::AnyCAMPS,
+ψ_ext::mt.QubitCAMPS,
 gates::Vector,
 phases::Vector,
 χ::Integer,
@@ -203,7 +190,7 @@ track = false)
 end
 
 function camps_circuit_dynamics(
-ψ_ext::AnyCAMPS,
+ψ_ext::mt.QubitCAMPS,
 gates::Vector,
 phases::Vector,
 χ::Integer,
@@ -222,9 +209,9 @@ track = false)
   evs_camps = []
   bonddims = Int[]
   progress = ProgressUnknown(desc = "Evolving CAMPS… gate ", enabled = showprogress)
-  obs_cmps = convert_observable(ψ, obs)
+  obs_mt = convert_observable(ψ, obs)
 
-  append_expectation!(evs_camps, output, ψ, obs_cmps, 0)
+  append_expectation!(evs_camps, output, ψ, obs_mt, 0)
   track && push!(bonddims, DisentangleCAMPS.bonddim(ψ))
   layer += 1
 
@@ -236,7 +223,7 @@ track = false)
     k = apply!(ψ, k, gate, phase)
 
     if isnothing(layer_ends) || i == layer_ends[layer] # Works because || short circuits
-      append_expectation!(evs_camps, output, ψ, obs_cmps, layer)
+      append_expectation!(evs_camps, output, ψ, obs_mt, layer)
       track && push!(bonddims, DisentangleCAMPS.bonddim(ψ))
       layer += 1
     end
@@ -269,10 +256,10 @@ no longer runs. Returns `(ψ, i, evs)`, plus the bond dimension at each record p
 !!! warning
     For thl ≲ 1e-13 the truncation flag is unreliable: the rounding drift of the norm (about
     1e-14) can set it when nothing has been truncated. Whether and when the layer-end disentangler
-    runs then depends on floating-point details, and differs between the old (CliffordMPS) and new
-    (MagicTensors) stacks. Use thl ≥ 1e-11 when the disentangler's behaviour matters."""
+    runs then depends on floating-point details (it differed between the old CliffordMPS stack and
+    MagicTensors). Use thl ≥ 1e-11 when the disentangler's behaviour matters."""
 function campssrc_circuit_dynamics(
-ψ_ext::AnyCAMPS,
+ψ_ext::mt.QubitCAMPS,
 gates::Vector,
 phases::Vector,
 thl::Real,
@@ -289,7 +276,7 @@ track = false)
 end
 
 function campssrc_circuit_dynamics(
-ψ_ext::AnyCAMPS,
+ψ_ext::mt.QubitCAMPS,
 gates::Vector,
 phases::Vector,
 thl::Real,
@@ -309,7 +296,7 @@ track = false)
   evs_camps = []
   bonddims = Int[]
   progress = ProgressUnknown(desc = "Evolving CAMPS (SVD)… gate ", enabled = showprogress)
-  obs_cmps = convert_observable(ψ, obs)
+  obs_mt = convert_observable(ψ, obs)
   layer_de = layer_disentangler(ψ, criterion, strategy, N)
 
   # Gates are unitary and disentangling Cliffords are exact, so in exact arithmetic the norm
@@ -319,7 +306,7 @@ track = false)
   norm0_sq = norm(ψ)^2
   truncated = false
 
-  append_expectation!(evs_camps, output, ψ, obs_cmps, 0)
+  append_expectation!(evs_camps, output, ψ, obs_mt, 0)
   track && push!(bonddims, DisentangleCAMPS.bonddim(ψ))
   layer += 1
 
@@ -335,7 +322,7 @@ track = false)
     end
 
     if isnothing(layer_ends) || i == layer_ends[layer] # Works because || short circuits
-      append_expectation!(evs_camps, output, ψ, obs_cmps, layer)
+      append_expectation!(evs_camps, output, ψ, obs_mt, layer)
       truncated || layer_disentangle!(ψ, layer_de)
       track && push!(bonddims, DisentangleCAMPS.bonddim(ψ))
       layer += 1
@@ -357,7 +344,7 @@ track = false)
 end
 
 function pauliprop_circuit_dynamics(
-ψ_ext::AnyCAMPS,
+ψ_ext::mt.QubitCAMPS,
 start_gate::Integer,
 gates::Vector,
 phases::Vector,
@@ -373,7 +360,7 @@ track = false)
 end
 
 function pauliprop_circuit_dynamics(
-ψ_ext::AnyCAMPS,
+ψ_ext::mt.QubitCAMPS,
 start_gate::Integer,
 gates::Vector,
 phases::Vector,
