@@ -133,3 +133,41 @@ seam and per-term runs estimated above 60 s are single runs. Old-stack times are
   environments reused) costs about 2 ms/term at 82k terms, 4× faster than naive there. It already
   beats the MPO at 201 terms (0.8 s vs 1.6 s), and at 1161 terms it is 37× faster (7.7 s vs 282 s).
   It isn't in `src/`; replacing the MPO route is the optional decision in the plan.
+
+### Remote timing rerun (2026-11-17, `carlos`, Julia 1.13.3, `-t 10`, BLAS threads = Julia threads)
+
+| run | id | wall time |
+|---|---|---|
+| old A (`4c49e78`) | `20261117-130003-Comptime_prob_tm` | 24.5 min |
+| old B (`4c49e78`) | `20261117-132531-Comptime_prob_tm` | 11.3 min |
+| new A (`d6bdfe7`) | `20261117-133845-replay_prob_tm` | 3.7 min |
+| new B (`d6bdfe7`) | `20261117-134249-replay_prob_tm` | 6.1 min |
+| new B outlier, `-t 1` | `20261117-134935-replay_prob_tm` | 2.0 min |
+| new B outlier, `-t 4` | `20261117-135245-replay_prob_tm` | 2.1 min |
+
+The six ran one after another, with no overlap. Comparison tables: `output/phase5/timing_*.tsv`;
+log: `output/phase5/logs/compare.log`.
+
+**Regression check: PASS, 0 violations** (A 100 cases, B 20, scans 1 + 1). Switch gate, k, peak
+bond dimension and peak n. of Paulis are identical on every sample. Max |Δ⟨O⟩| is 8.5e-13 on CAMPS
+layers and 1.3e-12 on PP layers (A), and 3.2e-13 on B.
+
+**Times** (`timing_summary.jl`; indicative, shared cluster):
+
+| job | p | mean old | mean new | median × | min × |
+|---|---|---|---|---|---|
+| A (CAMPS-PP, 25 samples) | 0 | 13.4 s | 1.05 s | 11.8 | 10.5 |
+| | 0.01 | 13.9 s | 1.27 s | 11.5 | 8.2 |
+| | 0.02 | 14.0 s | 1.44 s | 11.0 | 5.6 |
+| | 0.04 | 12.3 s | 1.95 s | 6.5 | 3.7 |
+| B (CAMPS, 10 samples) | 0 | 20.6 s | 6.55 s | 2.8 | 2.5 |
+| | 0.01 | 33.8 s | 19.6 s | 1.8 | 1.3 |
+
+Every ratio is higher than in the T11 replays at `-t auto` = 192 (A 10/9/8/3×, B 2×/~1×).
+
+**Thread scan, B outlier (p = 0.01, sample 8), new stack:** 29.0 s at `-t 1`, 38.6 s at `-t 4`,
+43.9 s at `-t 10`, against 722 s at `-t auto` = 192 (T11) and 19.7 s on the laptop at 1 thread.
+The old stack takes 58.5 s at `-t 10`. The time grows with the thread count. This supports the
+hypothesis that BLAS/Strided threading oversubscribes the small dense operations; it is one
+sample per setting, so it's indicative only. In practice: few threads per process, and
+parallelise over samples.
