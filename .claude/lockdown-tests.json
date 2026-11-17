@@ -12,8 +12,6 @@
     "filesystem": {
       "denyWrite": [
         "/Users/alessandro/Programmi/stabSandwich/CampsPP/src",
-        "/Users/alessandro/Programmi/stabSandwich/DisentangleCAMPS/src",
-        "/Users/alessandro/Programmi/stabSandwich/dmrgCliffordMPS/src",
         "/Users/alessandro/Programmi/stabSandwich/.claude"
       ]
     }
