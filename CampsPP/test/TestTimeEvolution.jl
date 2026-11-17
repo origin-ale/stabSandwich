@@ -97,11 +97,6 @@ criterion = crit, min_diff = 6)`, no SVD keywords): up to `max_iter` (there N) s
 the documented equivalent `sweep_disentangler(criterion, strategy, max_iter; min_diff = 6)`.
 Returns the number of sweeps run.
 """
-function layer_end_disentangle!(ψ::cmps.CAMPS, crit, strat, max_iter)
-  diffs, _, _ = cmps.disentangle!(ψ, cmps.DisentangleStrategy(strat), max_iter;
-    criterion = cmps.DisentangleCriterion(crit), min_diff = 6)
-  return length(diffs)
-end
 function layer_end_disentangle!(ψ::mt.QubitCAMPS, crit, strat, max_iter)
   _, _, sweeps = mt.disentangle!(sweep_disentangler(crit, strat, max_iter; min_diff = 6), ψ)
   return length(sweeps)
@@ -220,7 +215,6 @@ end
       end
     end
 
-    src_runs = Dict()
     @testset "campssrc_circuit_dynamics ($crit, $strat), $(stackname(T))" for T in STATE_TYPES,
         (crit, strat) in SRC_SETTINGS
       # SVD cutoff. Nothing is discarded here: below, the norm² moves by rounding only
@@ -247,10 +241,10 @@ end
       @test drift <= 1e-12                        # rounding only: nothing was truncated
       @test bds == [1; [r.bd for r in recon]]
       @test frame_dagger(ψ) == recon[end].frame
-      if T === mt.QubitCAMPS && crit == :entangle
+      if crit == :entangle
         # The frame at every record point: that of the run cut there. (Only where the
-        # disentangler acts, and on the stack being ported: each cut run repeats the
-        # disentangler from the start, so this costs O(record points²).)
+        # disentangler acts: each cut run repeats the disentangler from the start, so this
+        # costs O(record points²).)
         src_frames = map(eachindex(rec)) do l
           le_l = isnothing(layer_ends) ? nothing : layer_ends[1:l]
           ψl, = campssrc_circuit_dynamics(ψ0T, gates[1:rec[l]], phases[1:rec[l]], thl_camps, O;
@@ -270,22 +264,6 @@ end
         apply!(plain, PauliOperator(getpauli(g, N)), ϕ, thl_camps)
       end
       push!(frame_changed[(T, crit, strat)], frame_dagger(ψ) != frame_dagger(plain))
-      src_runs[(T, crit, strat)] = (; evs, bds, frame = frame_dagger(ψ))
-    end
-
-    @testset "campssrc_circuit_dynamics: old vs new stack" begin
-      # ⟨O⟩ agrees in every setting. Frames and bond dimensions are compared only for
-      # :chi3, where the disentangler is a no-op in both stacks: with :entangle the
-      # old tie rule picks gates by rounding on these Clifford-structured states, so its frames
-      # may legitimately differ (user decision, 2026-11-13; plan, "Phase 3 status").
-      for (crit, strat) in SRC_SETTINGS
-        old, new = src_runs[(cmps.CAMPS, crit, strat)], src_runs[(mt.QubitCAMPS, crit, strat)]
-        @test maxabsdiff(old.evs, new.evs) <= 1e-12
-        if crit == :chi3
-          @test new.frame == old.frame
-          @test new.bds == old.bds
-        end
-      end
     end
 
     @testset "mps_circuit_dynamics" begin

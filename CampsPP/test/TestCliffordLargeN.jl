@@ -6,8 +6,7 @@
 # Unlike the undoped XXZ test (a bit permutation), these circuits spread the stabilizers
 # over all 46 qubits, so the CAMPS frame is a dense Clifford and PP's Pauli strings are high
 # weight with UInt96 keys. The hand-over tests evaluate a 46-qubit Pauli sum on such a CAMPS
-# through the pp → CAMPS converter and `expectation` of each stack (STATE_TYPES, helpers.jl:
-# the old pp → cmps converter, and the MagicTensors seam of T8).
+# through the pp → QubitPauliSum converter and the MagicTensors `expectation` seam (T8).
 
 isdefined(@__MODULE__, :StabilizerReference) ||
   include(joinpath(@__DIR__, "DisentangleCAMPS", "StabilizerReference.jl"))
@@ -53,7 +52,8 @@ end
   le = collect(M÷4:M÷4:M)
   _, ones = domainwallstate(Xoshiro(100), N, 0.6)
   rng = Xoshiro(1301)
-  # Angles: the Clifford branches that agree with exp(iϕP) in the old code (CONVENTIONS.md §2).
+  # Angles: the Clifford branches the old code got right (CONVENTIONS.md §2), kept from T-pre;
+  # the other special angles are covered at N = 46 in DisentangleCAMPS/TestCliffordLargeN.jl.
   ϕs = rand(rng, [π/4, π/4, -3π/4, 0.0, π], M)
   ϕs[1] = π/4                                # so a hand-over before gate 1 is visible
   gates, phases = rotation_circuit(rng, ϕs, N)

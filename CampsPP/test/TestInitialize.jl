@@ -1,6 +1,6 @@
 # Initialize.jl against CONVENTIONS.md §1 and §5.
 
-"⟨Z_j⟩ of a CAMPS (either stack)."
+"⟨Z_j⟩ of a CAMPS."
 zexp(ψ, j) = real(state_expectation(ψ, single_z(nqubits_state(ψ), j)))
 
 @testset "Initialize" begin
@@ -13,8 +13,10 @@ zexp(ψ, j) = real(state_expectation(ψ, single_z(nqubits_state(ψ), j)))
       @test real(state_expectation(ψ, single_x(N, 1))) ≈ 0 atol = EXACT_ATOL
       @test DisentangleCAMPS.bonddim(ψ) == 1                          # frame-dependent
     end
-    # The untyped form still builds the old type while the port is staged (plan, Phase 2).
-    @test computationalcamps(3, [1]) isa cmps.CAMPS
+    # The untyped form builds a QubitCAMPS (the default since Phase 6), the same state.
+    ψ = computationalcamps(3, [1])
+    @test ψ isa mt.QubitCAMPS
+    @test all(zexp(ψ, j) ≈ (j == 1 ? -1.0 : 1.0) for j in 1:3)
   end
 
   @testset "domainwallstate, $(stackname(T))" for T in STATE_TYPES
@@ -29,6 +31,7 @@ zexp(ψ, j) = real(state_expectation(ψ, single_z(nqubits_state(ψ), j)))
   @testset "domainwallstate" begin
     N = 10
     ψ, ones = domainwallstate(Xoshiro(3), N, 0.6)
+    @test ψ isa mt.QubitCAMPS                                          # untyped default
     @test issorted(ones) && allunique(ones) && all(1 .<= ones .<= N)
     @test all(zexp(ψ, j) ≈ (j in ones ? -1.0 : 1.0) for j in 1:N)     # state ↔ returned list
     @test domainwallstate(Xoshiro(3), N, 0.6)[2] == ones               # reproducible

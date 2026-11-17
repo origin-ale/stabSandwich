@@ -1,6 +1,6 @@
 --- a/CampsPP/src/EvolveQubitCAMPS.jl
 +++ b/CampsPP/src/EvolveQubitCAMPS.jl
-@@ -141,7 +141,7 @@
+@@ -144,7 +144,7 @@
      apply_clifford_rotation!(ψ, P, n)
      return nothing
    end

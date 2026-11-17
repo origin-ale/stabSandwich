@@ -1,11 +1,11 @@
 # Convention spec (T2)
 
-**Status: approved by the user on 2026-11-11** (five decisions, listed at the end). Revised the same day after two independent ambiguity reviews; the revision changed wording and added definitions, not conventions (see the change log). **Updated 2026-11-13 (user approval) for the port:** the new frame (§4) and the new converter (§3) are no longer provisional, and the Clifford-angle tolerance of the port is fixed (§2). **Updated 2026-11-16 (user approval) after the T9 review:** invalid-input handling, keyword forwarding and the layer-end disentangler (§2); MPS renormalisation and the scope of the truncated-regime check (§6).
+**Status: approved by the user on 2026-11-11** (five decisions, listed at the end). Revised the same day after two independent ambiguity reviews; the revision changed wording and added definitions, not conventions (see the change log). **Updated 2026-11-13 (user approval) for the port:** the new frame (§4) and the new converter (§3) are no longer provisional, and the Clifford-angle tolerance of the port is fixed (§2). **Updated 2026-11-16 (user approval) after the T9 review:** invalid-input handling, keyword forwarding and the layer-end disentangler (§2); MPS renormalisation and the scope of the truncated-regime check (§6). **Updated 2026-11-17 (user approval) after Phase 6 deleted the old code:** the old-code items are kept, marked historical, since the saved old data and the T11 comparisons refer to them; QuantumClifford has no `C * PauliOperator` (§4); one entropy function family (§5).
 
 Every expected value in the tests comes from this page, the dense reference or the hand-derived golden set, never from the implementation.
 
 **Terms used on this page**
-- *Old code*: the pre-port packages (`DisentangleCAMPS`, now the submodule `CampsPP.DisentangleCAMPS`, and `CampsPP`, on the vendored `CliffordMPS`), with the state type `CliffordMPS.CAMPS`. *New code*: the port to MagicTensors.jl (pinned at commit `72eac4b4310042ee714d784e4762121b4f965b68`), with the state type `MagicTensors.QubitCAMPS`. Both stacks live side by side until the old code is deleted.
+- *Old code*: the pre-port packages (`DisentangleCAMPS`, now the submodule `CampsPP.DisentangleCAMPS`, and `CampsPP`, on the vendored `CliffordMPS`), with the state type `CliffordMPS.CAMPS`. *New code*: the port to MagicTensors.jl (pinned at commit `72eac4b4310042ee714d784e4762121b4f965b68`), with the state type `MagicTensors.QubitCAMPS`. Both stacks lived side by side until Phase 6, which deleted the old code (2026-11-17); it stays recoverable from the `pre-port` tag, and its items below are historical.
 - *Dense reference*: `CampsPP/test/DisentangleCAMPS/DenseReference.jl`, an exact state-vector simulator written without reading the implementation.
 - *Golden set / assumption pins*: hand-derived checks in `CampsPP/test/DisentangleCAMPS/TestGoldenSet.jl` and `TestEvolve.jl`.
 - *PP*: PauliPropagation.jl (0.7.3). *QC*: QuantumClifford.jl (0.11.4).
@@ -26,7 +26,7 @@ Every expected value in the tests comes from this page, the dense reference or t
   - exp(iπ/4·P) maps A ↦ iPA for every Pauli A that anticommutes with P. In particular exp(iπ/4·Z) is S† up to a phase, and the phase gate S = diag(1, i) is exp(−iπ/4·Z) up to a phase.
   - **Signed strings.** exp(iϕ(−P)) = exp(−iϕP).
   - **Invalid input.** The new code rejects invalid arguments with `ArgumentError`, the one exception type used for them: a gate string with phase ±i (not Hermitian, so exp(iϕP) is not unitary), in both `apply!` methods and in `rotation_gate`; and a non-finite angle (NaN, ±Inf) in both `apply!` methods.
-- **Known bugs in the old `apply!`** (both methods). Only these cases are `@test_broken`, and only on the old type; the new code passes them, and the old-type `@test_broken` go away when the old code is deleted:
+- **Known bugs in the old `apply!`** (both methods; historical). These were the only `@test_broken` cases, and only on the old type; the new code passes them, and since Phase 6 they are plain tests:
   1. ϕ = −π/4 and ϕ = +3π/4 are wrong in every frame, including the identity frame;
   2. ϕ = ±π/2 is wrong when the frame does not map P to ±P, i.e. when C†PC ≠ ±P (the old code multiplies the frame by P on the wrong side). This can only happen once the frame holds a non-Pauli Clifford, i.e. after a disentangler or a π/4 gate; with a Pauli frame, or whenever C†PC = ±P, the branch is correct.
 - **Clifford angles and tolerance.** The physical state must equal exp(iϕP)|ψ⟩ for every real ϕ. Which angles an implementation recognises as Clifford affects only frame-dependent quantities (k, the frame, bond dimensions).
@@ -51,7 +51,7 @@ Every expected value in the tests comes from this page, the dense reference or t
 - **PauliPropagation integer:** the term equals Σⱼ codeⱼ · 4^(j−1), with codes I=0, X=1, Y=2, Z=3; qubit j occupies bits 2(j−1) (low) and 2(j−1)+1 (high). The key type is the unsigned integer with 8·⌈2N/8⌉ bits (N ≤ 4 → `UInt8`, N = 10 → `UInt24`, N = 46 → `UInt96`); tests take it from the object, not from a literal. Coefficients are `Float64`.
 - **QuantumClifford:** (x, z) bits per qubit, X=(1,0), Y=(1,1), Z=(0,1). In terms of the PP bits, z = high and x = low ⊻ high.
 - **Phases.** A QC `PauliOperator` with phase byte r stands for iʳ times the Hermitian string, so `P"Y"` is Y itself and a Hermitian operator has r ∈ {0, 2}. "The sign of a string" always means this sign.
-- **Old converter** (`cmps.PauliSum(::pp.PauliSum)`): one term per input term, coefficient unchanged, string with phase byte 0.
+- **Old converter** (`cmps.PauliSum(::pp.PauliSum)`; historical, deleted in Phase 6): one term per input term, coefficient unchanged, string with phase byte 0.
 - **New converter** (`MagicTensors.QubitPauliSum(::pp.PauliSum)`): one term per input term, the same strings; coefficients converted to `ComplexF64` with zero imaginary part (input coefficients are real or complex). Each key is a `QubitPauli` wrapping a QC `PauliOperator` with phase byte 0, whose (x, z) bits follow the QC rule above, qubit j at position j, for any N (`UInt96` PP keys at N = 46 included). No two keys share storage. Tests compare as dictionaries keyed by the length-N string of symbols (character j for qubit j), after dropping terms whose coefficient is exactly 0 on both sides; term order is unspecified.
 - **Signed strings in a `QubitPauliSum`.** A term with key ±P and coefficient c stands for c·(±P): the sign of a key counts, wherever it is stored.
 
@@ -60,15 +60,15 @@ Every expected value in the tests comes from this page, the dense reference or t
 Throughout this section **C is the state-frame Clifford: |ψ⟩ = C |mps⟩.** All products are operator products.
 
 - **QuantumClifford.** A `CliffordOperator` is defined by its tableau: the images C X_j C† and C Z_j C†. `C"…"` lists the X images first (X₁…X_N), then the Z images. With that definition:
-  - `C * Stabilizer`, `C * PauliOperator` (a method added by the vendored `CliffordMPS`) and `apply!(stab, C)` all give C P C†;
-  - `inv(C)` is the operator C† (= C⁻¹), so `inv(C) * P` and `apply!(stab, inv(C))` give C† P C;
+  - `C * Stabilizer` and `apply!(stab, C)` give C P C†. QC has no `C * PauliOperator` (the vendored `CliffordMPS` added one, giving C P C†; it went with the old code in Phase 6). Tests write C P C† for a single string as `cliffconj(C, P)` = `(C * Stabilizer([P]))[1]` (test helper), and the code under test must not rely on `C * PauliOperator`;
+  - `inv(C)` is the operator C† (= C⁻¹), so `cliffconj(inv(C), P)` and `apply!(stab, inv(C))` give C† P C;
   - `A * B` is the operator product A·B, so B acts first.
 
   Each of these is pinned by a direct hand-derived test (assumption pins). The pins show that the functions agree with the tableaus. That a tableau row means C X_j C† for the actual matrices of §1 (hence `tPhase` = diag(1, i), X → Y) is checked only by the dense reference, through physical expectation values.
 - **`DisentangleCAMPS.apply(P, C)`** returns C†PC (the Heisenberg image).
-- **Old frame.** `CAMPS` stores `Cdag` = C⁻¹, so |ψ⟩ = Cdag⁻¹ |mps⟩ and ⟨ψ|P|ψ⟩ = ⟨mps| Cdag P Cdag⁻¹ |mps⟩. The old `paulinature` and `disentangler` take the state-frame C, i.e. `inv(ψ.Cdag)`, as their Clifford argument.
+- **Old frame** (historical). `CAMPS` stored `Cdag` = C⁻¹, so |ψ⟩ = Cdag⁻¹ |mps⟩ and ⟨ψ|P|ψ⟩ = ⟨mps| Cdag P Cdag⁻¹ |mps⟩. The old `paulinature` and `disentangler` took the state-frame C, i.e. `inv(ψ.Cdag)`, as their Clifford argument.
 - **New frame** (checked against the pinned commit). `QubitCAMPS` holds |ψ⟩ = C |mps⟩. It stores either C (`daggered = false`) or C† (`daggered = true`, upstream's lazy flag); `get_clifford(ψ; daggered = d)` returns C for d = false and C† for d = true, whichever is stored. Tableau assertions are on the logical C (or C†), whatever the flag, and tests build non-trivial frames in both storages.
-- **Frame update rules.** The state-frame column holds for both stacks; the old storage column is the same rule written for `Cdag`.
+- **Frame update rules.** The state-frame column holds for `QubitCAMPS` (and held for the old stack); the old storage column (historical) is the same rule written for `Cdag`.
 
   | Operation on the state | State frame | Old storage |
   |---|---|---|
@@ -76,13 +76,13 @@ Throughout this section **C is the state-frame Clifford: |ψ⟩ = C |mps⟩.** A
   | Disentangled rotation, with (D, s) | C ← C·D, then exp(i·sϕ·X_{k+1}) on the MPS | Cdag ← D⁻¹·Cdag, then the same |
   | `:logical` rotation | C unchanged; exp(iϕ·C†PC) on the MPS | Cdag unchanged; the same |
   | `:trivial` rotation | nothing | nothing |
-- **Frame-invariant tests** assert only on the physical state, through Pauli expectation values (and the stabilizer Rényi entropy, §5). **Frame-dependent tests** assert on `Cdag`/C, the MPS alone, k, or bond dimensions; they are tagged, and run on each stack with that stack's own rules (e.g. which angles are Clifford, §2).
+- **Frame-invariant tests** assert only on the physical state, through Pauli expectation values (and the stabilizer Rényi entropy, §5). **Frame-dependent tests** assert on `Cdag`/C, the MPS alone, k, or bond dimensions; they are tagged, and run on each stack with that stack's own rules (e.g. which angles are Clifford, §2). Since Phase 6 the only stack is `QubitCAMPS`.
 - **Magic qubits.** With k magic qubits the MPS is |M⟩ = |m⟩₁…ₖ ⊗ |0⟩^(N−k), where |m⟩ is an arbitrary k-qubit state, in general entangled. k = 0 means |0…0⟩; k = N means no constraint.
   - k is tracked by the caller and returned by `apply!(ψ, k, P, ϕ)`. It increases by 1 only for a `:disentanglable` gate at an angle not recognised as Clifford; Clifford-angle gates go into the frame and leave k unchanged.
   - `addmagicstate!(ψ, k, α)`, with k the count before the call, multiplies qubit k+1 of the MPS by cos α · 1 + i sin α · X, i.e. turns its |0⟩ into exp(iαX)|0⟩. It does not change any counter. For a gate (P, ϕ) with disentangler sign s, α = s·ϕ.
 - **`paulinature(k, C, P)`**, for Q = C†PC, ignoring the sign of Q: `:disentanglable` if Q has X or Y on a qubit > k; otherwise `:trivial` if Q is the identity on qubits 1…k; otherwise `:logical`. So at k = 0 every non-disentanglable Q is `:trivial`, and at k = N nothing is `:disentanglable`.
 - **Disentangler.** `disentangler(k, C, P)` is tested at two levels. Let Q = C†PC have an X or Y on some qubit > k, and let s = ±1 be the sign of Q (§3). Its behaviour for any other Q is undefined; callers check `paulinature` first.
-  - **Correctness properties** (frame-invariant; must hold on the old and the new code, on seeded random (k, C, P)). The returned (D, s) satisfy:
+  - **Correctness properties** (frame-invariant; held on the old code and must hold on the new, on seeded random (k, C, P)). The returned (D, s) satisfy:
     1. D†QD = s · X_{k+1};
     2. D fixes every state |φ⟩₁…ₖ ⊗ |0…0⟩, up to one global phase. In tableau form, with G the group generated by Z_{k+1}, …, Z_N with sign +: D Z_j D† ∈ G for j > k, and D A D† ∈ A·G for A = X_j, Z_j with j ≤ k. (Requiring D A D† = A exactly is too strong: the pinned D fails it.)
 
@@ -107,9 +107,9 @@ Throughout this section **C is the state-frame Clifford: |ψ⟩ = C |mps⟩.** A
   - This is (ones gained by L) + (zeros gained by R), and ⟨O⟩ = 0 on the initial state. The identity term is always present, also when its coefficient is 0.
   - For a circuit that conserves ΣZ, ⟨O⟩ = 2 × (net number of 1s moved from R to L): one excitation crossing right → left gives +2, left → right gives −2. A single flip that breaks the conservation gives ±1.
   - The factor 2 is intended (user, 2026-11-11): it is the mathematical definition in Rosenberg et al.
-- **Entanglement entropy:** von Neumann, log base 2: S = −Σ p log₂ p over the squared Schmidt values p of a bond, with 0·log 0 = 0. It is defined for a normalised state (Σp = 1); the functions do not normalise, and tests use normalised states. `eEntropys!` returns N−1 values, element b for the bond between sites b and b+1. On a CAMPS it is the entropy of the MPS part, which depends on the frame, so it is a frame-dependent quantity. The code has no function for the entropy of the physical state.
+- **Entanglement entropy:** von Neumann, log base 2: S = −Σ p log₂ p over the squared Schmidt values p of a bond, with 0·log 0 = 0. It is defined for a normalised state (Σp = 1); the functions do not normalise, and tests use normalised states. `entanglement_entropy` returns N−1 values, element b for the bond between sites b and b+1. On a CAMPS it is the entropy of the MPS part, which depends on the frame, so it is a frame-dependent quantity. The code has no function for the entropy of the physical state.
 - **Stabilizer Rényi entropy:** for a normalised state, with Ξ_P = ⟨P⟩²/2ᴺ over all 4ᴺ unsigned strings (ΣΞ = 1): M_α = (1−α)⁻¹ log₂ Σ_P Ξ_Pᵅ − N; α = 1 is −Σ Ξ log₂ Ξ − N; the linear entropy is 1 − 2ᴺ Σ Ξ². Not divided by N (scripts do that themselves). M_α = 0 for stabilizer states; the single-qubit state exp(iπ/8·X)|0⟩ has M₂ = log₂(4/3). It is invariant under Cliffords, so the value for the MPS part equals that of the physical state, and it is frame-invariant.
-- **Two function families** follow these definitions and are tested against them: the old `sEntropy`/`eEntropys!` (CliffordMPS) and MagicTensors' `stabilizer_entropy`/`entanglement_entropy`. Both take a plain MPS.
+- **Entropy functions:** MagicTensors' `stabilizer_entropy` (exact, and sampled with a sample count) and `entanglement_entropy`, tested against these definitions; both take a plain MPS. The old `sEntropy`/`eEntropys!` (CliffordMPS) followed the same definitions and were tested the same way until Phase 6.
 
 ## 6. Tolerances
 
@@ -142,4 +142,5 @@ All tolerances are absolute.
 - 2026-11-11: added, with the user's approval: the domain-wall ensemble and its orientation (§1); the norm-drift allowance for the truncating CAMPS method and the absence of a bound for the truncated regime (§6).
 - 2026-11-13, with the user's approval: updated for the port. §2: the old-type-only scope of the known bugs; the new code's Clifford-angle rule and its defaults (atol 1e-10, rtol 0, every multiple of π/4; decided 2026-11-12); angles to avoid because of the ~1e-9 MPO precision floor. §3: the new converter's key layout, no longer provisional; signed keys. §4: the new frame, checked against the pinned commit, with both storages; frame-dependent tests run per stack. §5: the two entropy function families. Terms: the pinned MagicTensors commit; QuantumClifford is 0.11.4 (the Manifest version), not 0.11.3. No convention changed.
 - 2026-11-16, with the user's approval, after the T9 review: §2: invalid input (±i strings, non-finite angles) rejected with `ArgumentError`; the `atol`/`rtol` keywords also cover the truncating `apply!` and are passed on by `evolve`, `evolve_bonddim` and `evolve_deepcliffords`; the layer-end disentangler of `campssrc_circuit_dynamics` (old-code parameters) and its truncation flag, unreliable below thl = 1e-13. §6: `mps_circuit_dynamics` renormalises; the truncated-regime monotonicity holds per tested configuration, not in general. No convention changed.
+- 2026-11-17, with the user's approval, after Phase 6 deleted the old code: old-code items marked historical (terms, §2 known bugs, §3 old converter, §4 old frame and old storage column, §5 old entropy functions); §4: QC has no `C * PauliOperator` (it was the vendored CliffordMPS's), tests use the helper `cliffconj`; §5: `entanglement_entropy` named for the bond order. No convention changed.
 - Open follow-ups outside this page: none. (Done: the `transferredmagnetization` docstring, Phase 2; the key layout, the new-frame check and the Clifford-angle defaults, 2026-11-13.)

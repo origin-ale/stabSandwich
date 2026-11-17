@@ -31,14 +31,13 @@ if [[ $# -ge 1 ]]; then IDS=("$@"); else
 fi
 case $S/ in "$REPO"/*) echo "scratch dir must be outside the repo"; exit 2;; esac
 
-# Pkg.test builds its test environment under TMPDIR and recomputes the relative [sources] path
-# to dmrgCliffordMPS from there; a symlinked TMPDIR (macOS /tmp -> /private/tmp) or a symlinked
-# dmrgCliffordMPS makes that check fail (AssertionError on normpath). Use physical paths and copies.
+# Pkg.test builds its test environment under TMPDIR. Until Phase 6 a relative [sources] path to
+# dmrgCliffordMPS made a symlinked TMPDIR (macOS /tmp -> /private/tmp) fail there (AssertionError
+# on normpath); physical paths are kept as a precaution.
 export TMPDIR=$(cd "${TMPDIR:-/tmp}" && pwd -P)
 W=$S/work; OUT=$S/results; SUM=$OUT/summary.tsv
 rm -rf "$W"; mkdir -p "$W" "$OUT"
 cp -R "$REPO/CampsPP" "$W/CampsPP"
-cp -R "$REPO/dmrgCliffordMPS" "$W/dmrgCliffordMPS"
 [[ -f $SUM ]] || printf 'id\tstatus\tpass\tfail\terror\tbroken\tseconds\n' > "$SUM"
 
 clean_or_die() {

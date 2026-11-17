@@ -8,6 +8,10 @@
 # so the sum has about the target number of terms.
 #
 # Usage: julia --project=. t8_handoff.jl <outdir> [p] [sample] [targets…]
+#
+# OLD CODE ONLY: it needs the vendored CliffordMPS, deleted in Phase 6 (2026-11-17). Run it
+# from the `pre-port` worktree (stabSandwich-old), never on the current branch: its purpose is
+# old-code reference values.
 
 using CampsPP, CampsPP.DisentangleCAMPS
 using ITensors, ITensorMPS

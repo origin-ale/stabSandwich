@@ -5,13 +5,12 @@
 # Expected values come from DenseReference.jl only. The code's own `paulinature` is used
 # for one thing: counting which branches the random circuits reached.
 #
-# Every test runs on both stacks (STATE_TYPES, helpers.jl): the old CliffordMPS `CAMPS` and
-# the MagicTensors `QubitCAMPS`. The hard-spot-6 special-angle cases are `@test_broken` on the
-# old type only (`broken_on_old`) and must pass on `QubitCAMPS`.
+# Every test runs on each type in STATE_TYPES (helpers.jl; since Phase 6 only the MagicTensors
+# `QubitCAMPS`). The hard-spot-6 special-angle cases were `@test_broken` on the old CliffordMPS
+# type until Phase 6 and must pass.
 
 using CampsPP.DisentangleCAMPS
 using CampsPP.DisentangleCAMPS: paulinature, evolve_bonddim
-using CliffordMPS
 using QuantumClifford
 using LinearAlgebra: norm
 using Random
@@ -203,8 +202,8 @@ end
     end
   end
 
-  # Known bugs in the old `apply!` (plan, hard spot 6; CONVENTIONS.md §2): `@test_broken` on
-  # the old type, fixed in `QubitCAMPS` (Phase 2).
+  # Known bugs in the old `apply!` (plan, hard spot 6; CONVENTIONS.md §2), fixed in
+  # `QubitCAMPS` (Phase 2).
   @testset "special-angle cases (hard spot 6): $name" for (name, sources) in [
     ("−π/4 only", [-π/4]),
     ("+3π/4 only", [3π/4]),
@@ -216,13 +215,9 @@ end
   ]
     rng = setseed(1104, name)
     r = sweep(T, rng, 3, 10, 20, sources)
-    if broken_on_old(T)
-      @test_broken r.nok == r.n
-    else
-      @test r.nok == r.n
-      @test r.worst <= EXACT_ATOL
-      @test r.bookkeeping                        # frame-dependent: natures and k
-    end
+    @test r.nok == r.n
+    @test r.worst <= EXACT_ATOL
+    @test r.bookkeeping                          # frame-dependent: natures and k
   end
 end
 
@@ -251,12 +246,8 @@ end
   ]
     rng = setseed(1106, name)
     r = sweep(T, rng, 3, 10, 20, sources; runner = run_truncating)
-    if broken_on_old(T)
-      @test_broken r.nok == r.n
-    else
-      @test r.nok == r.n
-      @test r.worst <= EXACT_ATOL
-    end
+    @test r.nok == r.n
+    @test r.worst <= EXACT_ATOL
   end
 end
 
@@ -352,8 +343,7 @@ end
       paulis = [P"XY", P"ZX", P"-YI"]
       phis = [0.37, ϕ, 0.9]
       ψ, _, _, ok, _ = run_camps(T, 2, paulis, phis)
-      # k bookkeeping (§4): the multiples of π/4 here are Clifford on QubitCAMPS (k unchanged);
-      # on the old type `recognised_clifford` mirrors its |ϕ| ≤ π range.
+      # k bookkeeping (§4): the multiples of π/4 here are Clifford on QubitCAMPS (k unchanged).
       @test ok
       worst = max(worst, max_deviation(ψ, dense_state(2, paulis, phis)))
       ψ, _ = run_truncating(T, 2, paulis, phis)
@@ -397,7 +387,6 @@ A Pauli sum Σ cᵢ Pᵢ (signed strings Pᵢ, real cᵢ) in the native sum type
 coefficient (the contract `rotation_gate` relies on). Each key is a fresh copy, because a
 `QubitPauliSum` keeps the key vector it is given.
 """
-native_sum(::Type{CAMPS}, coeffs, ops) = PauliSum(coeffs, Stabilizer(ops))
 function native_sum(::Type{mt.QubitCAMPS}, coeffs, ops)
   S = mt.QubitPauliSum(nqubits(ops[1]))
   for (c, P) in zip(coeffs, ops)
@@ -405,7 +394,6 @@ function native_sum(::Type{mt.QubitCAMPS}, coeffs, ops)
   end
   return S
 end
-sum_expectation(ψ::CAMPS, S) = expectation(ψ, S)
 sum_expectation(ψ::mt.QubitCAMPS, S) = mt.expectation(ψ, S)
 
 @testset "expectation: signed strings and sums, $(stackname(T))" for T in STATE_TYPES

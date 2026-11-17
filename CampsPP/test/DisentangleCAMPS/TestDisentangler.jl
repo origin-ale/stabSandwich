@@ -1,11 +1,11 @@
-using CampsPP.DisentangleCAMPS: apply, paulinature, disentangler, reducetoX, build_D, findfirstfreeXY, swapqubits
+using CampsPP.DisentangleCAMPS: _apply_on_sites!, apply, paulinature, disentangler, reducetoX, build_D, findfirstfreeXY, swapqubits
 using QuantumClifford
-using CliffordMPS
 using Random
 using Test
 
 # Expected values follow test/CONVENTIONS.md §4 and are derived by hand, not from the code.
-# Products use `A * B` = "B acts first" and `C * P` = C P C† (pinned in TestGoldenSet.jl).
+# Products use `A * B` = "B acts first" and `cliffconj(C, P)` = C P C† (helpers.jl; both
+# pinned in TestGoldenSet.jl).
 
 # Controlled gates, first qubit = control. Hand-derived tableaus (X_c, X_t, Z_c, Z_t):
 #   CY: X_c → X_c Y_t,  X_t → Z_c X_t,  Z_c → Z_c,  Z_t → Z_c Z_t
@@ -19,78 +19,85 @@ const tCZ = (tId1 ⊗ tHadamard) * tCNOT * (tId1 ⊗ tHadamard)
   @test tCZ == C"XZ ZX ZI IZ"
   # embed(gate, N, [c, t]): the first index is the control.
   @test embed(tCNOT, 2, [1, 2]) == tCNOT
-  @test embed(tCNOT, 2, [2, 1]) * P"IX" == P"+XX"
-  @test embed(tCNOT, 2, [2, 1]) * P"XI" == P"+XI"
-  @test embed(tPhase, 3, [2]) * P"XXX" == P"+XYX"
-  @test embed(tSWAP, 3, [1, 3]) * P"XYZ" == P"+ZYX"
+  @test cliffconj(embed(tCNOT, 2, [2, 1]), P"IX") == P"+XX"
+  @test cliffconj(embed(tCNOT, 2, [2, 1]), P"XI") == P"+XI"
+  @test cliffconj(embed(tPhase, 3, [2]), P"XXX") == P"+XYX"
+  @test cliffconj(embed(tSWAP, 3, [1, 3]), P"XYZ") == P"+ZYX"
+  @test cliffconj(embed(tPhase, 3, [2]), P"XYX") == P"-XXX"   # S Y S† = −X: signs carried
+  @test cliffconj(embed(tCY, 3, [3, 1]), P"XII") == P"+XIZ"     # X_t → Z_c X_t (control 3)
+  @test cliffconj(embed(tCY, 3, [3, 1]), P"IIX") == P"+YIX"     # X_c → Y_t X_c
+  @test_throws ArgumentError embed(tCNOT, 3, [2, 2])
+  @test_throws ArgumentError embed(tCNOT, 3, [1, 4])
 end
 
-@testset "apply!(clifford, op)" begin
+# `_apply_on_sites!(C, op, sites)` (C ← op·C), the private replacement for the vendored
+# `apply!(::CliffordOperator, op, sites)` that swapqubits, reducetoX and build_D use (plan,
+# design correction 3). Expected values unchanged from the old tests of the vendored method,
+# plus a seeded check against the QC-native `embed` (helpers.jl).
+@testset "_apply_on_sites!(clifford, op, sites)" begin
   C0 = one(CliffordOperator, 3) # Identity
 
   C = deepcopy(C0)
   @assert C == C"XII IXI IIX ZII IZI IIZ" "Initialization or Clifford macro not working as expected!"
-  apply!(C, tHadamard, [1])
+  _apply_on_sites!(C, tHadamard, [1])
   @test C == C"ZII IXI IIX XII IZI IIZ"
-  apply!(C, tCNOT, [1,3])
+  _apply_on_sites!(C, tCNOT, [1,3])
   @test C == C"ZII IXI IIX XIX IZI ZIZ"
-  apply!(C, tCNOT, [2,1])
+  _apply_on_sites!(C, tCNOT, [2,1])
   @test C == C"ZZI XXI IIX XIX IZI ZZZ"
-  apply!(C, tPhase, [2])
+  _apply_on_sites!(C, tPhase, [2])
   @test C == C"ZZI XYI IIX XIX IZI ZZZ"
-  apply!(C, tHadamard, [2])
+  _apply_on_sites!(C, tHadamard, [2])
   @test C == C"ZXI -XYI IIX XIX IXI ZXZ"
 
   C = deepcopy(C0)
-  @test apply!(C, tHadamard, [2]) === nothing
+  @test _apply_on_sites!(C, tHadamard, [2]) === C          # in place, returns C
   @test C != C0
 
   C = deepcopy(C0)
-  apply!(C, tHadamard, [2])
-  apply!(C, tHadamard, [2])
+  _apply_on_sites!(C, tHadamard, [2])
+  _apply_on_sites!(C, tHadamard, [2])
   @test C == C0
 
   C = deepcopy(C0)
-  apply!(C, tCNOT, [1, 3])
-  apply!(C, tCNOT, [1, 3])
+  _apply_on_sites!(C, tCNOT, [1, 3])
+  _apply_on_sites!(C, tCNOT, [1, 3])
   @test C == C0
 
   C = deepcopy(C0)
   for _ in 1:4
-    apply!(C, tPhase, [2])
+    _apply_on_sites!(C, tPhase, [2])
   end
   @test C == C0
 
   op = one(CliffordOperator, 2)
-  apply!(op, tHadamard, [1])
-  apply!(op, tCNOT, [1, 2])
+  _apply_on_sites!(op, tHadamard, [1])
+  _apply_on_sites!(op, tCNOT, [1, 2])
 
   C1 = deepcopy(C0)
-  apply!(C1, op, [3, 1])
+  _apply_on_sites!(C1, op, [3, 1])
 
   C2 = deepcopy(C0)
-  apply!(C2, tHadamard, [3])
-  apply!(C2, tCNOT, [3, 1])
+  _apply_on_sites!(C2, tHadamard, [3])
+  _apply_on_sites!(C2, tCNOT, [3, 1])
 
   @test C1 == C2
 
-  @test_throws BoundsError apply!(deepcopy(C0), tHadamard, [0])
-  @test_throws BoundsError apply!(deepcopy(C0), tHadamard, [1, 2])
-
-  # Current behavior in QuantumClifford does not reject these malformed indices.
-  @test_broken try
-    apply!(deepcopy(C0), tHadamard, [4])
-    false
-  catch e
-    e isa BoundsError
+  # C ← op·C with op placed on `sites`, for random C and op (1- and 2-qubit, any order).
+  rng = Xoshiro(20261117)
+  for N in 2:5, _ in 1:20
+    n = rand(rng, 1:2)
+    C, op, sites = random_clifford(rng, N), random_clifford(rng, n), randperm(rng, N)[1:n]
+    @test _apply_on_sites!(copy(C), op, sites) == embed(op, N, sites) * C
   end
 
-  @test_broken try
-    apply!(deepcopy(C0), tCNOT, [1])
-    false
-  catch e
-    e isa BoundsError
-  end
+  @test_throws BoundsError _apply_on_sites!(deepcopy(C0), tHadamard, [0])
+  @test_throws BoundsError _apply_on_sites!(deepcopy(C0), tHadamard, [1, 2])
+
+  # Not checked: an index beyond N ([4]) or too few indices ([1] for a 2-qubit gate).
+  # QuantumClifford's `apply!(::Stabilizer, op, sites)` does not reject them, and the callers
+  # only pass indices built from a valid Q (the 2 `@test_broken` that pinned this in the
+  # vendored method were dropped in Phase 6).
 end
 
 @testset "apply(pauli, cliff)" begin
@@ -126,8 +133,8 @@ end
   @test apply(P"IYZ", C4) == P"+IYX"
 
   # Not self-inverse, so the direction matters: C† P C ≠ C P C†.
-  @test apply(P"XIX", C4) != C4 * P"XIX"
-  @test apply(P"XIX", C4) == inv(C4) * P"XIX"
+  @test apply(P"XIX", C4) != cliffconj(C4, P"XIX")
+  @test apply(P"XIX", C4) == cliffconj(inv(C4), P"XIX")
 
   @test_throws DimensionMismatch apply(P"XYZ", one(CliffordOperator, 2))
 end
@@ -169,8 +176,7 @@ end
   trv = :trivial
 
   # C1 = H on qubit 1: XZI -> ZZI and ZXI -> XXI.
-  C1 = one(CliffordOperator, 3)
-  apply!(C1, tHadamard, [1])
+  C1 = embed(tHadamard, 3, [1])
 
   @test paulinature(0, C1, P"XZI") == trv
   @test paulinature(1, C1, P"XZI") == log
@@ -181,9 +187,7 @@ end
   @test paulinature(2, C1, P"ZXI") == log
 
   # C2 = S on qubits 1 and 3: XIX -> YIY and ZZZ -> ZZZ.
-  C2 = one(CliffordOperator, 3)
-  apply!(C2, tPhase, [1])
-  apply!(C2, tPhase, [3])
+  C2 = embed(tPhase, 3, [3]) * embed(tPhase, 3, [1])
 
   @test paulinature(0, C2, P"XIX") == dnt
   @test paulinature(1, C2, P"XIX") == dnt
@@ -194,8 +198,7 @@ end
   @test paulinature(2, C2, P"ZZZ") == log
 
   # C3 = CNOT 1->2: XIZ -> XXZ and IZI -> ZZI.
-  C3 = one(CliffordOperator, 3)
-  apply!(C3, tCNOT, [1, 2])
+  C3 = embed(tCNOT, 3, [1, 2])
 
   @test paulinature(0, C3, P"XIZ") == dnt
   @test paulinature(1, C3, P"XIZ") == dnt
@@ -218,7 +221,7 @@ end
   # With CPC† instead: XIX ↦ YIZ, which would be :logical already at k = 1.
   dnt, log, trv = :disentanglable, :logical, :trivial
   C4 = embed(tPhase, 3, [1]) * embed(tCNOT, 3, [3, 1]) * embed(tHadamard, 3, [3])
-  @assert inv(C4) * P"YIX" == P"+IIZ"
+  @assert cliffconj(inv(C4), P"YIX") == P"+IIZ"
 
   for P in (P"XIX", P"ZZI", P"IYZ")              # X or Y on qubit 3 only
     @test [paulinature(k, C4, P) for k in 0:3] == [dnt, dnt, dnt, log]
@@ -242,7 +245,7 @@ end
         Q[j] = (false, Q[j][2])
       end
     end
-    P = C * Q                                    # so that C†PC = Q
+    P = cliffconj(C, Q)                                   # so that C†PC = Q
     nature = spec_nature(k, Q)
     seen[nature] += 1
     mismatches += paulinature(k, C, P) != nature
@@ -299,11 +302,8 @@ end
 end
 
 @testset "build_D" begin
-  test_D = one(CliffordOperator, 5)
-  apply!(test_D, tCY, [3,1])
-  apply!(test_D, tCX, [3,2])
-  apply!(test_D, tCZ, [3,4])
-  apply!(test_D, tCX, [3,5])
+  # CY(3→1), then CX(3→2), CZ(3→4), CX(3→5) (they commute: shared control).
+  test_D = embed(tCX, 5, [3, 5]) * embed(tCZ, 5, [3, 4]) * embed(tCX, 5, [3, 2]) * embed(tCY, 5, [3, 1])
   @test build_D(P"YXXZX", 3) == test_D
 end
 
@@ -312,7 +312,7 @@ end
 function maps_to_X(D, s, Q, k)
   N = length(Q)
   target = s == 1 ? single_x(N, k + 1) : -single_x(N, k + 1)
-  return abs(s) == 1 && inv(D) * Q == target
+  return abs(s) == 1 && cliffconj(inv(D), Q) == target
 end
 
 "Is g a +1-signed product of Z's on qubits k+1…N only?"
@@ -327,10 +327,10 @@ function fixes_magic_register(D, k)
   N = length(D[1])
   ok = true
   for j in 1:k, A in (single_x(N, j), single_z(N, j))
-    ok &= in_free_Z_group((D * A) * A, k)
+    ok &= in_free_Z_group(cliffconj(D, A) * A, k)
   end
   for j in k+1:N
-    ok &= in_free_Z_group(D * single_z(N, j), k)
+    ok &= in_free_Z_group(cliffconj(D, single_z(N, j)), k)
   end
   return ok
 end
@@ -358,7 +358,7 @@ end
   # D₃ = controlled-Q′_j from k+1 onto every other non-identity qubit j of
   # Q′ = (D₁D₂)† Q (D₁D₂);  D = D₁ D₂ D₃;  s = sign of Q.
   function check(k, C, P, Q_hand, D_hand, s_hand)
-    Q = inv(C) * P
+    Q = cliffconj(inv(C), P)
     @test Q == Q_hand                       # the hand-derived Q itself
     @test paulinature(k, C, P) == :disentanglable
     D, s = disentangler(k, C, P)
@@ -412,7 +412,7 @@ end
     k = rand(rng, 0:N-1)
     C = random_clifford(rng, N)
     P = random_pauli(rng, N; nophase = false, realphase = true)
-    Q = inv(C) * P
+    Q = cliffconj(inv(C), P)
     any(xbit(Q)[k+1:N]) || continue          # only the disentanglable case
     tested += 1
     D, s = disentangler(k, C, P)

@@ -1,7 +1,8 @@
 # T8: the pp → MagicTensors `QubitPauliSum` converter and the `expectation` seam
 # (CampsPP/src/MagicTensorsPauliPropagation.jl). Expected values: the bit rule of
-# CONVENTIONS.md §3 (helpers.jl `termstring`), the dense reference, the old CliffordMPS code
-# on the same physical state, and the old-code ⟨O⟩ saved in data/t8_handoff during T-pre.
+# CONVENTIONS.md §3 (helpers.jl `termstring`), the dense reference, and the old-code ⟨O⟩
+# saved in data/t8_handoff during T-pre. (The live old-stack comparison on the same circuits
+# went with the old code in Phase 6.)
 
 using ITensors, ITensorMPS
 import MagicTensors as mt
@@ -112,36 +113,22 @@ end
 
   # -- Seam ------------------------------------------------------------------------------
 
-  @testset "expectation(QubitCAMPS, pp.PauliSum) vs dense and old code, N = $N" for N in (3, 4, 5)
+  @testset "expectation(QubitCAMPS, pp.PauliSum) vs dense, N = $N" for N in (3, 4, 5)
     rng = Xoshiro(hash((:t8seam, N)))
-    nold = 0   # cases that reach the old-code comparison
-    for trial in 1:4
+    for _ in 1:4
       ones = [j for j in 1:N if rand(rng, Bool)]
       gates, phases = rotation_circuit(rng, 8, N)
-      # Mix in Clifford angles, so the frame is a non-trivial Clifford.
+      # Mix in Clifford angles, so the frame is a non-trivial Clifford (the first is pinned
+      # to +π/4 so the frame is surely non-Pauli).
       cl = rand(rng, eachindex(phases), 3)
-      # Odd trials: only angles the old code gets right (+π/4, −3π/4, 0, π; the first is pinned
-      # to +π/4 so the frame is surely non-Pauli). Even trials: the full set incl. the ones it
-      # gets wrong, checked against dense only.
-      if isodd(trial)
-        phases[cl] .= rand(rng, (π/4, -3π/4, 0.0, π), 3)
-        phases[cl[1]] = π/4
-      else
-        phases[cl] .= rand(rng, (π/4, -π/4, π/2, 3π/4), 3)
-      end
+      phases[cl] .= rand(rng, (π/4, -π/4, π/2, -π/2, 3π/4, -3π/4, 0.0, π), 3)
+      phases[cl[1]] = π/4
       dense, ψ = both_states(mt.QubitCAMPS, N, ones, gates, phases)
       @test mt.get_clifford_copy(ψ).clifford != one(CliffordOperator, N)
       for T in (Float64, ComplexF64)
         O = random_ppsum(rng, N, min(40, 4^N - 1); T)
         ev = mt.expectation(ψ, O)
         @test ev ≈ dense_expect(dense, O) atol = EXACT_ATOL
-        # The old stack on the same circuit: same physical value. (Old code only on angles
-        # it handles correctly: no −π/4, +3π/4 or ±π/2 there, hard spot 6.)
-        if all(ϕ -> !(ϕ in (-π/4, 3π/4, π/2, -π/2)), phases)
-          nold += 1
-          ψold, _ = evolve(computationalcamps(cmps.CAMPS, N, ones), length(gates), gates, phases)
-          @test ev ≈ cmps.expectation(ψold, O) atol = EXACT_ATOL
-        end
       end
       # Signed single strings (PauliOperator method): the sign counts.
       for _ in 1:10
@@ -151,8 +138,6 @@ end
         @test mt.expectation(ψ, Ps) ≈ s * DR.expect(dense, opstring(P)) atol = EXACT_ATOL
       end
     end
-    # Guard against the old-code branch going dead again: trials 1 and 3 (x 2 types) must reach it.
-    @test nold >= 4
   end
 
   @testset "verbose = true gives the same value" begin

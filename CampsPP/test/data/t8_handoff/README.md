@@ -21,7 +21,8 @@ values to about 1e-10 (plan, "Converter at large sums").
   output with realistic term structure, but its ⟨O⟩ on this state has no physical meaning.
   It is only a converter/seam check.
 - `generate.jl`: the script that produced them (run from the repo root with
-  `julia --project=.`; see its header).
+  `julia --project=.`; see its header). It needs the old code, deleted in Phase 6, so it runs
+  only from the `pre-port` worktree.
 
 Sum format: header lines start with `#` (end gate `e`, `nterms`, the old ⟨O⟩ through the
 MPO route, the old ⟨O⟩ term by term, the old MPO time); then one row per term:

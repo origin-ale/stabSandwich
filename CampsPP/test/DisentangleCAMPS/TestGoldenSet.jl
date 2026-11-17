@@ -2,11 +2,10 @@
 # Nothing here is derived from the implementation under test.
 
 using QuantumClifford
-using CliffordMPS   # defines `CliffordOperator * PauliOperator`
 using Test
 
-# Assumption pins: these test QuantumClifford (and one thin CliffordMPS wrapper),
-# not our code. They fix the conventions of CONVENTIONS.md §4, which every other
+# Assumption pins: these test QuantumClifford (and the thin test helper `cliffconj`,
+# helpers.jl), not our code. They fix the conventions of CONVENTIONS.md §4, which every other
 # expected value relies on.
 #
 # Hand derivation, with S = diag(1, i) and H the Hadamard:
@@ -31,13 +30,17 @@ using Test
     @test (tPhase * Stabilizer([P"Z"]))[1] == P"+Z"
   end
 
-  @testset "C * PauliOperator gives C P C†" begin
-    @test tPhase * P"X" == P"+Y"
-    @test tPhase * P"Y" == P"-X"
-    @test tPhase * P"Z" == P"+Z"
-    @test tHadamard * P"Y" == P"-Y"
-    @test tCNOT * P"XI" == P"+XX"
-    @test tCNOT * P"IZ" == P"+ZZ"
+  @testset "cliffconj(C, P) gives C P C†" begin
+    # QuantumClifford defines no `C * P`; the old vendored CliffordMPS did, and src must not
+    # rely on it any more (plan, design correction 3). If QC ever adds one, check its direction.
+    @test !hasmethod(*, Tuple{CliffordOperator, PauliOperator})
+    @test cliffconj(tPhase, P"X") == P"+Y"
+    @test cliffconj(tPhase, P"Y") == P"-X"
+    @test cliffconj(tPhase, P"Z") == P"+Z"
+    @test cliffconj(tHadamard, P"Y") == P"-Y"
+    @test cliffconj(tCNOT, P"XI") == P"+XX"
+    @test cliffconj(tCNOT, P"IZ") == P"+ZZ"
+    @test cliffconj(tPhase, P"-X") == P"-Y"                 # the sign of P is kept
   end
 
   @testset "apply!(stabilizer, C) gives C P C†" begin
@@ -48,18 +51,18 @@ using Test
     @test apply!(Stabilizer([P"IZ"]), tCNOT)[1] == P"+ZZ"
   end
 
-  @testset "inv(C) is C†: inv(C) * P and apply!(stab, inv(C)) give C† P C" begin
-    @test inv(tPhase) * P"X" == P"-Y"
-    @test inv(tPhase) * P"Y" == P"+X"
+  @testset "inv(C) is C†: cliffconj(inv(C), P) and apply!(stab, inv(C)) give C† P C" begin
+    @test cliffconj(inv(tPhase), P"X") == P"-Y"
+    @test cliffconj(inv(tPhase), P"Y") == P"+X"
     @test apply!(Stabilizer([P"X"]), inv(tPhase))[1] == P"-Y"
   end
 
   @testset "A * B applies B first" begin
     # (HS) X (HS)† = H (S X S†) H = H Y H = -Y;  (SH) X (SH)† = S Z S† = Z.
-    @test (tHadamard * tPhase) * P"X" == P"-Y"
-    @test (tPhase * tHadamard) * P"X" == P"+Z"
+    @test cliffconj(tHadamard * tPhase, P"X") == P"-Y"
+    @test cliffconj(tPhase * tHadamard, P"X") == P"+Z"
     # (HS) Z (HS)† = H Z H = X;  (SH) Z (SH)† = S X S† = Y.
-    @test (tHadamard * tPhase) * P"Z" == P"+X"
-    @test (tPhase * tHadamard) * P"Z" == P"+Y"
+    @test cliffconj(tHadamard * tPhase, P"Z") == P"+X"
+    @test cliffconj(tPhase * tHadamard, P"Z") == P"+Y"
   end
 end

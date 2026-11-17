@@ -1,6 +1,6 @@
 --- a/CampsPP/src/EvolveQubitCAMPS.jl
 +++ b/CampsPP/src/EvolveQubitCAMPS.jl
-@@ -152,7 +152,7 @@
+@@ -155,7 +155,7 @@
  does not re-gauge or compress the MPS (same state; see the plan's parity notes)."""
  function addmagicstate!(ψ::mt.QubitCAMPS, k::Integer, α::Real)
    c, s = cos(α), sin(α)

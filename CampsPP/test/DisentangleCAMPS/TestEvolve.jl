@@ -3,8 +3,8 @@
 #
 # Conventions used (CONVENTIONS.md §2, §4):
 #   gate (P, ϕ) = exp(iϕP) = cos ϕ + i sin ϕ · P, for every signed ϕ;
-#   frame: |ψ⟩ = Cdag⁻¹ |mps⟩ = C |mps⟩ (old `CAMPS` stores Cdag, `QubitCAMPS` stores C or,
-#   with its lazy flag set, Cdag; the non-identity frames below are tried both ways);
+#   frame: |ψ⟩ = Cdag⁻¹ |mps⟩ = C |mps⟩ (`QubitCAMPS` stores C or, with its lazy flag set,
+#   Cdag; the non-identity frames below are tried both ways);
 #   addmagicstate!(ψ, k, φ) multiplies qubit k+1 of the MPS by cos φ + i sin φ · X.
 #
 # Single-qubit facts. For a|0⟩ + b|1⟩: ⟨X⟩ = 2 Re(a* b), ⟨Y⟩ = 2 Im(a* b), ⟨Z⟩ = |a|² − |b|².
@@ -13,12 +13,11 @@
 #   exp(iφZ)|0⟩ = e^{iφ}|0⟩               →  (0, 0, 1)
 
 using CampsPP.DisentangleCAMPS: addmagicstate!
-using CliffordMPS
 using QuantumClifford
 using Test
 
-# Every testset runs on both stacks (STATE_TYPES, helpers.jl). The hard-spot-6 cases are
-# `@test_broken` on the old type only (`broken_on_old`).
+# Every testset runs on each type in STATE_TYPES (helpers.jl). The hard-spot-6 cases were
+# `@test_broken` on the old CliffordMPS type until Phase 6.
 
 "Real expectation value; the imaginary part must vanish."
 function expval(ψ, P)
@@ -39,13 +38,8 @@ end
 # Angles away from every Clifford angle, plus Clifford ones where the formula still holds.
 const MAGIC_ANGLES = [0.0, π/8, π/4, 3π/8, π/3, π/2, -π/4, -π/8, 1.1, 2.3, -0.7]
 
-"Ways to store a given frame: the old type has one; `QubitCAMPS` stores C, or C† with its lazy flag."
-storage_variants(T) = T === CAMPS ? (false,) : (false, true)
-
-"`@test` on `QubitCAMPS`, `@test_broken` on the old type (hard spot 6)."
-macro test_fixed(T, ex)
-  return esc(:(broken_on_old($T) ? (@test_broken $ex) : (@test $ex)))
-end
+"Ways to store a given frame: `QubitCAMPS` stores C, or C† with its lazy flag."
+storage_variants(::Type{mt.QubitCAMPS}) = (false, true)
 
 @testset "$(stackname(T))" for T in STATE_TYPES
 
@@ -221,11 +215,11 @@ end
         @test close3(b, target)
       end
 
-      # Known bugs in the old `apply!` (plan, hard spot 6): it branches on abs(ϕ).
-      # Fixed in `QubitCAMPS` (Phase 2), which also takes these as Clifford angles (k = 0).
-      @test_fixed T close3(xrot(-π/4)[2], (0, -1, 0))
-      @test_fixed T close3(xrot(3π/4)[2], (0, -1, 0))
-      broken_on_old(T) || @test xrot(-π/4)[1] == 0 && xrot(3π/4)[1] == 0
+      # Hard spot 6: the old `apply!` branched on abs(ϕ) and got these wrong. `QubitCAMPS`
+      # (Phase 2) gets them right and takes them as Clifford angles (k = 0).
+      @test close3(xrot(-π/4)[2], (0, -1, 0))
+      @test close3(xrot(3π/4)[2], (0, -1, 0))
+      @test xrot(-π/4)[1] == 0 && xrot(3π/4)[1] == 0
     end
 
     @testset "N=1, ±π/2 after another gate" begin
@@ -247,10 +241,10 @@ end
         # frame on the wrong side. Fixed in `QubitCAMPS` (Phase 2).
         #
         # exp(iπ/4·X)|0⟩ = (|0⟩ + i|1⟩)/√2, then ±iZ → (|0⟩ − i|1⟩)/√2 up to a phase: (0, −1, 0).
-        @test_fixed T close3(two_gates(P"X", π/4, P"Z", ϕ), (0.0, -1.0, 0.0))
+        @test close3(two_gates(P"X", π/4, P"Z", ϕ), (0.0, -1.0, 0.0))
         # General Y rotation, cos ϕ₁|0⟩ − sin ϕ₁|1⟩ = (−sin 2ϕ₁, 0, cos 2ϕ₁), then ±iX:
         # X keeps ⟨X⟩ and flips ⟨Y⟩, ⟨Z⟩ → (−sin 2ϕ₁, 0, −cos 2ϕ₁).
-        @test_fixed T close3(two_gates(P"Y", 0.4, P"X", ϕ), (-sin(0.8), 0.0, -cos(0.8)))
+        @test close3(two_gates(P"Y", 0.4, P"X", ϕ), (-sin(0.8), 0.0, -cos(0.8)))
       end
     end
   end

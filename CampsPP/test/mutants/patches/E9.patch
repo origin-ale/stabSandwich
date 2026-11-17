@@ -1,6 +1,6 @@
 --- a/CampsPP/src/EvolveQubitCAMPS.jl
 +++ b/CampsPP/src/EvolveQubitCAMPS.jl
-@@ -116,7 +116,7 @@
+@@ -119,7 +119,7 @@
    if nature == :disentanglable
      D, sign = disentangler(k, Q)
      mt.apply_to_clifford_dagger!(ψ, mt.QubitCliffordUnitary(inv(D))) # C ← C·D

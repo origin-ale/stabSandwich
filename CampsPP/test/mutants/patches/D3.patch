@@ -1,6 +1,6 @@
 --- a/CampsPP/src/Disentangler.jl
 +++ b/CampsPP/src/Disentangler.jl
-@@ -53,7 +53,7 @@
+@@ -52,7 +52,7 @@
  
  As `disentangler(k, C, P)`, for an already mapped string Q = C^†PC (identity frame)."
  function disentangler(k::Integer, Q::PauliOperator)

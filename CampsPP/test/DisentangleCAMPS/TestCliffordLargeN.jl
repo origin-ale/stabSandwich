@@ -12,8 +12,8 @@
 # Reuses `pauliop`, `paulistr`, `random_gate_pauli`, `random_circuit`, `dense_state` and
 # `setseed` from TestApplyDense.jl, which must be included before this file.
 #
-# The `apply!` sweeps run on both stacks (STATE_TYPES, helpers.jl); the hard-spot-6 cases are
-# `@test_broken` on the old type only (`broken_on_old`).
+# The `apply!` sweeps run on each type in STATE_TYPES (helpers.jl). The hard-spot-6 cases were
+# `@test_broken` on the old CliffordMPS type until Phase 6.
 
 isdefined(@__MODULE__, :random_circuit) ||
   error("TestCliffordLargeN.jl needs the helpers of TestApplyDense.jl: include that file first")
@@ -137,8 +137,8 @@ end
     occursin("π/4", name) ? (@test r.minweight > N_LARGE / 3) : (@test r.minweight == 1)
   end
 
-  # Known bugs in the old `apply!` (CONVENTIONS.md §2, plan hard spot 6), at N = 46:
-  # `@test_broken` on the old type, fixed in `QubitCAMPS` (Phase 2).
+  # Known bugs in the old `apply!` (CONVENTIONS.md §2, plan hard spot 6), at N = 46, fixed in
+  # `QubitCAMPS` (Phase 2).
   @testset "special-angle cases, hard spot 6 ($(truncating ? "truncating" : "4-argument")): $name" for
       truncating in (false, true),
       (name, sources) in [
@@ -148,12 +148,8 @@ end
       ]
     rng = setseed(1204 + truncating, name)
     r = large_sweep(T, rng, 60, 2, sources; truncating)
-    if broken_on_old(T)
-      @test_broken r.nok == r.n
-    else
-      @test r.nok == r.n
-      @test r.worst <= EXACT_ATOL
-      @test r.trivial                              # every angle is Clifford: k = 0, bond dimension 1
-    end
+    @test r.nok == r.n
+    @test r.worst <= EXACT_ATOL
+    @test r.trivial                                # every angle is Clifford: k = 0, bond dimension 1
   end
 end

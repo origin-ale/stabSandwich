@@ -9,7 +9,7 @@ or after changing the tests they rely on.
 - `gen_patches.py`: regenerates the patches from exact-string replacements (the list in the file
   is the definition of each mutant). Use it when a patch no longer applies after `src` changes:
   `python3 -I gen_patches.py <CampsPP dir> patches`.
-- `run_mutants.sh`: copies the repo's `CampsPP` and `dmrgCliffordMPS` to a scratch directory and
+- `run_mutants.sh`: copies the repo's `CampsPP` to a scratch directory and
   runs one fresh `Pkg.test()` per mutant there (the repo is never modified), with a wall-clock
   cap per run.
 - `who_caught.py`: which test files and testsets caught each mutant, and how many of those
@@ -57,6 +57,22 @@ Results on `3384883`, before the hang guard described below. The number is the f
 Every killed mutant has failing checks outside the old-stack and old-vs-new tests, so the Phase 6
 deletions should leave them killed; rerun after Phase 6 to confirm (`who_caught.py` flags any
 mutant whose failures are all old).
+
+## Rerun after Phase 6 (2026-11-17)
+
+On `9e5b95c` with the Phase 6 test changes (old stack and old-vs-new tests deleted), cap 600 s:
+BASE 5123 pass, 0 fail, 0 broken (145 s). **22 killed, D6 survived (equivalent, as before), no
+timeouts or hangs**; every run 135-151 s. Failing checks: D1 413, D3 336, D5 383, E1 107, E3 196
+(13 errors), E4/E5 168, E6 203, E7 238, E8 151, E9 107, E10 348, E11 167, E12 6, E13 264, E14 202,
+P1 17, Q2 8, Q4 43 (40 errors), T1 9, T2 7, T6 1.
+
+- **Q2 is now thin (302 → 8).** Most of its catches were the deleted old-vs-new disentangler
+  parity tests. Left: the `max_iter = N` sweep test (`TestTimeEvolution.jl`) and the Bell-pair
+  control where `:entangle` must gain exactly 1 bit (`TestDisentangleQubitCAMPS.jl`). The gate
+  choices of `:entangle` are now pinned only through these.
+- **Q4 (43, of which 40 errors)** is still caught first by MagicTensors' orthogonality-centre
+  check in `apply_and_svd`; the value-level catches are 3 (the frame-change counts in
+  `TestTimeEvolution.jl` and the snake skip rule).
 
 ## Notes
 

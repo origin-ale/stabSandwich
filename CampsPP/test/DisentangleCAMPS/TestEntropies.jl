@@ -1,13 +1,12 @@
 # Entropy functions and `evolve_deepcliffords` (T6). Expected values: CONVENTIONS.md §5,
 # computed from dense-reference states by the formulas written here, or by hand.
 #
-# Two families of entropy functions on a plain MPS are pinned to the same spec: the old
-# CliffordMPS `sEntropy`/`eEntropys!` and MagicTensors' `stabilizer_entropy`/
-# `entanglement_entropy` (their likely replacements in the scripts, plan Phase 6). The CAMPS
-# tests run on both stacks (STATE_TYPES, helpers.jl).
+# The entropy functions on a plain MPS are MagicTensors' `stabilizer_entropy`/
+# `entanglement_entropy`, which replaced the old CliffordMPS `sEntropy`/`eEntropys!` in the
+# scripts (Phase 6; both families were pinned to the same spec until then). The CAMPS tests
+# loop over STATE_TYPES (helpers.jl).
 
 using CampsPP.DisentangleCAMPS
-using CliffordMPS
 using QuantumClifford
 using ITensors, ITensorMPS
 using LinearAlgebra: svdvals
@@ -55,11 +54,9 @@ end
 
 import MagicTensors as mt
 
-# The two families, behind one interface: SRE M_α of an MPS, and the N − 1 bond entropies.
-# `eEntropys!` mutates its argument, so it gets a copy.
+# The entropy functions behind one interface: SRE M_α of an MPS, and the N − 1 bond
+# entropies. (A tuple of families, so another implementation can be pinned the same way.)
 const ENTROPY_FAMILIES = (
-  (name = "CliffordMPS sEntropy/eEntropys!",
-   sre = (ψ, α) -> sEntropy(ψ; α = Float64(α)), ee = ψ -> eEntropys!(copy(ψ))),
   (name = "MagicTensors stabilizer_entropy/entanglement_entropy",
    sre = (ψ, α) -> mt.stabilizer_entropy(ψ; α), ee = ψ -> mt.entanglement_entropy(ψ)),
 )
@@ -109,8 +106,6 @@ end
     for α in (2, 1, -1, 3)
       @test fam.sre(ψ, α) ≈ dense_sre(dense, N, α) atol = 1e-9
     end
-    fam === first(ENTROPY_FAMILIES) &&            # the old vector-of-α method
-      @test sEntropy(ψ, [2.0, 1.0]) ≈ [dense_sre(dense, N, 2), dense_sre(dense, N, 1)] atol = 1e-9
 
     ee = fam.ee(ψ)
     @test length(ee) == N - 1                    # element b: bond between sites b and b+1
@@ -118,7 +113,7 @@ end
   end
 end
 
-@testset "sampled sEntropy agrees with the exact value" begin
+@testset "sampled stabilizer_entropy agrees with the exact value" begin
   # The sampler draws from the global RNG, so it is seeded globally here (Julia 1.13).
   # Statistical tolerance: fixed seed, 4000 samples, tolerance 0.05 on values of order 0.5.
   DRm = DenseReference
@@ -127,8 +122,6 @@ end
   ψ = dense_to_mps(dense, N)
   exact = dense_sre(dense, N, 2)
   @test exact > 0.2                              # a genuinely magic state
-  Random.seed!(1202)
-  @test sEntropy(ψ, 4000; α = 2.0) ≈ exact atol = 0.05
   Random.seed!(1202)
   @test mt.stabilizer_entropy(ψ, 4000; α = 2) ≈ exact atol = 0.05
 end
@@ -142,8 +135,6 @@ end
   ψ, k, _ = run_camps(T, N, paulis, phis)
   @test frame_dagger(ψ) != one(CliffordOperator, N)   # the frame is not trivial
   dense = dense_state(N, paulis, phis)
-  T === CAMPS && @test sEntropy(ψ; α = 2.0) ≈ dense_sre(dense, N, 2) atol = 1e-9
-  @test sEntropy(mps_part(ψ); α = 2.0) ≈ dense_sre(dense, N, 2) atol = 1e-9
   @test mt.stabilizer_entropy(mps_part(ψ); α = 2) ≈ dense_sre(dense, N, 2) atol = 1e-9
 end
 
@@ -154,55 +145,17 @@ Expected ⟨P⟩ over all 4^N strings for `evolve_deepcliffords` with the layer 
 With G_s = C_s ⋯ C_1,
   |ψ⟩ = R_t C_t ⋯ R_1 C_1 |0⟩ = G_t · Π_s exp(iϕ_s · G_s† P_s G_s) |0⟩ =: G_t |φ⟩,
 so ⟨ψ|P|ψ⟩ = ⟨φ| G_t† P G_t |φ⟩. |φ⟩ comes from the dense reference, and the conjugations
-from QuantumClifford (`inv(G) * P` = G†PG, pinned in TestGoldenSet.jl). Returns (φ, G_t).
+with `cliffconj(inv(G), P)` = G†PG (helpers.jl, pinned in TestGoldenSet.jl). Returns (φ, G_t).
 """
 function deepclifford_reference(N, cliffords, paulis, phis)
   G = one(CliffordOperator, N)
   rotated = PauliOperator[]
   for s in eachindex(cliffords)
     G = cliffords[s] * G                         # C_s acts after the earlier ones
-    push!(rotated, inv(G) * paulis[s])
+    push!(rotated, cliffconj(inv(G), paulis[s]))
   end
   φ = DenseReference.run_circuit(DenseReference.zero_state(N), paulistr.(rotated), phis)
   return φ, G
-end
-
-# Implementation-specific (old code only): this test regenerates the random Cliffords by
-# replaying the global RNG through the old generator, `random_clifford_circuit(N, 2N^2)`.
-@testset "evolve_deepcliffords vs dense, old CAMPS" begin
-  # Layer s applies a random Clifford C_s (depth 2N², from the *global* RNG) and then the
-  # rotation (P_s, ϕ_s). The Cliffords are not returned, so they are regenerated here by
-  # replaying the global RNG with the same seed and the same generator call.
-  #
-  # Expected values. With G_s = C_s ⋯ C_1,
-  #   |ψ⟩ = R_t C_t ⋯ R_1 C_1 |0⟩ = G_t · Π_s exp(iϕ_s · G_s† P_s G_s) |0⟩ =: G_t |φ⟩,
-  # so ⟨ψ|P|ψ⟩ = ⟨φ| G_t† P G_t |φ⟩. |φ⟩ comes from the dense reference, and the
-  # conjugations from QuantumClifford (`inv(G) * P` = G†PG, pinned in TestGoldenSet.jl).
-  N, t = 3, 5
-  rng = Xoshiro(1204)
-  paulis, phis = random_circuit(rng, N, t, [:general])
-
-  seed = 4321
-  Random.seed!(seed)
-  cliffords = [random_clifford_circuit(N, 2N^2) for _ in 1:t]
-  Random.seed!(seed)
-  ψ, k = evolve_deepcliffords(CAMPS(N), t, paulis, phis)
-
-  φ, G = deepclifford_reference(N, cliffords, paulis, phis)
-
-  worst = 0.0
-  for str in DenseReference.all_paulis(N)
-    expected = DenseReference.expect(φ, paulistr(inv(G) * pauliop(str)))
-    worst = max(worst, abs(real(expectation(ψ, pauliop(str))) - expected))
-  end
-  @test worst <= EXACT_ATOL
-  @test 0 <= k <= N
-  @test any(c != one(CliffordOperator, N) for c in cliffords)    # the Cliffords are not trivial
-
-  # Entropies of the result: SRE is frame-invariant, so it must match the dense state |φ⟩
-  # (G_t is a Clifford). This is what Randrot_complexity.jl measures.
-  @test sEntropy(ψ; α = 2.0) ≈ dense_sre(φ, N, 2) atol = 1e-9
-  @test length(eEntropys!(copy(ψ.mps))) == N - 1
 end
 
 # Implementation-specific: the docstring of the `QubitCAMPS` method says layer s draws its
@@ -222,7 +175,7 @@ end
   φ, G = deepclifford_reference(N, cliffords, paulis, phis)
   worst = 0.0
   for str in DenseReference.all_paulis(N)
-    expected = DenseReference.expect(φ, paulistr(inv(G) * pauliop(str)))
+    expected = DenseReference.expect(φ, paulistr(cliffconj(inv(G), pauliop(str))))
     ev = mt.expectation(ψ, pauliop(str))
     worst = max(worst, abs(real(ev) - expected), abs(imag(ev)))
   end
@@ -233,7 +186,6 @@ end
   @test max_deviation(ψ, dense_state(N, paulis, phis)) > 0.1
 
   # Entropies of the result: SRE is frame-invariant, so it must match the dense state |φ⟩.
-  @test sEntropy(mt.get_mps(ψ); α = 2.0) ≈ dense_sre(φ, N, 2) atol = 1e-9
   @test mt.stabilizer_entropy(mt.get_mps(ψ); α = 2) ≈ dense_sre(φ, N, 2) atol = 1e-9
   @test length(mt.entanglement_entropy(mt.get_mps(ψ))) == N - 1
 end
