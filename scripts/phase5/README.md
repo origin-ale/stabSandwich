@@ -67,12 +67,19 @@ scripts/remote/run.sh -t 4 scripts/t11/replay_prob_tm.jl run=output/runs/2026111
 **One run at a time across both clones.** The worktree has its own `output/runs/.lock`, so
 `run.sh` won't stop a run in one clone while the other is busy; check `run.sh --status` in both.
 
-Fetch, locally (old runs from the worktree):
+Fetch all six runs, locally. The two old runs (A, B) come from the worktree, so they need
+`STAB_DIR`. The four new runs (A, B, scan t1, scan t4) come from the main clone, which is the
+default:
 
 ```bash
-STAB_DIR=campspp/stabSandwich-old scripts/remote/fetch.sh <old run id>
-scripts/remote/fetch.sh <new run id>
+for id in <old A> <old B>; do STAB_DIR=campspp/stabSandwich-old scripts/remote/fetch.sh $id; done
+for id in <new A> <new B> <scan t1> <scan t4>; do scripts/remote/fetch.sh $id; done
 ```
+
+The old script writes fixed names (`output/comptime_prob_tm.txt`, …), which the Phase 0 runs and
+then old A already put there locally. So `fetch.sh` may report conflicts and leave the local
+copies alone. That's expected and harmless: don't pass `-f`. The comparisons below read each
+run's own copy under `output/runs/<id>/files/`.
 
 Compare and summarise, locally (the comparison is also a fresh old-vs-new regression check):
 
