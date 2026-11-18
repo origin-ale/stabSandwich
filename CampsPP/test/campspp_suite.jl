@@ -9,4 +9,5 @@ include("helpers.jl")
   include("TestCliffordLargeN.jl")
   include("TestMagicTensorsPP.jl")
   include("TestPPHashBug.jl")
+  include("TestUtilityFormat.jl")
 end
