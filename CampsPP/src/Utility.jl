@@ -31,6 +31,13 @@ function quantiles(xs)
   return (q[1], q[2], q[3])
 end
 
+""" ```save_full_samples(output_full, μ, magic_prob, evs)```
+
+Append every sample's whole trajectory for one parameter point: a \
+```# p = …, μ = …``` header, then for each column of ```evs``` (layers × samples, see \
+```stack_samples```) a ```# sample s``` line and one ```layer<TAB>value``` line per \
+non-```missing``` entry (layer = row − 1), followed by a blank line; the block ends with \
+a second blank line (gnuplot block separator)."""
 function save_full_samples(output_full, μ, magic_prob, evs)
   open(output_full, "a") do full_io
     println(full_io, "# p = $magic_prob, μ = $μ")
@@ -79,10 +86,12 @@ end
 
 """ ```save_stats(output, evs, μ, magic_prob)```
 
-Append the per-layer mean and standard error of ```evs``` as three columns \
+Append the per-layer mean and standard error of ```evs``` (layers × samples, see \
+```stack_samples```; ```missing``` entries skipped) as three space-separated columns \
 (layer, mean, error), preceded by a ```# p = …, μ = …``` header line \
 identifying the parameter point, and followed by two blank lines (gnuplot block \
-separator)."""
+separator). Layer = row − 1; rows with no data are left out. The error is the sample \
+standard deviation (n − 1) over √n, NaN for a single sample."""
 function save_stats(output, evs, μ, magic_prob)
   rows = [i for i in axes(evs, 1) if any(!ismissing, view(evs, i, :))]
   ev_means = [mean(skipmissing(evs[i, :])) for i in rows]
@@ -199,4 +208,7 @@ function save_columns(filename::AbstractString, cols::AbstractVector...)
   end
 end
 
+""" ```save_three_columns(a, b, c, filename)```
+
+```save_columns(filename, a, b, c)```, with the file name last (the older argument order)."""
 save_three_columns(a, b, c, filename) = save_columns(filename, a, b, c)

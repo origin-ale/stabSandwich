@@ -56,6 +56,9 @@ mt.expectation(ψ::mt.QubitCAMPS, P::PauliOperator) = mt.expectation(ψ, mt.Qubi
 
 # -- Evolving on pp objects ------------------------------------------------------------
 
+# `evolve_bonddim` and `evolve` also accept the circuit as pp Pauli strings or pp Pauli
+# rotations (one per gate); they are converted to signed QuantumClifford strings first.
+
 DisentangleCAMPS.evolve_bonddim(ψ::mt.QubitCAMPS,
                                 χ::Integer,
                                 paulistrings::Vector{<:pp.PauliString},
@@ -86,6 +89,10 @@ DisentangleCAMPS.evolve(ψ, t, PauliOperator.(getpauli.(paulirots, mt.nsites(ψ)
 
 # -- pp.PauliString -> QuantumClifford.PauliOperator ----------------------------------
 
+"""```PauliOperator(pstr::pp.PauliString)```
+
+The QuantumClifford `PauliOperator` of a PauliPropagation string, with its coefficient as \
+the phase; the coefficient must be exactly ±1 or ±i."""
 function QuantumClifford.PauliOperator(pstr::pp.PauliString)
   coeff_to_phase = Dict(1 => 0x0, im => 0x1, -1 => 0x2, -im => 0x3)
   phase = get(coeff_to_phase, pstr.coeff, nothing)
@@ -117,8 +124,17 @@ end
 
 # -- Extract pp.PauliStrings from pp.PauliRotations ------------------------------------
 
+"""```getpauli(rot::pp.PauliRotation, N)```
+
+The N-qubit `pp.PauliString` (coefficient 1) of the generator of the rotation ```rot```. \
+Wrap it in ```PauliOperator``` for the CAMPS ```apply!```."""
 getpauli(rot::pp.PauliRotation, N::Integer) = pp.PauliString(N, rot.symbols, rot.qinds)
 
 # -- Leftover gates after a CAMPS evolution up to gate s ---------------------------------
 
+"""```leftover_rotgates(s, rotations, phases)```
+
+The gates after gate ```s``` and their PauliPropagation angles −2ϕ (```rotations``` and \
+```phases``` as built by ```rotation_circuit``` or ```xxz_circuit```, gate exp(iϕP)), ready \
+for ```pp.propagate```."""
 leftover_rotgates(s::Integer, rotations, phases) = rotations[s+1:end], -2 .* phases[s+1:end]

@@ -1,3 +1,9 @@
+"""
+CAMPS evolution with disentangling on MagicTensors `QubitCAMPS` (submodule of CampsPP,
+formerly a separate package): Pauli rotations with the Liu and Clark (2025) disentangler
+(`apply!`, `evolve`, `evolve_deepcliffords`), the layer-end sweep disentangler
+(`sweep_disentangler`) and plain-text progress lines (`ProgressLog`).
+"""
 module DisentangleCAMPS
 
 # Plain-text progress lines (replaces ProgressMeter; used by the evolution loops here and in

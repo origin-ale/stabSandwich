@@ -9,9 +9,12 @@ import MagicTensors as mt
 
 """ ```domainwallstate([T,] rng, N, μ)```
 
-Return an N-qubit product state of type T from the Rosenberg et al. domain wall \
-ensemble with contrast parameter μ, and its `onebitinds`. T defaults to
-`MagicTensors.QubitCAMPS`, the only state type; the random draws do not depend on T.
+Return an N-qubit computational basis state of type T from the Rosenberg et al. domain \
+wall ensemble with contrast parameter μ, and its `onebitinds` (the qubits in |1⟩). With \
+p = e^μ/(e^μ + e^−μ), each qubit of the left half (1:N÷2) is 1 with probability 1 − p and \
+each qubit of the right half with probability p, one `rand(rng)` per qubit in order. \
+T defaults to `MagicTensors.QubitCAMPS`, the only state type; the random draws do not \
+depend on T.
 """
 domainwallstate(rng, N, μ) = domainwallstate(mt.QubitCAMPS, rng, N, μ)
 
@@ -90,10 +93,12 @@ end
 
 # == Circuits ===========================================================================
 
-"""layerends(N, t, circbuilder)
+""" ```layerends(N, t, circbuilder)```
 
-Return a vector of the positions at which each layer ends \
-in the circuit specified by the arguments"""
+The gate index at which each of the t layers ends, ```[L, 2L, …, tL]```, for a circuit \
+built as ```circbuilder(ϕ, θ, t, N)``` (e.g. ```xxz_circuit```) with L gates per layer. \
+Pass it as ```layer_ends``` to the ```*_circuit_dynamics``` functions to record once per \
+layer."""
 function layerends(N, t, circbuilder)
   layer_depth = length(circbuilder(0,0,1,N)[1])
   layer_ends = collect(layer_depth:layer_depth:t*layer_depth)

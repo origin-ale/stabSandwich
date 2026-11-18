@@ -23,10 +23,15 @@ function initialize_output(output::AbstractString, obsname::AbstractString, para
   end
 end
 
+# The (key, value) pairs of `initialize_output`'s `params`; other types are a MethodError
 header_pairs(params::NamedTuple) = pairs(params)
 header_pairs(params::AbstractDict) = params
 header_pairs(params::AbstractVector{<:Pair}) = params
 
+"""```append_datapoint(output, x, y)```
+
+Append the line ```x<TAB>y``` to the file ```output```. The ```*_circuit_dynamics``` \
+functions write each recorded value this way, as ```record-point-index<TAB>value```."""
 function append_datapoint(output::AbstractString, x::Number, y::Number)
     open(output, "a") do f
         println(f, "$x\t$y")
@@ -35,16 +40,31 @@ end
 
 # == State types ========================================================================
 
+"Number of qubits of the state."
 nqubits_state(ψ::mt.QubitCAMPS) = mt.nsites(ψ)
 
 "Convert a PauliPropagation `PauliSum` to the `MagicTensors.QubitPauliSum` that `expectation_value` accepts. Call once, before the time loop, in CAMPS evolution."
 convert_observable(::mt.QubitCAMPS, obs::pp.PauliSum) = mt.QubitPauliSum(obs)
 
+"""```expectation_value(ψ, obs)```
+
+⟨ψ|obs|ψ⟩, not normalised, possibly complex. On a `QubitCAMPS`, `obs` is a \
+`MagicTensors.QubitPauliSum` (see `convert_observable`) or a PauliPropagation `PauliSum` \
+(through the `mt.expectation` seam in MagicTensorsPauliPropagation.jl); on an MPS, a \
+`QubitPauliSum`."""
 expectation_value(ψ::mt.QubitCAMPS, obs) = mt.expectation(ψ, obs)
 expectation_value(ψ::ITensorMPS.MPS, obs::mt.QubitPauliSum) = mt.expectation(ψ, obs)
 
 # == Append expectation values ==========================================================
 
+"""```append_expectation!(out_array, out_file, state, obs, i)```
+```append_expectation!(out_array, out_file, ev, i)```
+
+Record one value: push ```real(ev)``` to ```out_array``` and, unless ```out_file``` is \
+```nothing```, append ```i<TAB>real(ev)``` to it. The value is \
+```expectation_value(state, obs)``` for a `QubitCAMPS` or MPS ```state```, or the overlap \
+of ```obs``` with the computational basis state that has 1s at ```state``` when \
+```state``` is a vector of qubit indices (PauliPropagation's ```overlapwithcomputational```)."""
 function append_expectation!(
 out_array::Vector, out_file::AbstractString, ψ::mt.QubitCAMPS, obs, i::Integer)
   ev = expectation_value(ψ, obs)
@@ -96,11 +116,19 @@ end
 
 # == Progress values ====================================================================
 
+# Values shown on the MPS progress lines: maximum bond dimension and maximum bond
+# entanglement entropy (costs an SVD sweep, on a copy of ψ)
 mps_progress_values(ψ::MPS) = ("bond dim." => maxlinkdim(ψ),
   "max S_E" => round(maximum(mt.entanglement_entropy(ψ); init = 0.0); digits = 2))
 
 # == Utility ============================================================================
 
+"""```getlayer(i, layer_ends)```
+
+Index of the record point at or after gate ```i```: the first ```l``` with \
+```layer_ends[l] ≥ i```, i.e. the layer that gate ```i``` belongs to, or ```i``` itself \
+when ```layer_ends``` is ```nothing``` (every gate a record point). ```nothing``` if \
+```i``` is past the last layer end."""
 function getlayer(i, layer_ends)
   isnothing(layer_ends) && return i
   for l in eachindex(layer_ends)
@@ -116,7 +144,9 @@ layer_disentangler(::mt.QubitCAMPS, criterion, strategy, N) =
   sweep_disentangler(criterion, strategy, N; min_diff = LAYER_MIN_DIFF)
 layer_disentangle!(ψ::mt.QubitCAMPS, de) = mt.disentangle!(de, ψ)
 
+"Mean Pauli weight (number of non-identity sites) over the terms of `psum`."
 meanweight(psum::pp.PauliSum) = mean(pp.countweight(psum))
+"Mean |c| over the terms of `psum`."
 meancoeff(psum::pp.PauliSum) = mean(abs, pp.coefficients(psum))
 
 "Σ|c|² over the terms of `psum`."
@@ -142,7 +172,37 @@ $rtol): the propagated sum is corrupt")
 end
 
 # == Circuit evolution ==================================================================
+#
+# Common to all `*_circuit_dynamics` functions (test/CONVENTIONS.md §2):
+# - `gates` are `pp.PauliRotation`s and `phases` the ϕ of each gate exp(iϕP) (PP itself is
+#   given the angle −2ϕ, as `pp.PauliRotation(θ)` is exp(−iθP/2));
+# - ⟨obs⟩ is recorded at t = 0 and at every record point: the gate indices in `layer_ends`,
+#   or every gate if `layer_ends = nothing`. Entry l + 1 of the result is the value after
+#   record point l. Values are real parts, not normalised by ⟨ψ|ψ⟩;
+# - `output`, if given (not `nothing`), is a file to append each value to as
+#   `l<TAB>value` (create it first with `initialize_output`), then a
+#   `# … stopped at gate i (reason)` line and two blank lines;
+# - the input state is copied, not modified;
+# - `showprogress = true` prints plain-text progress lines (see `ProgressLog`).
 
+"""```campspp_circuit_dynamics(ψ, χ, thl, Nmax, gates, phases, obs[, output]; showprogress = false, k = 0, layer_ends = nothing, track = false)```
+
+CAMPS-PP ("sandwich") evolution of a copy of the CAMPS ψ: ```camps_circuit_dynamics``` \
+until the bond dimension reaches ```χ```, then ```pauliprop_circuit_dynamics``` for the \
+remaining gates, evaluating the propagated observable on the CAMPS state at the switch. \
+PP drops terms with |c| < ```thl``` and stops after the first record point at which the \
+propagated sum has ≥ ```Nmax``` terms. ```k``` is the number of magic qubits ψ already \
+has. Recording, ```gates```/```phases``` and ```output``` as described at the top of this \
+section (in TimeEvolution.jl); the CAMPS and PP parts write to the same file.
+
+Returns ```(evs, s)```: one value per record point reached, starting at t = 0 (CAMPS \
+values then PP values, with no gap or repeat at the switch), and ```s```, the last gate \
+applied (```length(gates)``` unless PP stopped on ```Nmax```). With ```track = true```, \
+returns ```(evs, s, bonddims, nterms, avgweights, avgcoeffs, s_switch, k_switch)```: the \
+CAMPS bond dimension at t = 0 and at each CAMPS record point; the number of Pauli terms, \
+mean weight and mean |c| of the observable at the switch and then at each PP record point; \
+the last gate applied in CAMPS (PP starts at ```s_switch + 1```) and the number of magic \
+qubits there."""
 function campspp_circuit_dynamics(
 ψ_ext::mt.QubitCAMPS,
 χ::Integer,
@@ -205,6 +265,18 @@ track = false)
     showprogress = showprogress, k = k, layer_ends = layer_ends, track = track)
 end
 
+"""```camps_circuit_dynamics(ψ, gates, phases, χ, obs[, output]; showprogress = false, k = 0, layer_ends = nothing, track = false)```
+
+Evolve a copy of the CAMPS ψ, which has ```k``` magic qubits, gate by gate with \
+```apply!(ψ, k, P, ϕ)``` (exact Cliffords, disentangling, no truncation), recording ⟨obs⟩ \
+as described at the top of this section (in TimeEvolution.jl). Stops at the end of the \
+circuit, or after the gate that brings the bond dimension to ≥ ```χ``` (checked before \
+each gate). Values are recorded only at record points, so a stop inside a layer leaves \
+that layer unrecorded.
+
+Returns ```(ψ, k, i, evs)```: the evolved CAMPS, its number of magic qubits, the last gate \
+applied and the recorded values; with ```track = true``` also the bond dimension at t = 0 \
+and at each record point."""
 function camps_circuit_dynamics(
 ψ_ext::mt.QubitCAMPS,
 gates::Vector,
@@ -278,6 +350,7 @@ end
 
 """```campssrc_circuit_dynamics(ψ, gates, phases, thl, obs[, output]; criterion = :entangle, strategy = :brickwork, showprogress = false, layer_ends = nothing, track = false)```
 
+CAMPS with SVD truncation instead of disentangling ("CAMPS (SVD)" in the progress lines).
 Evolve a copy of the CAMPS ψ through the whole circuit with the truncating `apply!(ψ, P, ϕ, thl)`.
 ⟨obs⟩ is recorded at the start and at every record point (the end of each layer in `layer_ends`,
 or every gate if it is `nothing`), and also appended to the file `output` if one is given. At each
@@ -374,6 +447,26 @@ track = false)
   return ψ, i, evs_camps
 end
 
+"""```pauliprop_circuit_dynamics(ψ, start_gate, gates, phases, thl, Nmax, obs[, output]; showprogress = false, layer_ends = nothing, track = false)```
+```pauliprop_circuit_dynamics(onebitinds, gates, phases, thl, Nmax, obs[, output]; showprogress = false, layer_ends = nothing, track = false)```
+
+Pauli propagation (Heisenberg picture) of ```obs``` through the circuit, recording ⟨obs⟩ \
+as described at the top of this section (in TimeEvolution.jl). At each record point the \
+observable is propagated from scratch back through all PP gates so far (```pp.propagate``` \
+with ```min_abs_coeff = thl```), checked with ```check_pp_norm```, and evaluated on the \
+initial state. Stops at the end of the circuit or after the first record point at which \
+the propagated sum has ≥ ```Nmax``` terms (the value there is still recorded).
+
+- With a CAMPS ```ψ``` (the continuation of CAMPS-PP): the gates after ```start_gate``` are \
+  propagated and evaluated on ψ (which is not evolved). Only the record points after \
+  ```start_gate``` are returned, with no t = 0 entry.
+- With ```onebitinds```: the initial state is the computational basis state with 1s at \
+  those qubits, and the result starts with the t = 0 value.
+
+Returns ```(i, evs)```, the last gate propagated and the recorded values; with \
+```track = true```, ```(i, evs, nterms, avgweights, avgcoeffs)```: number of terms, mean \
+Pauli weight and mean |c| of the unpropagated ```obs```, then of the propagated sum at each \
+record point."""
 function pauliprop_circuit_dynamics(
 ψ_ext::mt.QubitCAMPS,
 start_gate::Integer,
@@ -533,6 +626,14 @@ track = false)
   return i, evs_pp
 end
 
+"""```mps_circuit_dynamics(ψ, gates, phases, thl, obs, output; showprogress = false, layer_ends = nothing)```
+
+Plain MPS evolution of a copy of the ITensors MPS ψ: each gate exp(iϕP) is applied as an \
+MPO (```MagicTensors.apply!```, ITensorMPS densitymatrix algorithm) with SVD cutoff \
+```thl```, and the state is renormalised after every gate. Records ⟨obs⟩ as described at \
+the top of this section (in TimeEvolution.jl); ```output``` is required, pass \
+```nothing``` for no file. Always runs to the end of the circuit. Returns \
+```(ψ, evs)```."""
 function mps_circuit_dynamics(
   ψ_ext::MPS,
   gates::Vector,

@@ -90,6 +90,7 @@ end
 "Two-qubit identity, scored first as the reference (the old `Clifford2Index(0)`)."
 const _ID_2Q = ComplexF64[1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 1]
 
+# Criterion value after applying the two-qubit `matrix` on sites (n, n+1) of `mps`
 function bond_value(::BondSearchDisentangler{C}, mps, matrix, n) where {C}
   _, S, _ = mt.apply_and_svd(mps, matrix, n) # Untruncated, as the old search
   return criterion_value(Val(C), diag(S))
@@ -135,6 +136,8 @@ struct BrickworkDisentangler{L <: mt.AbstractLocalDisentangler} <: mt.AbstractSt
   local_disentangler::L
 end
 
+# Run the bond search on each bond in `bonds`, in order; push `(gate index, bond)` of each
+# applied gate to `info`. Returns (number of gates applied, total gain).
 function sweep_bonds!(de::mt.AbstractLocalDisentangler, ψ::mt.QubitCAMPS, bonds, info)
   num, gain = 0, 0.0
   for b in bonds

@@ -16,13 +16,14 @@ function doping_mask(rng::AbstractRNG, phases, p)
 end
 doping_mask(phases, p) = doping_mask(default_rng(), phases, p)
 
-""" ```xy_magic(phases, p; [magicphase])```
-    ```xy_magic(phases, mask; [magicphase])```
+""" ```xy_magic([rng,] phases, p; magicphase = -π/8)```
+    ```xy_magic(phases, mask; magicphase = -π/8)```
 
-Dope an XX-YY-ZZ circuit with magic \
-by adding a magic phase to the XX and YY phases,\
-default -π/8. Either draw doped triples with probability p, or dope exactly the \
-triples selected by a boolean `mask` (see `doping_mask`)."""
+Dope an XX-YY-ZZ circuit (see ```xxz_circuit```) with magic: in each doped triple, \
+replace the XX and YY phases by ```magicphase```. Either draw each triple independently \
+with probability p (one ```rand(rng)``` per triple, in order; ```rng``` defaults to the \
+global RNG), or dope exactly the triples selected by a boolean ```mask``` (see \
+```doping_mask```). Returns a new phase vector; ```phases``` is not modified."""
 function xy_magic(rng::AbstractRNG, phases, p; magicphase = -π/8)
   newphases = copy(phases)
   for i = 1:3:length(phases)
@@ -45,13 +46,10 @@ function xy_magic(phases, mask::AbstractVector{Bool}; magicphase = -π/8)
   return newphases
 end
 
-""" ```z_magic(phases, p; [magicphase])```
-    ```z_magic(phases, mask; [magicphase])```
+""" ```z_magic([rng,] phases, p; magicphase = -π/8)```
+    ```z_magic(phases, mask; magicphase = -π/8)```
 
-Dope an XX-YY-ZZ circuit with magic \
-by adding a magic phase to the Z phases,\
-default -π/8. Either draw doped triples with probability p, or dope exactly the \
-triples selected by a boolean `mask` (see `doping_mask`)."""
+As ```xy_magic```, but replace the ZZ phase of each doped triple by ```magicphase```."""
 function z_magic(rng::AbstractRNG, phases, p; magicphase = -π/8)
   newphases = copy(phases)
   for i = 3:3:length(phases)
@@ -77,7 +75,9 @@ end
 """ ```rotation_circuit(t, N)```
     ```rotation_circuit(rng, t, N)```
 
-Generate t N-qubit random Pauli rotation gates e^(iϕP), with phases ϕ returned separately."""
+Generate t N-qubit random Pauli rotation gates e^(iϕP): uniformly random strings on all N \
+qubits (identity included) and phases ϕ uniform in [0, 2π). Returns \
+```(rotations, phases)```; ```rng``` defaults to the global RNG."""
 function rotation_circuit(rng::AbstractRNG, t::Integer, N::Integer)
   randstrings = [random_paulistr_sym(rng, N) for _ in 1:t]
   return rotation_circuit(rng, randstrings, N)
@@ -131,9 +131,11 @@ random_paulistr_sym(N::Integer) = random_paulistr_sym(default_rng(), N)
 
 """ ```xxz_circuit(ϕ, θ, t, N)```
 
-Generate t layers of a N-qubit Floquet-trotterized XXZ \
-(ie. exp[i(ϕ(XX+YY)+θ(ZZ))]) circuit, laid out as\
-XX-YY-ZZ XX-YY-ZZ …"""
+Generate t layers (cycles) of an N-qubit Floquet XXZ circuit: in each layer, the gate \
+exp[i(ϕ(XX+YY)+θZZ)] on every bond in ```bricklayer_qinds(N)``` order, each as the three \
+rotations XX, YY, ZZ (they commute) with phases ϕ, ϕ, θ. Returns \
+```(rotations, phases)```: a vector of ```pp.PauliRotation```s and the matching phases, \
+laid out XX-YY-ZZ XX-YY-ZZ … (the triples that ```xy_magic```/```z_magic``` dope)."""
 function xxz_circuit(ϕ, θ, t, N)
   rots = pp.PauliRotation[]
   phases = Real[]
@@ -162,15 +164,15 @@ end
 
 # == Utility ===================================================================
 
-""" ```bricklayer_qinds(N)````
+""" ```bricklayer_qinds(N)```
 
-Return a vector of pairs of indices corresponding to a bricklayer \
-(even-odd bond layers) N-qubit circuit structure."""
+The nearest-neighbour qubit pairs of one brickwork layer on N qubits: first \
+[1, 2], [3, 4], …, then [2, 3], [4, 5], …"""
 function bricklayer_qinds(N::Integer)
-  even_bonds = [[i, i+1] for i in 1:2:N-1]
-  odd_bonds = [[i, i+1] for i in 2:2:N-1]
+  first_half = [[i, i+1] for i in 1:2:N-1]
+  second_half = [[i, i+1] for i in 2:2:N-1]
   bonds = []
-  append!(bonds, even_bonds)
-  append!(bonds, odd_bonds)
+  append!(bonds, first_half)
+  append!(bonds, second_half)
   return bonds
 end

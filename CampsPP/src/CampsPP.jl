@@ -1,3 +1,12 @@
+"""
+CAMPS-PP: Clifford-augmented MPS (MagicTensors `QubitCAMPS`) joined with Pauli propagation
+(PauliPropagation.jl). Circuits are Pauli rotations exp(iϕP) given as `pp.PauliRotation`s
+and phases ϕ (`xxz_circuit`, `rotation_circuit`, doped with `xy_magic`/`z_magic`); the
+`*_circuit_dynamics` functions evolve a state (`computationalcamps`, `domainwallstate`) and
+record an observable (e.g. `transferredmagnetization`) per layer (`layerends`), and the
+`save_*` writers produce the gnuplot-ready output files. Conventions: test/CONVENTIONS.md.
+The CAMPS evolution and disentangling live in the submodule `DisentangleCAMPS`.
+"""
 module CampsPP
 
 # Formerly the separate package DisentangleCAMPS, merged in unchanged as a submodule.

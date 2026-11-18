@@ -21,6 +21,7 @@ const CLIFFORD_ATOL = 1e-10
 "Default relative tolerance for recognising a Clifford angle (a multiple of π/4)."
 const CLIFFORD_RTOL = 0.0
 
+"Maximum bond dimension of the MPS of ψ (1 for a product state or a single site)."
 bonddim(ψ::mt.QubitCAMPS) = maximum(dim.(linkinds(mt.get_mps(ψ))); init = 1)
 
 # == Gates ==============================================================================
@@ -160,8 +161,11 @@ end
 
 """```evolve_bonddim(ψ::QubitCAMPS, χ, paulis, phases; [showprogress, atol, rtol])```
 
-Evolve the CAMPS ψ along the Pauli rotation circuit with Pauli strings `paulis` and the given
-phases, until the end or bond dimension χ. Return the evolved CAMPS, k and the stopping gate."""
+Evolve the CAMPS ψ in place along the Pauli rotation circuit exp(iϕₛPₛ) with Pauli strings
+`paulis` and the given phases, until the end or until the bond dimension reaches χ (checked
+before each gate). Return the evolved CAMPS (ψ itself), k and the last gate applied.
+The count of magic qubits starts at k = 0, so ψ must have none (e.g. a fresh
+`computationalcamps`)."""
 function evolve_bonddim(ψ::mt.QubitCAMPS,
                         χ::Integer,
                         paulistrings::Vector{<:PauliOperator},
@@ -183,8 +187,9 @@ end
 
 """```evolve(ψ::QubitCAMPS, t, paulis, phases; [showprogress, atol, rtol])```
 
-Evolve the CAMPS ψ along the first t gates of the Pauli rotation circuit with Pauli strings
-`paulis` and the given phases. Return the evolved CAMPS and k."""
+Evolve the CAMPS ψ in place along the first t gates of the Pauli rotation circuit
+exp(iϕₛPₛ) with Pauli strings `paulis` and the given phases. Return the evolved CAMPS
+(ψ itself) and k. The count of magic qubits starts at k = 0, so ψ must have none."""
 function evolve(ψ::mt.QubitCAMPS,
                 t::Integer,
                 paulistrings::Vector{<:PauliOperator},
@@ -207,7 +212,7 @@ end
 Evolve the CAMPS ψ along a Pauli rotation-doped deep Clifford circuit, until layer t.
 Layer s applies a uniformly random N-qubit Clifford R (`QuantumClifford.random_clifford(rng, N)`,
 replacing the old 2N²-deep random circuit), then the rotation (paulis[s], phases[s]).
-Return the evolved CAMPS and k."""
+ψ is modified in place; return it and k. As in `evolve`, k starts at 0."""
 function evolve_deepcliffords(rng::AbstractRNG,
                               ψ::mt.QubitCAMPS,
                               t::Integer,
