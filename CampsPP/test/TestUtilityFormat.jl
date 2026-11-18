@@ -123,6 +123,26 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
       @test isequal(evs[:, 2], [1.0, 2.0, 3.0])
 
       @test isequal(stack_samples([[7.0]]), reshape(Union{Missing, Float64}[7.0], 1, 1))
+
+      # The element type is promoted over all samples, not taken from the first one (an
+      # Int first sample used to turn a later 2.0 into 2 and throw InexactError on 0.5)
+      evs = stack_samples([[1, 2], [0.5]])
+      @test evs isa Matrix{Union{Missing, Float64}}
+      @test isequal(evs, [1.0 0.5; 2.0 missing])
+      @test evs[1, 1] === 1.0 && evs[2, 1] === 2.0 && evs[1, 2] === 0.5
+      evs = stack_samples([[3], [2.0, 1.5]])
+      @test evs isa Matrix{Union{Missing, Float64}} && isequal(evs, [3.0 2.0; missing 1.5])
+      evs = stack_samples([[0.5], [1, 2]])                 # order of the samples irrelevant
+      @test evs isa Matrix{Union{Missing, Float64}} && isequal(evs, [0.5 1.0; missing 2.0])
+      evs = stack_samples([Missing[missing], [1.0]])      # an all-missing sample
+      @test evs isa Matrix{Union{Missing, Float64}} && isequal(evs, reshape([missing, 1.0], 1, 2))
+      @test stack_samples([[1], [2, 3]]) isa Matrix{Union{Missing, Int}}   # same type kept
+      # As written: an Int-and-Float stack prints floats in every column
+      path = file("promoted.txt")
+      initialize_output(path, "obs", ["N" => "46"])
+      save_full_samples(path, 0.6, 0.01, stack_samples([[1, 2], [0.5]]))
+      @test matches_golden(path, [HEADER; "# p = 0.01, μ = 0.6";
+        "# sample 1"; "0\t1.0"; "1\t2.0"; ""; "# sample 2"; "0\t0.5"; ""; ""])
     end
 
     @testset "save_full_samples" begin

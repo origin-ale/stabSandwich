@@ -161,10 +161,6 @@ end
     # 1. Negative powers for a float parameter: Float64 arithmetic, not Int powers (was a
     #    raw DomainError). Large integer literals and powers become floats, not wrapped Ints.
     @test parsed("0.6", "2^-1") === 0.5
-    #    (Float64 `^`: 10.0^-2.0 is 1 ulp above 0.01, unlike Julia source `10^-2`, which is
-    #    computed as inv(10^2); only agreement to rounding is pinned, `1e-2` is exact)
-    @test isapprox(parsed("0.6", "10^-2"), 0.01; rtol = 2eps())
-    @test isapprox(parsed("0.6", "10^-12"), 1e-12; rtol = 2eps())
     @test parsed("0.6", "1e-12") === 1e-12
     @test parsed("0.6", "-2^-2") === -0.25
     @test parsed("0.6", "10^20") === 1e20
@@ -186,8 +182,8 @@ end
       @test throws_error(() -> parsed("46", bad), "Cannot parse `x=$bad` as Int64", "out of range for Int64")
     end
     @test throws_error(() -> parsed("10^7", "1e19"), "Cannot parse `x=1e19`", "out of range")
-    @test throws_error(() -> parsed("46", "2^-1"), "Cannot parse `x=2^-1`", "DomainError")
-    @test throws_error(() -> parsed("46", "0^-1"), "Cannot parse `x=0^-1`")
+    @test throws_error(() -> parsed("46", "2^-1"), "Cannot parse `x=2^-1`", "not an integer")
+    @test throws_error(() -> parsed("46", "0^-1"), "Cannot parse `x=0^-1`", "not an integer")
     @test throws_error(() -> parsed("46", "1/0"), "Cannot parse `x=1/0`", "not an integer")
     @test throws_error(() -> parsed("[1]", "1,2^64"), "Cannot parse `x=1,2^64`", "out of range")
 
@@ -204,6 +200,59 @@ end
     #    A scalar String is still kept verbatim, and an empty number item is still an error
     @test parsed("\"a\"", " a b ") == " a b "
     @test throws_error(() -> parsed("[1, 2]", "1, ,2"), "Cannot parse `x=1, ,2`", "empty number")
+  end
+
+  @testset "exact number expressions and empty items (decided 2026-11-18)" begin
+    # Integer literals are exact rationals through + - * / ^, converted to the parameter's
+    # type once at the end, so a float result is the correctly rounded value of the exact
+    # expression (was Float64 `^`: 10^-12 came out 1 ulp above 1e-12)
+    for k in 1:20
+      @test parsed("0.6", "10^-$k") === parse(Float64, "1e-$k")
+    end
+    @test parsed("0.6", "1/3") === 1/3
+    @test parsed("0.6", "1/3+1/6") === 0.5                  # exact: 1/3 + 1/6 = 1/2
+    @test parsed("0.6", "2^-1") === 0.5
+    @test parsed("0.6", "(1/3)*3") === 1.0
+    @test parsed("0.6", "2^-5000") === 0.0
+    #    A float literal or π turns the operands into Float64 first, as in Julia source
+    @test parsed("0.6", "3*0.1") === 3*0.1                  # 0.30000000000000004, not 0.3
+    @test parsed("0.6", "0.1+0.2") === 0.1+0.2
+    @test parsed("π/4", "3pi/16") === 3π/16
+    @test parsed("π/4", "pi/4") === π/4
+    @test parsed("0.6", "2^0.5") === sqrt(2.0)
+    #    Division by zero as in Julia (±Inf), except 0/0, which is an error (Julia: NaN)
+    @test parsed("0.6", "1/0") === Inf
+    @test parsed("0.6", "-1/0") === -Inf
+    @test parsed("0.6", "0^-1") === Inf
+    @test throws_error(() -> parsed("0.6", "0/0"), "Cannot parse `x=0/0`")
+    @test throws_error(() -> parsed("46", "0/0"), "Cannot parse `x=0/0`")
+    #    Huge exponents (> 4096 in absolute value) give Float64 overflow, not a huge BigInt
+    @test parsed("0.6", "2^5000") === Inf
+    @test throws_error(() -> parsed("46", "2^5000"), "Cannot parse `x=2^5000`")
+
+    # Integer parameters: an exact integral result is accepted, whatever the route
+    @test parsed("46", "100/2") === 50
+    @test parsed("46", "6/4*2") === 3
+    @test parsed("46", "(2^63-1)/1") === typemax(Int)
+    @test throws_error(() -> parsed("46", "2^62*2"), "Cannot parse `x=2^62*2`", "out of range for Int64")
+    @test throws_error(() -> parsed("46", "1e30"), "Cannot parse `x=1e30`", "out of range for Int64")
+    @test throws_error(() -> parsed("46", "3/2"), "Cannot parse `x=3/2`", "not an integer")
+
+    # Empty Symbols and empty Symbol/String list items are errors (were Symbol("") / "")
+    for bad in ("", ":", " ")
+      @test throws_error(() -> parsed(":chi3", bad), "Cannot parse `x=$bad`", "empty Symbol")
+    end
+    for (default, bad) in (("[:a]", "a,,b"), ("[:a]", "a,"), ("[:a]", ",a"), ("[:a]", "a, ,b"),
+                           ("[\"a\"]", "a,,b"), ("[\"a\"]", "a, "))
+      @test throws_error(() -> parsed(default, bad), "Cannot parse `x=$bad`", "empty item in the list `$bad`")
+    end
+    @test throws_error(() -> parsed("[1]", "1,,2"), "Cannot parse `x=1,,2`", "empty number")
+    #    Unchanged: an empty String scalar is "", an empty value is an empty list
+    @test parsed("\"a\"", "") === ""
+    v = parsed("[:a]", "")
+    @test isempty(v) && v isa Vector{Symbol}
+    v = parsed("[\"a\"]", "")
+    @test isempty(v) && v isa Vector{String}
   end
 
   @testset "@parameters: order, globals, return value" begin

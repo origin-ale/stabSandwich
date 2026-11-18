@@ -103,14 +103,19 @@ function check_unused(ov::Overrides, names)
 end
 
 # Numbers: literals, `π`/`pi` and + - * / ^ of those (e.g. `pi/4`, `3pi/16`, `1e-10`).
-# Integer literals are evaluated as BigInt for an integer parameter (no silent overflow:
-# the result is range-checked when converted) and as Float64 for a float one (so `2^-1` is
-# 0.5, not a DomainError from Int powers).
+# Integer literals are exact rationals (Rational{BigInt}) as long as only integers and
+# + - * / ^ are involved, and are converted to the parameter's type once at the end: no
+# silent Int overflow (`2^100` for an Int is out of range), `2^-1` is 0.5 and `10^-12` is
+# exactly 1e-12 (Float64 `^` would be 1 ulp off). As soon as a float literal or π enters an
+# operation, the exact operands become Float64 first, as an Int literal does in Julia
+# source, so `3pi/16` is the same Float64 as `3π/16` in a script.
 const NUM_OPS = Dict(:+ => +, :- => -, :* => *, :/ => /, :^ => ^)
+const Exact = Rational{BigInt}
+const MAX_EXACT_POWER = 4096   # larger integer exponents are taken in Float64
 
-evalnum(x::Integer, ::Type{T}) where {T} = T <: Integer ? big(x) : Float64(x)
-evalnum(x::Number, ::Type) = x
-function evalnum(x::Symbol, ::Type)
+evalnum(x::Integer) = Exact(x)
+evalnum(x::Number) = x
+function evalnum(x::Symbol)
   x in (:π, :pi) && return π
   throw(ArgumentError("unknown name `$x` in a number"))
 end
@@ -119,18 +124,24 @@ const BIG_LITERALS = (Symbol("@int128_str"), Symbol("@uint128_str"), Symbol("@bi
 macro_name(m::GlobalRef) = m.name   # Julia ≥ 1.12 parses them as `Core.@int128_str`
 macro_name(m) = m
 
-function evalnum(ex::Expr, ::Type{T}) where {T}
+function evalnum(ex::Expr)
   if ex.head == :macrocall && macro_name(ex.args[1]) in BIG_LITERALS &&
      ex.args[end] isa AbstractString
-    x = parse(BigInt, ex.args[end])
-    return T <: Integer ? x : Float64(x)
+    return Exact(parse(BigInt, ex.args[end]))
   end
   if ex.head == :call && haskey(NUM_OPS, ex.args[1])
-    return NUM_OPS[ex.args[1]](map(a -> evalnum(a, T), ex.args[2:end])...)
+    return apply_op(NUM_OPS[ex.args[1]], map(evalnum, ex.args[2:end])...)
   end
   throw(ArgumentError("`$ex` is not a number expression"))
 end
-evalnum(x, ::Type) = throw(ArgumentError("`$x` is not a number"))
+evalnum(x) = throw(ArgumentError("`$x` is not a number"))
+
+apply_op(op, args::Exact...) = op(args...)
+function apply_op(::typeof(^), x::Exact, y::Exact)
+  (isinteger(y) && abs(y) <= MAX_EXACT_POWER) || return Float64(x)^Float64(y)
+  return x^Int(numerator(y))
+end
+apply_op(op, args...) = op(map(a -> a isa Exact ? Float64(a) : a, args)...)
 
 function parsenum(::Type{T}, str::AbstractString) where {T <: Real}
   s = replace(strip(str), "_" => "")
@@ -142,10 +153,11 @@ function parsenum(::Type{T}, str::AbstractString) where {T <: Real}
     throw(ArgumentError("`$s` is not a number"))
   end
   try
-    x = evalnum(ex, T)
+    x = evalnum(ex)
     # Integers also from an integral float or expression, e.g. 1e7 or 2^10
-    if T <: Integer && !(x isa Integer)
+    if T <: Integer
       isinteger(x) || throw(ArgumentError("`$s` is not an integer"))
+      x isa Exact && (x = numerator(x))
     end
     return convert(T, x)
   catch e
@@ -157,7 +169,11 @@ function parsenum(::Type{T}, str::AbstractString) where {T <: Real}
 end
 
 parse_value(::Type{T}, str::AbstractString) where {T <: AbstractString} = String(str)
-parse_value(::Type{Symbol}, str::AbstractString) = Symbol(chopprefix(strip(str), ":"))
+function parse_value(::Type{Symbol}, str::AbstractString)
+  s = chopprefix(strip(str), ":")
+  isempty(s) && throw(ArgumentError("empty Symbol"))
+  return Symbol(s)
+end
 function parse_value(::Type{Bool}, str::AbstractString)
   s = lowercase(strip(str))
   s in ("true", "1", "yes") && return true
@@ -169,12 +185,19 @@ parse_value(::Type{T}, str::AbstractString) where {T <: Real} = parsenum(T, str)
 parse_value(::Type{<:AbstractIrrational}, str::AbstractString) = parsenum(Float64, str)
 
 # Lists: comma-separated; spaces around items are dropped for every element type (a quoted
-# `methods="campspp, pp"` gives [:campspp, :pp]); an empty value gives an empty list
+# `methods="campspp, pp"` gives [:campspp, :pp]); an empty value gives an empty list, an
+# empty item (`a,,b`) is an error for every element type
 function parse_value(::Type{V}, str::AbstractString) where {V <: AbstractVector}
   T = eltype(V)
   T === Any && throw(ArgumentError("cannot infer the element type of a Vector{Any} default"))
   isempty(str) && return T[]
-  return T[parse_value(T, strip(s)) for s in split(str, ",")]
+  return T[parse_item(T, strip(s), str) for s in split(str, ",")]
+end
+# Numbers keep their own "empty number" message
+parse_item(::Type{T}, s, str) where {T <: Real} = parse_value(T, s)
+function parse_item(::Type{T}, s, str) where {T}
+  isempty(s) && throw(ArgumentError("empty item in the list `$str`"))
+  return parse_value(T, s)
 end
 
 # Ranges: start:stop or start:step:stop

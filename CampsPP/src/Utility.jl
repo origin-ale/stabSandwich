@@ -5,9 +5,15 @@ using Statistics
 
 # == File input/output ==================================================================
 
+""" ```stack_samples(sample_evs)```
+
+Stack per-sample vectors into a layers × samples matrix, padding samples shorter than the \
+longest one with ```missing``` at the end. The element type is promoted over all samples \
+(e.g. an ```Int``` and a ```Float64``` sample give ```Float64```), so no value is \
+converted to a narrower type."""
 function stack_samples(sample_evs)
   maxlen = maximum(length, sample_evs)
-  T = eltype(first(sample_evs))
+  T = mapreduce(eltype, promote_type, sample_evs)
   evs = Matrix{Union{Missing, T}}(missing, maxlen, length(sample_evs))
   for (j, a) in enumerate(sample_evs)
     evs[1:length(a), j] = a
