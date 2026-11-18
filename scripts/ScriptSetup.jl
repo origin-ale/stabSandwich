@@ -103,20 +103,34 @@ function check_unused(ov::Overrides, names)
 end
 
 # Numbers: literals, `π`/`pi` and + - * / ^ of those (e.g. `pi/4`, `3pi/16`, `1e-10`).
+# Integer literals are evaluated as BigInt for an integer parameter (no silent overflow:
+# the result is range-checked when converted) and as Float64 for a float one (so `2^-1` is
+# 0.5, not a DomainError from Int powers).
 const NUM_OPS = Dict(:+ => +, :- => -, :* => *, :/ => /, :^ => ^)
 
-evalnum(x::Number) = x
-function evalnum(x::Symbol)
+evalnum(x::Integer, ::Type{T}) where {T} = T <: Integer ? big(x) : Float64(x)
+evalnum(x::Number, ::Type) = x
+function evalnum(x::Symbol, ::Type)
   x in (:π, :pi) && return π
   throw(ArgumentError("unknown name `$x` in a number"))
 end
-function evalnum(ex::Expr)
+# Literals too large for Int64/Int128 parse as `@int128_str`/`@uint128_str`/`@big_str` calls
+const BIG_LITERALS = (Symbol("@int128_str"), Symbol("@uint128_str"), Symbol("@big_str"))
+macro_name(m::GlobalRef) = m.name   # Julia ≥ 1.12 parses them as `Core.@int128_str`
+macro_name(m) = m
+
+function evalnum(ex::Expr, ::Type{T}) where {T}
+  if ex.head == :macrocall && macro_name(ex.args[1]) in BIG_LITERALS &&
+     ex.args[end] isa AbstractString
+    x = parse(BigInt, ex.args[end])
+    return T <: Integer ? x : Float64(x)
+  end
   if ex.head == :call && haskey(NUM_OPS, ex.args[1])
-    return NUM_OPS[ex.args[1]](map(evalnum, ex.args[2:end])...)
+    return NUM_OPS[ex.args[1]](map(a -> evalnum(a, T), ex.args[2:end])...)
   end
   throw(ArgumentError("`$ex` is not a number expression"))
 end
-evalnum(x) = throw(ArgumentError("`$x` is not a number"))
+evalnum(x, ::Type) = throw(ArgumentError("`$x` is not a number"))
 
 function parsenum(::Type{T}, str::AbstractString) where {T <: Real}
   s = replace(strip(str), "_" => "")
@@ -127,16 +141,23 @@ function parsenum(::Type{T}, str::AbstractString) where {T <: Real}
   catch
     throw(ArgumentError("`$s` is not a number"))
   end
-  x = evalnum(ex)
-  # Integers also from an integral float or expression, e.g. 1e7 or 2^10
-  if T <: Integer && !(x isa Integer)
-    isinteger(x) || throw(ArgumentError("`$s` is not an integer"))
+  try
+    x = evalnum(ex, T)
+    # Integers also from an integral float or expression, e.g. 1e7 or 2^10
+    if T <: Integer && !(x isa Integer)
+      isinteger(x) || throw(ArgumentError("`$s` is not an integer"))
+    end
+    return convert(T, x)
+  catch e
+    e isa InexactError && throw(ArgumentError("`$s` is out of range for $T"))
+    e isa Union{DomainError, OverflowError, DivideError} &&
+      throw(ArgumentError("`$s`: " * sprint(showerror, e)))
+    rethrow()
   end
-  return convert(T, x)
 end
 
 parse_value(::Type{T}, str::AbstractString) where {T <: AbstractString} = String(str)
-parse_value(::Type{Symbol}, str::AbstractString) = Symbol(chopprefix(str, ":"))
+parse_value(::Type{Symbol}, str::AbstractString) = Symbol(chopprefix(strip(str), ":"))
 function parse_value(::Type{Bool}, str::AbstractString)
   s = lowercase(strip(str))
   s in ("true", "1", "yes") && return true
@@ -147,12 +168,13 @@ parse_value(::Type{T}, str::AbstractString) where {T <: Real} = parsenum(T, str)
 # A real default such as `ϕ = π/4` is an Irrational only when written as `π` alone
 parse_value(::Type{<:AbstractIrrational}, str::AbstractString) = parsenum(Float64, str)
 
-# Lists: comma-separated, no spaces; an empty value gives an empty list
+# Lists: comma-separated; spaces around items are dropped for every element type (a quoted
+# `methods="campspp, pp"` gives [:campspp, :pp]); an empty value gives an empty list
 function parse_value(::Type{V}, str::AbstractString) where {V <: AbstractVector}
   T = eltype(V)
   T === Any && throw(ArgumentError("cannot infer the element type of a Vector{Any} default"))
   isempty(str) && return T[]
-  return T[parse_value(T, s) for s in split(str, ",")]
+  return T[parse_value(T, strip(s)) for s in split(str, ",")]
 end
 
 # Ranges: start:stop or start:step:stop

@@ -15,9 +15,10 @@
 # Change a layout only on purpose: update the expected lines here and the plot scripts that
 # read the file together.
 #
-# Not pinned: `append_stats` (alias of `save_stats`, used by no kept script) and the
-# order of keys in the `initialize_output` header beyond "it follows the Dict's iteration
-# order" (scripts pass a `Dict`, so the order is whatever the Dict gives).
+# Header order: since Phase 7 the scripts pass `param_header(params)` (a vector of
+# `"name" => "value"` string pairs, scripts/ScriptSetup.jl), written in the given order; that
+# order is pinned below. A `Dict` is still accepted and written in its iteration order, which
+# is only pinned as such (it is not stable across key sets or Julia versions).
 
 "File contents made of `lines`, each terminated by a newline."
 golden(lines) = join(lines, "\n") * "\n"
@@ -40,7 +41,7 @@ end
 "Data lines of `path` as vectors of space-separated fields (comments and blanks dropped)."
 fields(path) = [split(l, ' ') for l in eachline(path) if !isempty(l) && !startswith(l, '#')]
 
-# Header written by `initialize_output(path, "obs", Dict("N" => 46))`, as in every script.
+# Header written by `initialize_output(path, "obs", ["N" => "46"])` (one parameter).
 const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
 
 @testset "Utility.jl output formats" begin
@@ -50,7 +51,7 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
     @testset "initialize_output" begin
       path = file("init.txt")
       write(path, "stale contents\n")
-      initialize_output(path, "obs", Dict("N" => 46))
+      initialize_output(path, "obs", ["N" => "46"])
       @test matches_golden(path, HEADER)              # overwrites, does not append
 
       initialize_output(path, "[layer, value]", Dict())
@@ -62,11 +63,36 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
       @test readline(path) == want                    # key=value, Dict iteration order
       @test Set(split(strip(readline(path)[3:end]), ' ')) ==
             Set(["N=46", "μ=0.6", "magic_mode=xy", "thl=1.0e-10"])
+
+      # String pairs as `param_header` gives them (what the scripts pass): the given order,
+      # not sorted (`samples=` is what plotting/hist_setup.plt greps for)
+      initialize_output(path, "obs", ["N" => "46", "magic_probs" => "0.0,0.01", "samples" => "25",
+                                      "μ" => "0.6", "methods" => "campspp,pp", "Ns" => "4:2:8"])
+      @test matches_golden(path, ["# N=46 magic_probs=0.0,0.01 samples=25 μ=0.6 methods=campspp,pp Ns=4:2:8  ",
+                                  "# Cycle obs", "", ""])
+      initialize_output(path, "obs", ["z" => "1", "a" => "2", "m" => "3"])
+      @test readline(path) == "# z=1 a=2 m=3  "
+      initialize_output(path, "obs", [:N => 46, :t => 23])        # Symbol keys, numbers
+      @test readline(path) == "# N=46 t=23  "
+      initialize_output(path, "obs", Pair{String, String}[])
+      @test matches_golden(path, ["#  ", "# Cycle obs", "", ""])
+
+      # NamedTuple: field order, each value as `string` gives it
+      initialize_output(path, "evs", (N = 46, μ = 0.6, method = :campspp, thl = 1e-10, a = "x"))
+      @test matches_golden(path, ["# N=46 μ=0.6 method=campspp thl=1.0e-10 a=x  ", "# Cycle evs", "", ""])
+      initialize_output(path, "evs", NamedTuple())
+      @test readline(path) == "#  "
+
+      # An unsupported `params` throws before the file is opened, so it is not truncated
+      write(path, "keep\n")
+      @test_throws MethodError initialize_output(path, "obs", 46)
+      @test_throws MethodError initialize_output(path, "obs", ("N", 46))
+      @test read(path, String) == "keep\n"
     end
 
     @testset "append_datapoint (src dynamics outputs)" begin
       path = file("dyn.txt")
-      initialize_output(path, "obs", Dict("N" => 46))
+      initialize_output(path, "obs", ["N" => "46"])
       append_datapoint(path, 0, 1.0)
       append_datapoint(path, 1, -0.25)
       append_datapoint(path, 2, 1e-5)
@@ -101,7 +127,7 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
 
     @testset "save_full_samples" begin
       path = file("full.txt")
-      initialize_output(path, "obs", Dict("N" => 46))
+      initialize_output(path, "obs", ["N" => "46"])
       s1 = [1.0, 0.5, 0.25]
       s2 = [0.75, -0.5]                                  # stopped early
       s3 = Union{Missing, Float64}[missing, 3.0, 4.0]    # starts mid-circuit
@@ -120,7 +146,7 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
 
     @testset "save_per_sample" begin
       path = file("persample.txt")
-      initialize_output(path, "obs", Dict("N" => 46))
+      initialize_output(path, "obs", ["N" => "46"])
       save_per_sample(path, 0.6, 0.0, [1.5, 2.25], [0.0, 0.125])       # times, GC times
       save_per_sample(path, 0.6, 0.01, [3105, 1200], [0, 12], [3105, 3105])  # switch file
       @test matches_golden(path, [HEADER;
@@ -130,7 +156,7 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
 
     @testset "save_peaks" begin
       path = file("peaks.txt")
-      initialize_output(path, "obs", Dict("N" => 46))
+      initialize_output(path, "obs", ["N" => "46"])
       samples = [Union{Missing, Int}[1, 4, 2],
                  Union{Missing, Int}[missing, missing],   # never reached its switch
                  Union{Missing, Int}[missing, 7, 3]]
@@ -146,7 +172,7 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
 
     @testset "save_stats" begin
       path = file("stats.txt")
-      initialize_output(path, "obs", Dict("N" => 46))
+      initialize_output(path, "obs", ["N" => "46"])
       # layer 0: no data (row skipped); layers 1–2: two samples; layer 3: one sample.
       s1 = Union{Missing, Float64}[missing, 1.0, 2.0, 4.0]
       s2 = Union{Missing, Float64}[missing, 3.0, 4.0]
@@ -171,7 +197,7 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
 
     @testset "save_stats_maxcol (10 columns)" begin
       path = file("maxcol.txt")
-      initialize_output(path, "obs", Dict("N" => 46))
+      initialize_output(path, "obs", ["N" => "46"])
       # Integer resources (e.g. bond dimension), leading missings, ragged lengths.
       # Sample 3 has the highest peak (9) but no data at layer 1 → NaN in column 4 there.
       samples = [Union{Missing, Int}[missing, 0, 1, 1],
@@ -205,7 +231,7 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
 
     @testset "save_doped_gates" begin
       path = file("doped.txt")
-      initialize_output(path, "obs", Dict("N" => 46))
+      initialize_output(path, "obs", ["N" => "46"])
       gates = [pp.PauliRotation([:X, :X], [1, 2]), pp.PauliRotation([:Y, :Y], [1, 2]),
                pp.PauliRotation([:Z, :Z], [1, 2]), pp.PauliRotation([:X, :X], [2, 3]),
                pp.PauliRotation([:Z], [3]),        pp.PauliRotation([:Z, :Z], [2, 3])]
@@ -222,7 +248,7 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
 
     @testset "save_rows" begin
       path = file("rows.txt")
-      initialize_output(path, "obs", Dict("N" => 46))
+      initialize_output(path, "obs", ["N" => "46"])
       save_rows(path, [10, 20], [[0.5, 0.25], [1.5]]; blockend = true)   # ragged rows
       save_rows(path, [0.1], [[2.0, 3.0]])
       @test matches_golden(path, [HEADER; "10 0.5 0.25"; "20 1.5"; ""; "0.1 2.0 3.0"])
@@ -230,7 +256,7 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
 
     @testset "save_columns" begin
       path = file("cols.txt")
-      initialize_output(path, "obs", Dict("N" => 46))
+      initialize_output(path, "obs", ["N" => "46"])
       save_columns(path, [1, 2, 3], [0.5, NaN, 1e-5], [7])
       # short columns padded with empty fields (gnuplot then shifts the columns after
       # them; Comptime_3_squarecirc.jl pads with NaN itself for that reason)
