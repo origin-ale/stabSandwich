@@ -1,5 +1,10 @@
 module DisentangleCAMPS
 
+# Plain-text progress lines (replaces ProgressMeter; used by the evolution loops here and in
+# CampsPP)
+include("Progress.jl")
+export ProgressLog, isdue, needs_final, log_progress!, log_done!, log_message
+
 include("Disentangler.jl")
 export paulinature
 export disentangler

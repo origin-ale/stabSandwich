@@ -1,5 +1,3 @@
-using Revise
-
 import PauliPropagation as pp
 using QuantumClifford
 using .DisentangleCAMPS
@@ -76,7 +74,7 @@ end
 """ ```save_stats(output, evs, μ, magic_prob)```
 
 Append the per-layer mean and standard error of ```evs``` as three columns \
-(layer, mean, error), preceded by a ```# magic_prob = …, μ = …``` header line \
+(layer, mean, error), preceded by a ```# p = …, μ = …``` header line \
 identifying the parameter point, and followed by two blank lines (gnuplot block \
 separator)."""
 function save_stats(output, evs, μ, magic_prob)
@@ -93,11 +91,6 @@ function save_stats(output, evs, μ, magic_prob)
     print(io, "\n\n")  # two blank lines: gnuplot index (block) separator
   end
 end
-
-""" ```append_stats(output, evs, μ, magic_prob)```
-
-Alias for ```save_stats```, kept for backwards compatibility."""
-append_stats(output, evs, μ, magic_prob) = save_stats(output, evs, μ, magic_prob)
 
 """ ```save_stats_maxcol(output, samples, μ, magic_prob)```
 

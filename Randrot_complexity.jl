@@ -4,18 +4,20 @@ import MagicTensors as mt
 
 using QuantumClifford
 using ITensors, ITensorMPS
-using ProgressMeter
 using Plots
 using LaTeXStrings
 using Statistics
 using Random
 
+@isdefined(ScriptSetup) || include(joinpath(@__DIR__, "scripts", "ScriptSetup.jl"))
+using .ScriptSetup
+
 # For t/N = 0.1:0.1:1.1, `n_samples` random states built from t layers of (uniformly random
 # N-qubit Clifford, then a rotation about a random Pauli string at angle 4π·rand), recording
 # max_b S_E(b)/N of the CAMPS's MPS part and the N²-sample estimate of M₂/N.
 #
-#   julia --project=. Randrot_complexity.jl [Ns [n_samples [rng_seed]]]
-#   e.g. julia --project=. Randrot_complexity.jl 12,24,48 100 1100
+#   julia --project=. Randrot_complexity.jl [Ns=…] [n_samples=…] [rng_seed=…] [fractions=…]
+#   e.g. julia --project=. Randrot_complexity.jl Ns=12,24,48 n_samples=100 rng_seed=1100
 #
 # Reproducible: for each N, `Xoshiro(rng_seed + N)` drives the Pauli strings, the angles and
 # the random Cliffords, so a run with one N reproduces that N's part of a run with several.
@@ -23,17 +25,19 @@ using Random
 # argument, so the global RNG is reseeded at the start of each N from a draw of that N's
 # generator (not with the same seed: two Xoshiro streams seeded alike would coincide).
 
-Ns = length(ARGS) >= 1 ? parse.(Int, split(ARGS[1], ",")) : [12, 24, 48]
-n_samples = length(ARGS) >= 2 ? parse(Int, ARGS[2]) : 100
-rng_seed = length(ARGS) >= 3 ? parse(Int, ARGS[3]) : 1100
-fractions = 0.1:0.1:1.1
+params = @parameters begin
+	Ns = [12, 24, 48]
+	n_samples = 100
+	rng_seed = 1100
+	fractions = 0.1:0.1:1.1
+	outdir = "output/Randrot_complexity"
+end
+mkpath(outdir)
 
 results_ee = Dict{Int, Vector{Float64}}()
 results_ee_err = Dict{Int, Vector{Float64}}()
 results_sre = Dict{Int, Vector{Float64}}()
 results_sre_err = Dict{Int, Vector{Float64}}()
-
-generate_showvalues(toN, sample) = () -> [("t/N",toN), ("sample", sample)]
 
 function save_results(path, Ns, results_ee, results_ee_err, results_sre, results_sre_err, fractions)
 	done = filter(N -> haskey(results_ee, N), Ns)
@@ -71,8 +75,8 @@ for N in Ns
 	sre_vals = Float64[]
 	sre_err_vals = Float64[]
 
-	progressbar = Progress(length(fractions)*n_samples; desc = "N=$N")
-	for f in fractions
+	progress = ProgressLog("N=$N sample", length(fractions)*n_samples; frac = 0)
+	for (i_f, f) in enumerate(fractions)
 		t = round(Int, f * N)
 		ee_samples = Float64[]
 		sre_samples = Float64[]
@@ -81,7 +85,7 @@ for N in Ns
 			ee, sre = sample_complexity(rng, N, t)
 			push!(ee_samples, ee)
 			push!(sre_samples, sre)
-			next!(progressbar, showvalues=generate_showvalues(f, sample))
+			log_progress!(progress, (i_f - 1) * n_samples + sample, "t/N" => f)
 		end
 
 		push!(ee_vals, mean(ee_samples))
@@ -95,7 +99,7 @@ for N in Ns
 	results_sre[N] = sre_vals
 	results_sre_err[N] = sre_err_vals
 
-	save_results("output/gen_results.dat", Ns, results_ee, results_ee_err, results_sre, results_sre_err, fractions)
+	save_results(joinpath(outdir, "gen_results.dat"), Ns, results_ee, results_ee_err, results_sre, results_sre_err, fractions)
 end
 
 xs = collect(fractions)
@@ -106,13 +110,13 @@ p1 = plot(xlabel = L"t/N", ylabel = L"S_E / N",
 for (i, N) in enumerate(Ns)
 	plot!(p1, xs, results_ee[N], yerror = results_ee_err[N], label = "N=$N", marker = :circle, color = colors[i])
 end
-savefig(p1, "output/gen_avg_ee.png")
+savefig(p1, joinpath(outdir, "gen_avg_ee.png"))
 
 p2 = plot(xlabel = L"t/N", ylabel = L"\mathcal{M}_2 / N",
           title = L"Magic vs n. of $R_P (\theta)$", legend = :topleft, dpi = 300)
 for (i, N) in enumerate(Ns)
 	plot!(p2, xs, results_sre[N], yerror = results_sre_err[N], label = "N=$N", marker = :circle, color = colors[i])
 end
-savefig(p2, "output/gen_avg_sre.png")
+savefig(p2, joinpath(outdir, "gen_avg_sre.png"))
 
-println("Saved plots to gen_avg_ee.png and gen_avg_sre.png, data to gen_results.dat")
+log_message("Saved plots to gen_avg_ee.png and gen_avg_sre.png, data to gen_results.dat, in $outdir")

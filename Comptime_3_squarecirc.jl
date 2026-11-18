@@ -1,4 +1,3 @@
-using Revise
 using CampsPP
 using CampsPP.DisentangleCAMPS
 using ITensors, ITensorMPS
@@ -9,15 +8,12 @@ using QuantumClifford
 
 using Statistics
 using Random: MersenneTwister
-using ProgressMeter
-using Strided
-using LinearAlgebra
 
-Strided.disable_threads()
+@isdefined(ScriptSetup) || include(joinpath(@__DIR__, "scripts", "ScriptSetup.jl"))
+using .ScriptSetup
+
 nthr = Threads.nthreads()
-
-BLAS.set_num_threads(1)
-ITensors.Strided.set_num_threads(1)
+setup_threads(1)
 
 # All three methods are run in their *exact* settings, so any disagreement between
 # them is a bug and not a truncation artefact:
@@ -55,32 +51,37 @@ end
 convert_gates(gates, N) = PauliOperator.(getpauli.(gates, N))
 
 # == Parameters ===============================================================
-# Methods to run, in output-column order. Comment out any you want to skip.
-# Available: :camps (CAMPS), :pp (PP), :mps (MPS)
-methods = [:camps, :pp, :mps]
+# Override from the command line as key=value (`help` lists them), e.g.
+#   julia --project=. Comptime_3_squarecirc.jl Nrange=10,20 Nsamples=5 methods=camps,pp
+params = @parameters begin
+  # Methods to run, in output-column order.
+  # Available: :camps (CAMPS), :pp (PP), :mps (MPS)
+  methods = [:camps, :pp, :mps]
 
-Nsamples = 100
-Nrange = [2, 4, 6, 8, 10, 12, 16, 18, 22, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 44, 46, 64, 90, 128]
-Nmax_mps_run = 20 # Exact MPS is only run for N ≤ Nmax_mps_run
-Nmax_pp_run = 50 # Exact PP is only run for N ≤ Nmax_pp_run
+  Nsamples = 100
+  Nrange = [2, 4, 6, 8, 10, 12, 16, 18, 22, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 44, 46, 64, 90, 128]
+  Nmax_mps_run = 20 # Exact MPS is only run for N ≤ Nmax_mps_run
+  Nmax_pp_run = 50 # Exact PP is only run for N ≤ Nmax_pp_run
 
-# Base RNG seed: sample i uses seed rng_seed + i
-rng_seed = 100
-# Warm-up circuits run (untimed) before each N, on seeds rng_seed, rng_seed-1, …
-# More than one because CAMPS branches on the Clifford nature of each rotation,
-# so a single circuit does not reach every code path
-warmup_samples = 10
+  # Base RNG seed: sample i uses seed rng_seed + i
+  rng_seed = 100
+  # Warm-up circuits run (untimed) before each N, on seeds rng_seed, rng_seed-1, …
+  # More than one because CAMPS branches on the Clifford nature of each rotation,
+  # so a single circuit does not reach every code path
+  warmup_samples = 10
 
-# MPS
-cutoff_mps = 0.0 # Exact: no SVD truncation
-alg_mps = "naive" # Exact: pairwise MPO·MPS contraction
+  # MPS
+  cutoff_mps = 0.0 # Exact: no SVD truncation
+  alg_mps = "naive" # Exact: pairwise MPO·MPS contraction
 
-# Pauli propagation
-thl_pp = 0.0 # Exact: no coefficient truncation
+  # Pauli propagation
+  thl_pp = 0.0 # Exact: no coefficient truncation
 
-# Agreement tolerance of the cross-method check
-atol_check = 1e-6
+  # Agreement tolerance of the cross-method check
+  atol_check = 1e-6
 
+  outdir = "output/Comptime_3_squarecirc"
+end
 # =============================================================================
 
 all_methods = [:camps, :mps, :pp]
@@ -100,23 +101,13 @@ Nranges = Dict(:camps => Nrange, :mps => Nrange_mps, :pp => Nrange_pp,
 obs_string = "Z₁"
 obsname = "⟨$obs_string⟩ computation time (s)"
 
-out_full = "output/comptimes_3_squarecirc_full.txt"
-out_avgs = "output/comptimes_3_squarecirc_avgs.txt"
-out_diffs_full = "output/timediffs_3_squarecirc_full.txt"
-out_diffs_avgs = "output/timediffs_3_squarecirc_avgs.txt"
+mkpath(outdir)
+out_full = joinpath(outdir, "comptimes_3_squarecirc_full.txt")
+out_avgs = joinpath(outdir, "comptimes_3_squarecirc_avgs.txt")
+out_diffs_full = joinpath(outdir, "timediffs_3_squarecirc_full.txt")
+out_diffs_avgs = joinpath(outdir, "timediffs_3_squarecirc_avgs.txt")
 
-param_info = Dict(
-  "methods" => methods,
-  "Nrange" => Nrange,
-  "Nsamples" => Nsamples,
-  "Nmax_mps_run" => Nmax_mps_run,
-  "Nmax_pp_run" => Nmax_pp_run,
-  "rng_seed" => rng_seed,
-  "warmup_samples" => warmup_samples,
-  "cutoff_mps" => cutoff_mps,
-  "alg_mps" => alg_mps,
-  "thl_pp" => thl_pp,
-  "obs" => obs_string)
+param_info = [param_header(params; exclude = (:outdir,)); "obs" => obs_string]
 
 # Timings, one entry per N; :convert is the gate-conversion sub-timing, run at every N
 times = Dict(m => Vector{Float64}[] for m in [methods; :convert])
@@ -129,9 +120,8 @@ warmup_misses = Dict{Symbol, Int}()
 """ Warn if compilation landed inside a timed run, ie. if the warm-up missed. """
 function check_warm(st, m, N, i)
   iszero(st.compile_time) && return
-  printstyled("WARNING: N = $N, sample $i, $m: compile_time = $(st.compile_time) s \
-($(round(100 * st.compile_time / st.time; digits = 1))% of $(st.time) s), warm-up missed\n";
-    color = :yellow)
+  log_message("WARNING: N = $N, sample $i, $m: compile_time = $(st.compile_time) s \
+($(round(100 * st.compile_time / st.time; digits = 1))% of $(st.time) s), warm-up missed")
   warmup_misses[m] = get(warmup_misses, m, 0) + 1
 end
 
@@ -143,8 +133,8 @@ function check_evs(evs, N, i)
   ref = first(ms)
   for m in ms[2:end]
     if !isapprox(evs[ref], evs[m]; atol = atol_check)
-      printstyled("WARNING: N = $N, sample $i: $ref and $m do not match \
-($(evs[ref]) vs $(evs[m]), difference $(evs[ref] - evs[m]))\n"; color = :yellow)
+      log_message("WARNING: N = $N, sample $i: $ref and $m do not match \
+($(evs[ref]) vs $(evs[m]), difference $(evs[ref] - evs[m]))")
     end
   end
 end
@@ -164,14 +154,14 @@ initialize_output(out_diffs_avgs,
   "CAMPS - PP computation time (s) [N, mean, std. err.]",
   param_info)
 
-printstyled("Getting exact $(join(methods, ", ")) computation times of ⟨$obs_string⟩ for \
-square circuits, N = $Nrange.\n\
+log_message("Getting exact $(join(methods, ", ")) computation times of ⟨$obs_string⟩ for \
+square circuits, N = $Nrange. \
 MPS exact for N ≤ $Nmax_mps_run (cutoff $cutoff_mps, alg $alg_mps), \
-PP exact for N ≤ $Nmax_pp_run (min_abs_coeff $thl_pp).\n\
-Nsamples = $Nsamples, $nthr threads.\n"; color = :cyan)
-prog = Progress(length(Nrange) * Nsamples; desc = "Computing…")
+PP exact for N ≤ $Nmax_pp_run (min_abs_coeff $thl_pp). \
+Nsamples = $Nsamples, $nthr threads.")
+prog = ProgressLog("sample", length(Nrange) * Nsamples; frac = 0)
 
-for N in Nrange
+for (iN, N) in enumerate(Nrange)
   P = pp.PauliSum(pp.PauliString(N, [:Z], [1]))
   active = [m for m in methods if N in Nranges[m]]
 
@@ -219,7 +209,7 @@ for N in Nrange
 
     check_evs(evs, N, i)
 
-    next!(prog, showvalues = [("N", N), ("sample", i)])
+    log_progress!(prog, (iN - 1) * Nsamples + i, "N" => N)
   end
 
   for m in keys(times_N)
@@ -266,8 +256,8 @@ if !isempty(timediffs)
 end
 
 if isempty(warmup_misses)
-  printstyled("Warm-up clean: no compilation inside any timed run.\n"; color = :green)
+  log_message("Warm-up clean: no compilation inside any timed run.")
 else
-  printstyled("WARNING: compilation landed inside timed runs: \
-$(join(("$m: $n" for (m, n) in warmup_misses), ", "))\n"; color = :yellow)
+  log_message("WARNING: compilation landed inside timed runs: \
+$(join(("$m: $n" for (m, n) in warmup_misses), ", "))")
 end

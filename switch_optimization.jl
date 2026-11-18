@@ -1,4 +1,3 @@
-using Revise
 using CampsPP
 using CampsPP.DisentangleCAMPS
 using ITensors, ITensorMPS
@@ -7,15 +6,12 @@ import PauliPropagation as pp
 import MagicTensors as mt
 
 using Statistics
-using ProgressMeter
-using Strided
-using LinearAlgebra
 
-Strided.disable_threads()
+@isdefined(ScriptSetup) || include(joinpath(@__DIR__, "scripts", "ScriptSetup.jl"))
+using .ScriptSetup
+
 nthr = Threads.nthreads()
-
-BLAS.set_num_threads(1)
-ITensors.Strided.set_num_threads(1)
+setup_threads(1)
 
 function circuit_sandwich(rotations, phases, P, c)
   N = P.nqubits
@@ -29,45 +25,49 @@ function circuit_sandwich(rotations, phases, P, c)
   return mt.expectation(ψ_evo, sandwichstrings)
 end
 
-N = 20
-M = 12
-maxc = 12
-Nsamples = 50
+# == Parameters ===============================================================
+# Override from the command line as key=value (`help` lists them), e.g.
+#   julia --project=. switch_optimization.jl N=20 M=12 Nsamples=50
+params = @parameters begin
+  N = 20
+  M = 12          # circuit depth t = N + M
+  maxc = 12       # switch points c = M - maxc, …, M (gates left for PP)
+  Nsamples = 50
+  outdir = "output/switch_optimization"
+end
 
 t = N+M
 switchpoints = collect((M-maxc):M)
 observable = pp.PauliString(N, [:Z], [1])
 obs_string = "Z₁"
 
-out_full = "output/M$(M)_switch_optimization_full_$(N).txt"
-out_avgs = "output/M$(M)_switch_optimization_avgs_$(N).txt"
-param_info = Dict(
-  "N" => N,
-  "M" => M,
-  "t" => t,
-  "switchpoints" => switchpoints,
-  "Nsamples" => Nsamples,
-  "obs" => obs_string)
+mkpath(outdir)
+out_full = joinpath(outdir, "M$(M)_switch_optimization_full_$(N).txt")
+out_avgs = joinpath(outdir, "M$(M)_switch_optimization_avgs_$(N).txt")
+param_info = [param_header(params; exclude = (:outdir,));
+  "t" => string(t);
+  "switchpoints" => join(switchpoints, ",");
+  "obs" => obs_string]
 obsname = "⟨$obs_string⟩ computation time (s)"
 initialize_output(out_full, "$obsname, $Nsamples samples", param_info)
 initialize_output(out_avgs, "$obsname averages", param_info)
 
-printstyled("Characterizing computation time of ⟨$obs_string⟩ on $(N)×$(t) random \
-rotation circuit with CAMPS-PP.\n\
-Switch points: $switchpoints. Nsamples = $Nsamples, $nthr threads.\n"; color = :cyan)
-prog = Progress(length(switchpoints) * Nsamples; desc = "Computing…")
+log_message("Characterizing computation time of ⟨$obs_string⟩ on $(N)×$(t) random \
+rotation circuit with CAMPS-PP. Switch points: $switchpoints. Nsamples = $Nsamples, \
+$nthr threads.")
+prog = ProgressLog("sample", length(switchpoints) * Nsamples; frac = 0)
 
 times = []
 rotations_precomp, phases_precomp = rotation_circuit(2, N)
 _ = @timed circuit_sandwich(rotations_precomp, phases_precomp, observable, 1)
 
-for c in switchpoints
+for (ic, c) in enumerate(switchpoints)
   times_c = Float64[]
   for i in 1:Nsamples
     rotations, phases = rotation_circuit(t, N)
     ev, tc, _ = @timed circuit_sandwich(rotations, phases, observable, c)
     push!(times_c, tc)
-    next!(prog, showvalues = [("c",c), ("sample",i)])
+    log_progress!(prog, (ic - 1) * Nsamples + i, "c" => c, "sample" => "$i/$Nsamples")
   end
   push!(times, times_c)
 

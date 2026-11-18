@@ -17,7 +17,7 @@ set xlabel "Time" font ",16"
 set ylabel "Transferred magnetization" font ",16"
 set key font ",16"
 
-datafile = "output/".prefix."_".N."_".Nsamples.".txt"
+datafile = "output/TransferredMag_varparams/".prefix."_".N."_".Nsamples.".txt"
 
 # Each entry is a whitespace-separated list of block indices to plot (0-based:
 # index 0 is the first data block). One image is saved per entry.

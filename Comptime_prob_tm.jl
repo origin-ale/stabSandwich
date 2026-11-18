@@ -1,4 +1,3 @@
-using Revise
 using CampsPP
 using CampsPP.DisentangleCAMPS
 using ITensors, ITensorMPS
@@ -7,92 +6,77 @@ import PauliPropagation as pp
 
 using Statistics
 using Random: MersenneTwister
-using ProgressMeter
 using Printf
 
-using Strided
-using LinearAlgebra
-Strided.disable_threads()
+@isdefined(ScriptSetup) || include(joinpath(@__DIR__, "scripts", "ScriptSetup.jl"))
+using .ScriptSetup
+
 nthr = Threads.nthreads()
-BLAS.set_num_threads(nthr)
-ITensors.Strided.set_num_threads(nthr)
+setup_threads(nthr)
 
 # == Parameters ===============================================================
-# `methods`, `magic_probs` and `samples` can be overridden from the command
-# line (see "Command-line overrides" below), e.g.
-#   julia --project=. Comptime_prob_tm.jl methods=campspp p=0,0.01 samples=25
+# Override from the command line as key=value (`help` lists them); lists are
+# comma-separated, without spaces, e.g.
+#   julia --project=. Comptime_prob_tm.jl methods=campspp magic_probs=0,0.01 samples=25
+params = @parameters begin
+  # Methods to run, in output-column order.
+  # Available: :campspp (CAMPS-PP), :camps (CAMPS), :mps (MPS), :pp (PP)
+  methods = [:campspp]
 
-# Methods to run, in output-column order. Comment out any you want to skip.
-# Available: :campspp (CAMPS-PP), :camps (CAMPS), :mps (MPS), :pp (PP)
-methods = [:campspp]
+  N = 46 # Fixed system size
+  magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
+  μ = 0.6
 
-N = 46 # Fixed system size
-magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
-μ = 0.6
+  # Doping probabilities, as an explicit list
+  magic_probs = [0.0, 0.01, 0.02, 0.04]
 
-# Doping probabilities, as an explicit list
-magic_probs = [0.0, 0.01, 0.02, 0.04]
+  samples = 25
+  # Base RNG seed: sample i uses seed rng_seed + i (0 reproduces historical runs;
+  # change to draw an independent set of samples)
+  rng_seed = 100
 
-samples = 25
-# Base RNG seed: sample i uses seed rng_seed + i (0 reproduces historical runs;
-# change to draw an independent set of samples)
-rng_seed = 100
+  ϕ = π/4
+  θ = π/4
 
-ϕ = π/4
-θ = π/4
+  # CAMPS-PP (sandwich, ie. s-)
+  campspp_χ = 64 # s-CAMPS bond dimension that triggers s-PP
+  campspp_thl = 1e-10 # Threshold for truncation during s-PP
+  campspp_Pmax = 10_000_000 # Maximum number of Paulis for s-PP
 
-# CAMPS-PP (sandwich, ie. s-)
-campspp_χ = 64 # s-CAMPS bond dimension that triggers s-PP
-campspp_thl = 1e-10 # Threshold for truncation during s-PP
-campspp_Pmax = 10_000_000 # Maximum number of Paulis for s-PP
+  # CAMPS
+  camps_thl = 1e-12 # CAMPS SVD truncation threshold
+  camps_crit = :chi3 # CAMPS entanglement criterion (:chi3 or :entangle)
+  camps_strat = :snake # CAMPS disentangler strategy (:full, :brickwork, :snake)
 
-# CAMPS
-camps_thl = 1e-12 # CAMPS SVD truncation threshold
-camps_crit = :chi3 # CAMPS entanglement criterion (:chi3 or :entangle)
-camps_strat = :snake # CAMPS disentangler strategy (:full, :brickwork, :snake)
+  # MPS
+  mps_thl = 1e-7 # MPS SVD truncation threshold
 
-# MPS
-mps_thl = 1e-7 # MPS SVD truncation threshold
+  # Pauli propagation
+  pp_thl = 1e-10 # Threshold for truncation during PP
+  pp_Pmax = 10_000_000 # Maximum number of Paulis for PP
 
-# Pauli propagation
-pp_thl = 1e-10 # Threshold for truncation during PP
-pp_Pmax = 10_000_000 # Maximum number of Paulis for PP
+  outdir = "output/Comptime_prob_tm"
+end
+# Exponent of campspp_thl, appended to the expectation-value file names ("exact" for 0)
+campspp_thl >= 0 || error("campspp_thl must be ≥ 0, got $campspp_thl")
+campspp_thl_exp = campspp_thl == 0 ? "exact" : abs(round(Int, log10(campspp_thl)))
 
 # output
-output = "output/comptime_prob_tm.txt"
-gctime_output = "output/gctime_prob_tm.txt"
-resources_prefix = "output/resources_prob_tm_"
+mkpath(outdir)
+output = joinpath(outdir, "comptime_prob_tm.txt")
+gctime_output = joinpath(outdir, "gctime_prob_tm.txt")
+resources_prefix = joinpath(outdir, "resources_prob_tm_")
 # Mean expectation values; exponent of campspp_thl appended to file names
-campspp_thl_exp = abs(round(Int, log10(campspp_thl)))
-evs_prefix = "output/evs_prob_tm_"
+evs_prefix = joinpath(outdir, "evs_prob_tm_")
 # Doped rotation gates (Pauli string and qubits) per probability and sample
-doped_output = "output/doped_prob_tm.txt"
+doped_output = joinpath(outdir, "doped_prob_tm.txt")
 
 # Per-sample initial states (one bitstring per sample, identical for every p
 # and method) and CAMPS-PP switch points (one block per p)
-initstates_output = "output/initstates_prob_tm.txt"
-switch_output = "output/campspp_switch_prob_tm.txt"
+initstates_output = joinpath(outdir, "initstates_prob_tm.txt")
+switch_output = joinpath(outdir, "campspp_switch_prob_tm.txt")
 
 # =============================================================================
-
-# == Command-line overrides ===================================================
-# Arguments are `key=value`; lists are comma-separated, without spaces:
-#   methods=campspp,camps   p=0,0.01,0.02   samples=10
-for arg in ARGS
-  key, val = let kv = split(arg, "="; limit = 2)
-    length(kv) == 2 || error("Argument `$arg` is not of the form key=value")
-    kv
-  end
-  if key == "methods"
-    global methods = Symbol.(split(val, ","))
-  elseif key == "p"
-    global magic_probs = parse.(Float64, split(val, ","))
-  elseif key == "samples"
-    global samples = parse(Int, val)
-  else
-    error("Unrecognised argument `$key` (expected methods, p or samples)")
-  end
-end
 
 all_methods = [:campspp, :camps, :mps, :pp]
 let unknown = setdiff(methods, all_methods)
@@ -104,25 +88,7 @@ isempty(magic_probs) && error("No doping probabilities given")
 all(p -> 0 <= p <= 1, magic_probs) || error("Probabilities must lie in [0, 1]: $magic_probs")
 samples >= 1 || error("Need at least 1 sample, got $samples")
 
-param_info = Dict(
-  "methods" => join(methods, ","),
-  "N" => N,
-  "magic_mode" => magic_mode,
-  "μ" => μ,
-  "magic_probs" => join(magic_probs, ","),
-  "samples" => samples,
-  "rng_seed" => rng_seed,
-  "ϕ" => ϕ,
-  "θ" => θ,
-  "campspp_χ" => campspp_χ,
-  "campspp_thl" => campspp_thl,
-  "campspp_Pmax" => campspp_Pmax,
-  "camps_thl" => camps_thl,
-  "camps_crit" => camps_crit,
-  "camps_strat" => camps_strat,
-  "mps_thl" => mps_thl,
-  "pp_thl" => pp_thl,
-  "pp_Pmax" => pp_Pmax)
+param_info = param_header(params; exclude = (:outdir,))
 
 if magic_mode == :xy
   magic_phase = 3π/16
@@ -136,7 +102,7 @@ else
   error("Unrecognised magic_mode: $magic_mode")
 end
 
-prefix = "output/comptime_N$(N)_"
+prefix = joinpath(outdir, "comptime_N$(N)_")
 suffix = "_log.txt"
 campspp_log = prefix * "campspp" * suffix
 campssrc_log = prefix * "campssrc" * suffix
@@ -236,7 +202,7 @@ for (f, name) in Iterators.flatten((
 end
 
 # Unaveraged per-sample wall-clock and GC times
-times_full_outputs = Dict(m => "output/comptime_full_prob_tm_$m.txt" for m in methods)
+times_full_outputs = Dict(m => joinpath(outdir, "comptime_full_prob_tm_$m.txt") for m in methods)
 for f in values(times_full_outputs)
   initialize_output(f, "[sample, time (s), GC time (s); one block per p]", param_info)
 end
@@ -342,7 +308,7 @@ for magic_prob in magic_probs
 
   # == CAMPS-PP ===============================================================
   if :campspp in methods
-    prog = Progress(samples; desc = "p=$magic_prob_str CAMPS-PP")
+    prog = ProgressLog("p=$magic_prob_str CAMPS-PP sample", samples; frac = 0)
 
     ψ_wu, tm_wu, gates, phases = init_camps(N, onebitinds_wu, mask_wu)
     times_curr = Real[]
@@ -380,7 +346,7 @@ for magic_prob in magic_probs
         layer_ends = layer_ends,
         track = true)
       if length(evs) < N/2+1
-        printstyled("WARNING: CAMPS-PP sample $i for p=$magic_prob_str stopped early!")
+        log_message("WARNING: CAMPS-PP sample $i for p=$magic_prob_str stopped early!")
       end
       push!(evs_campspp, evs)
       push!(times_curr, time)
@@ -394,7 +360,7 @@ for magic_prob in magic_probs
       push!(nps_samples, [fill(missing, length(bds) - 1); nps])
       push!(pws_samples, [fill(missing, length(bds) - 1); pws])
       push!(pcs_samples, [fill(missing, length(bds) - 1); pcs])
-      next!(prog)
+      log_progress!(prog, i)
     end
     time_campspp = mean(times_curr)
     std_campspp = std(times_curr) / sqrt(samples)
@@ -426,7 +392,7 @@ for magic_prob in magic_probs
 
   # == CAMPS ==================================================================
   if :camps in methods
-    prog = Progress(samples; desc = "p=$magic_prob_str CAMPS")
+    prog = ProgressLog("p=$magic_prob_str CAMPS sample", samples; frac = 0)
 
     ψ_wu, tm_wu, gates, phases = init_camps(N, onebitinds_wu, mask_wu)
     times_curr = Real[]
@@ -461,7 +427,7 @@ for magic_prob in magic_probs
       push!(times_curr, time)
       push!(gctimes_curr, gctime)
       push!(bds_samples, bds)
-      next!(prog)
+      log_progress!(prog, i)
     end
     time_camps = mean(times_curr)
     std_camps = std(times_curr) / sqrt(samples)
@@ -483,7 +449,7 @@ for magic_prob in magic_probs
 
   # == MPS ==================================================================
   if :mps in methods
-    prog = Progress(samples; desc = "p=$magic_prob_str MPS")
+    prog = ProgressLog("p=$magic_prob_str MPS sample", samples; frac = 0)
 
     ψ_wu, tm_wu, gates, phases = init_mps(N, onebitinds_wu, mask_wu)
     times_curr = Real[]
@@ -511,7 +477,7 @@ for magic_prob in magic_probs
       push!(evs_mps, evs)
       push!(times_curr, time)
       push!(gctimes_curr, gctime)
-      next!(prog)
+      log_progress!(prog, i)
     end
     time_mps = mean(times_curr)
     std_mps = std(times_curr) / sqrt(samples)
@@ -530,7 +496,7 @@ for magic_prob in magic_probs
 
   # == PP ====================================================================
   if :pp in methods
-    prog = Progress(samples; desc = "p=$magic_prob_str PP")
+    prog = ProgressLog("p=$magic_prob_str PP sample", samples; frac = 0)
 
     obi_wu, tm_wu, gates, phases = init_pp(N, onebitinds_wu, mask_wu)
     times_curr = Real[]
@@ -562,7 +528,7 @@ for magic_prob in magic_probs
         layer_ends = layer_ends,
         track = true)
       if length(evs) < N/2+1
-        printstyled("WARNING: PP sample $i for p=$magic_prob_str stopped early!")
+        log_message("WARNING: PP sample $i for p=$magic_prob_str stopped early!")
       end
       push!(evs_pp, evs)
       push!(times_curr, time)
@@ -570,7 +536,7 @@ for magic_prob in magic_probs
       push!(nps_samples, nps)
       push!(pws_samples, pws)
       push!(pcs_samples, pcs)
-      next!(prog)
+      log_progress!(prog, i)
     end
     time_pp = mean(times_curr)
     std_pp = std(times_curr) / sqrt(samples)
@@ -603,8 +569,7 @@ for magic_prob in magic_probs
     (isnothing(evs_campspp) || isnothing(evs_other)) && continue
     bad = mismatched_samples(evs_campspp, evs_other; atol = 1e-6)
     isempty(bad) && continue
-    printstyled("WARNING: p = $magic_prob_str CAMPS-PP and $name do not match (samples $bad)\n";
-      color=:yellow)
+    log_message("WARNING: p = $magic_prob_str CAMPS-PP and $name do not match (samples $bad)")
     println("-"^32)
     for idx in bad
       println("$(evs_campspp[idx])\n$(evs_other[idx])\n")

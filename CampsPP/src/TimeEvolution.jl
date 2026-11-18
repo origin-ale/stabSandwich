@@ -1,21 +1,31 @@
-using Revise
-
 using .DisentangleCAMPS
 import PauliPropagation as pp
 import MagicTensors as mt
 using ITensors, ITensorMPS
 
-using ProgressMeter
 
 # == File manipulation ==================================================================
 
-function initialize_output(output::AbstractString, obsname::AbstractString, params::AbstractDict)
+"""```initialize_output(output, obsname, params)```
+
+Create (or overwrite) ```output``` with a two-line header, ```# k1=v1 k2=v2 …  ``` and \
+```# Cycle <obsname>```, followed by two blank lines. ```params``` is a ```NamedTuple``` or a \
+vector of ```key => value``` pairs, written in their own order, or an ```AbstractDict```, \
+written in its iteration order (not stable across key sets or Julia versions). Note that a \
+vector literal promotes its values (```[:N => 46, :t => 3.0]``` writes ```N=46.0```); pass \
+strings or a ```NamedTuple``` to keep each value as given."""
+function initialize_output(output::AbstractString, obsname::AbstractString, params)
+  # Built before opening, so that unsupported `params` throw without truncating `output`
+  kv = ["$(string(k))=$(string(v))" for (k, v) in header_pairs(params)]
+  header = isempty(kv) ? "" : (join(kv, " ") * " ")
   open(output, "w") do f
-    pairs = ["$(string(k))=$(string(v))" for (k,v) in params]
-    header = isempty(pairs) ? "" : (join(pairs, " ") * " ")
     println(f, "# $(header) \n# Cycle $obsname\n\n")
   end
 end
+
+header_pairs(params::NamedTuple) = pairs(params)
+header_pairs(params::AbstractDict) = params
+header_pairs(params::AbstractVector{<:Pair}) = params
 
 function append_datapoint(output::AbstractString, x::Number, y::Number)
     open(output, "a") do f
@@ -84,11 +94,10 @@ out_array::Vector, ::Nothing, ev::Number, i::Integer)
   push!(out_array, real(ev))
 end
 
-# == ProgressMeter showvalues ===========================================================
+# == Progress values ====================================================================
 
-showvalues_χ(χ, bd, N, k) = () -> [("Bond dimension (max $χ)", bd), ("Magic qubits (max $N)", k)]
-showvalues_P(Pmax, P) = () -> [("Pauli terms (max $Pmax)", P)]
-showvalues_ee(ee) = () -> [("Entanglement entropies", round.(ee; digits=2))]
+mps_progress_values(ψ::MPS) = ("bond dim." => maxlinkdim(ψ),
+  "max S_E" => round(maximum(mt.entanglement_entropy(ψ); init = 0.0); digits = 2))
 
 # == Utility ============================================================================
 
@@ -230,7 +239,7 @@ track = false)
   layer = 0
   evs_camps = []
   bonddims = Int[]
-  progress = ProgressUnknown(desc = "Evolving CAMPS… gate ", enabled = showprogress)
+  progress = ProgressLog("CAMPS gate", M; enabled = showprogress, indent = 2)
   obs_mt = convert_observable(ψ, obs)
 
   append_expectation!(evs_camps, output, ψ, obs_mt, 0)
@@ -250,11 +259,12 @@ track = false)
       layer += 1
     end
 
-    bd = DisentangleCAMPS.bonddim(ψ)
-    next!(progress; showvalues = showvalues_χ(χ, bd, N, k))
+    showprogress && log_progress!(progress, i,
+      "bond dim." => (DisentangleCAMPS.bonddim(ψ), χ), "k" => (k, N))
   end
 
-  finish!(progress)
+  showprogress && log_done!(progress, i,
+    "bond dim." => (DisentangleCAMPS.bonddim(ψ), χ), "k" => (k, N))
   if !isnothing(output)
     open(output, "a") do f
       reason = (i == M) ? "(end of circuit)" : "(bond dim. ≥ $χ)"
@@ -317,7 +327,7 @@ track = false)
   layer = 0
   evs_camps = []
   bonddims = Int[]
-  progress = ProgressUnknown(desc = "Evolving CAMPS (SVD)… gate ", enabled = showprogress)
+  progress = ProgressLog("CAMPS (SVD) gate", M; enabled = showprogress, indent = 2)
   obs_mt = convert_observable(ψ, obs)
   layer_de = layer_disentangler(ψ, criterion, strategy, N)
 
@@ -350,11 +360,10 @@ track = false)
       layer += 1
     end
 
-    bd = DisentangleCAMPS.bonddim(ψ)
-    next!(progress; showvalues = () -> [("Bond dimension", bd)])
+    showprogress && log_progress!(progress, i, "bond dim." => DisentangleCAMPS.bonddim(ψ))
   end
 
-  finish!(progress)
+  showprogress && log_done!(progress, i, "bond dim." => DisentangleCAMPS.bonddim(ψ))
   if !isnothing(output)
     open(output, "a") do f
       println(f, "# CAMPS (SVD) stopped at gate $i (end of circuit)\n\n")
@@ -406,7 +415,7 @@ track = false)
   avgweights = Float64[]
   avgcoeffs = Float64[]
   norm_obs = sumsquares(obs)
-  progress = ProgressUnknown(desc = "Evolving with Pauli prop… gate ", enabled = showprogress)
+  progress = ProgressLog("PP gate", M; enabled = showprogress, indent = 2)
 
   track && push!(nterms, length(obs))
   track && push!(avgweights, meanweight(obs))
@@ -431,10 +440,10 @@ track = false)
       layer += 1
     end
 
-    next!(progress; showvalues = showvalues_P(Nmax, NP))
+    showprogress && log_progress!(progress, i, "n. of Paulis" => (NP, Nmax))
   end
 
-  finish!(progress)
+  showprogress && log_done!(progress, i, "n. of Paulis" => (NP, Nmax))
   if !isnothing(output)
     open(output, "a") do f
       reason = (i == M) ? "(end of circuit)" : "(n. of Paulis ≥ $Nmax)"
@@ -483,7 +492,7 @@ track = false)
   avgweights = Float64[]
   avgcoeffs = Float64[]
   norm_obs = sumsquares(obs)
-  progress = ProgressUnknown(desc = "Evolving with Pauli prop… gate ", enabled = showprogress)
+  progress = ProgressLog("PP gate", M; enabled = showprogress, indent = 2)
 
   append_expectation!(evs_pp, output, onebitinds, obs, 0)
   track && push!(nterms, length(obs))
@@ -510,10 +519,10 @@ track = false)
       layer += 1
     end
 
-    next!(progress; showvalues = showvalues_P(Nmax, NP))
+    showprogress && log_progress!(progress, i, "n. of Paulis" => (NP, Nmax))
   end
 
-  finish!(progress)
+  showprogress && log_done!(progress, i, "n. of Paulis" => (NP, Nmax))
   if !isnothing(output)
     open(output, "a") do f
       reason = (i == M) ? "(end of circuit)" : "(n. of Paulis ≥ $Nmax)"
@@ -540,7 +549,7 @@ function mps_circuit_dynamics(
   i = 0
   layer = 0
   evs = []
-  progress = ProgressUnknown(desc = "Evolving MPS… gate ", enabled = showprogress)
+  progress = ProgressLog("MPS gate", M; enabled = showprogress, indent = 2)
   obs_mt = mt.QubitPauliSum(obs)
 
   append_expectation!(evs, output, ψ, obs_mt, 0)
@@ -557,17 +566,18 @@ function mps_circuit_dynamics(
       append_expectation!(evs, output, ψ, obs_mt, layer)
       layer += 1
     end
-    # Entropies only for the progress display. mt.entanglement_entropy works on a copy, so
-    # the gauge of ψ (and hence what the next truncation drops) does not depend on
-    # showprogress. The old cmps.eEntropys! re-gauged ψ in place after every gate.
-    if showprogress
-      next!(progress; showvalues = showvalues_ee(mt.entanglement_entropy(ψ)))
-    else
-      next!(progress)
+    # Entropies only for the progress display, and only when a line is due.
+    # mt.entanglement_entropy works on a copy, so the gauge of ψ (and hence what the next
+    # truncation drops) does not depend on showprogress.
+    if showprogress && isdue(progress, i)
+      log_progress!(progress, i, mps_progress_values(ψ)...)
     end
   end
 
-  finish!(progress)
+  # Entropies cost an SVD sweep: only when the final line is not printed yet
+  if showprogress && needs_final(progress, i)
+    log_done!(progress, i, mps_progress_values(ψ)...)
+  end
   if !isnothing(output)
     open(output, "a") do f
       reason = "end of circuit"

@@ -1,65 +1,59 @@
-using Revise
 using CampsPP
 using CampsPP.DisentangleCAMPS
 using ITensors, ITensorMPS
 
-import PauliPropagation as pp
+using Random: MersenneTwister
 
-using Printf
-using Random: seed!, MersenneTwister
-using ProgressMeter
-using SHA
-using Strided
-using LinearAlgebra
+@isdefined(ScriptSetup) || include(joinpath(@__DIR__, "scripts", "ScriptSetup.jl"))
+using .ScriptSetup
 
-Strided.disable_threads()
-nthr=Threads.nthreads()
+nthr = Threads.nthreads()
+setup_threads(nthr)
 
-BLAS.set_num_threads(nthr)
-ITensors.Strided.set_num_threads(nthr)
+# == Parameters ===============================================================
+# Override from the command line as key=value (`help` lists them), e.g.
+#   julia --project=. TransferredMag_varparams.jl N=12 μs=0.3,0.6 magic_probs=0,1
+params = @parameters begin
+  N = 12
+  t = N ÷ 2                  # number of XXZ layers
+  ϕ = π/4
+  θ = π/4
+  μs = [0.3, 0.6, 1., 10.]
+  magic_probs = [0., 1]
+  Nsamples = 100
+  dope_phase = 3π/16         # doping angle, on XX-YY (`xy_magic`)
+  χ = 64                     # CAMPS bond dimension that triggers PP
+  thl = 1e-10                # PP truncation threshold
+  Nmax_pauli = 1_000_000     # maximum number of Paulis in PP
+  warn_on_prestop = true
+  outdir = "output/TransferredMag_varparams"
+end
 
-
-N = 12
-t = N ÷ 2
-ϕ = π/4
-θ = π/4
-μs = [0.3, 0.6, 1., 10.]
-magic_probs = [0., 1]
-Nsamples = 100
-
-dope_phase = 3π/16
-dope_method = "on XY"
-
+dope_method = "on_XY"   # no spaces: header entries are single k=v words
 param_pairs = vec([(magic_prob, μ) for magic_prob in magic_probs, μ in μs])
 
-χ = 64
-thl = 1e-10
-Nmax_pauli = 1_000_000
-warn_on_prestop = true
-
 prefix = "TMDxy"
-output = "output/$(prefix)_$(N)_$(Nsamples).txt"
-output_log = "output/$(prefix)_$(N)_$(Nsamples)_log.txt"
-output_full = "output/$(prefix)_$(N)_$(Nsamples)_full.txt"
-param_info = Dict(
-  "N" => N,
-  "Δ" => θ/ϕ,
-  "doping" => "$(round(dope_phase; digits = 3)) $dope_method",
-  "χ" => χ,
-  "thl" => thl,
-  "Nmax_pauli" => Nmax_pauli,
-  "n.gates" => length(xxz_circuit(1,1, t, N)[1]))
+mkpath(outdir)
+output = joinpath(outdir, "$(prefix)_$(N)_$(Nsamples).txt")
+output_log = joinpath(outdir, "$(prefix)_$(N)_$(Nsamples)_log.txt")
+output_full = joinpath(outdir, "$(prefix)_$(N)_$(Nsamples)_full.txt")
+param_info = [param_header(params; exclude = (:outdir,));
+  "Δ" => string(θ/ϕ);
+  "doping" => "$(round(dope_phase; digits = 3))_$dope_method";
+  "n.gates" => string(length(xxz_circuit(1,1, t, N)[1]))]
 obsname = "Transferred magnetization"
 initialize_output(output, "$obsname (avg over $Nsamples samples)", param_info)
 initialize_output(output_log, "$obsname", param_info)
 initialize_output(output_full, "$obsname", param_info)
 
-printstyled("Running CAMPS-PP XXZ circuit dynamics over $(length(param_pairs)) (magic_prob, μ) pairs \
-until t = $t for N=$N. χ=$χ, thl = $thl, Nmax_pauli = $Nmax_pauli.\nNsamples = $Nsamples.\n\
-Using $nthr threads."; color = :cyan)
-prog = Progress(length(param_pairs) * Nsamples; desc = "Sampling…", enabled = true)
-ProgressMeter.update!(prog, 0)
+log_message("Running CAMPS-PP XXZ circuit dynamics over $(length(param_pairs)) (magic_prob, μ) \
+pairs until t = $t for N=$N. χ=$χ, thl = $thl, Nmax_pauli = $Nmax_pauli, \
+Nsamples = $Nsamples. Using $nthr threads.")
 
+# Samples run on several threads: the shared counter and the log are updated under a lock
+prog = ProgressLog("sample", length(param_pairs) * Nsamples; frac = 0)
+prog_lock = ReentrantLock()
+ndone = Ref(0)
 
 for pair_idx in eachindex(param_pairs)
   magic_prob, μ = param_pairs[pair_idx]
@@ -78,16 +72,18 @@ for pair_idx in eachindex(param_pairs)
     evs_it, t_stop = campspp_circuit_dynamics(
       ψ, χ, thl, Nmax_pauli, gates, phases, obs;
       layer_ends = layer_ends)
-    if warn_on_prestop && (t_stop < length(phases))
-      printstyled("\rWARNING: sample $it for (magic_prob=$magic_prob, μ=$μ) stopped at gate $t_stop/$(length(phases))    \n"; color = :yellow)
-    end
     sample_evs[it] = evs_it
-    next!(prog)
+    lock(prog_lock) do
+      if warn_on_prestop && (t_stop < length(phases))
+        log_message("WARNING: sample $it for (magic_prob=$magic_prob, μ=$μ) stopped at \
+gate $t_stop/$(length(phases))")
+      end
+      ndone[] += 1
+      log_progress!(prog, ndone[], "magic_prob" => magic_prob, "μ" => μ)
+    end
   end
 
   evs = stack_samples(sample_evs)
   save_full_samples(output_full, μ, magic_prob, evs)
   save_stats(output, evs, μ, magic_prob)
 end
-
-return

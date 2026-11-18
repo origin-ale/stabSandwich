@@ -1,5 +1,3 @@
-using Revise
-
 import PauliPropagation as pp
 using QuantumClifford
 using .DisentangleCAMPS

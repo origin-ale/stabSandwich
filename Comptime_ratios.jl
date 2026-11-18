@@ -1,4 +1,3 @@
-using Revise
 using CampsPP
 using CampsPP.DisentangleCAMPS
 using ITensors, ITensorMPS
@@ -9,15 +8,12 @@ using QuantumClifford
 
 using Statistics
 using Random: MersenneTwister
-using ProgressMeter
-using Strided
-using LinearAlgebra
 
-Strided.disable_threads()
+@isdefined(ScriptSetup) || include(joinpath(@__DIR__, "scripts", "ScriptSetup.jl"))
+using .ScriptSetup
+
 nthr = Threads.nthreads()
-
-BLAS.set_num_threads(1)
-ITensors.Strided.set_num_threads(1)
+setup_threads(1)
 
 # Both methods are run in their *exact* settings, so any disagreement between
 # them is a bug and not a truncation artefact:
@@ -39,31 +35,36 @@ end
 convert_gates(gates, N) = PauliOperator.(getpauli.(gates, N))
 
 # == Parameters ===============================================================
-# Methods to run, in output-column order. Comment out any you want to skip.
-# Available: :camps (CAMPS), :pp (PP)
-methods = [:camps, :pp]
+# Override from the command line as key=value (`help` lists them), e.g.
+#   julia --project=. Comptime_ratios.jl N=32 Nsamples=10 methods=camps,pp
+params = @parameters begin
+  # Methods to run, in output-column order.
+  # Available: :camps (CAMPS), :pp (PP)
+  methods = [:camps, :pp]
 
-N = 32
-Nsamples = 100
+  N = 32
+  Nsamples = 100
 
-# Aspect ratios t/N to sweep, at fixed N
-ratiostart = 0.7
-ratioend = 1.2
-ratiostep = 0.05
+  # Aspect ratios t/N to sweep, at fixed N
+  ratiostart = 0.7
+  ratioend = 1.2
+  ratiostep = 0.05
 
-# Base RNG seed: sample i uses seed rng_seed + i
-rng_seed = 100
-# Warm-up circuits run (untimed) before each ratio, on seeds rng_seed, rng_seed-1, …
-# More than one because CAMPS branches on the Clifford nature of each rotation,
-# so a single circuit does not reach every code path
-warmup_samples = 10
+  # Base RNG seed: sample i uses seed rng_seed + i
+  rng_seed = 100
+  # Warm-up circuits run (untimed) before each ratio, on seeds rng_seed, rng_seed-1, …
+  # More than one because CAMPS branches on the Clifford nature of each rotation,
+  # so a single circuit does not reach every code path
+  warmup_samples = 10
 
-# Pauli propagation
-thl_pp = 0.0 # Exact: no coefficient truncation
+  # Pauli propagation
+  thl_pp = 0.0 # Exact: no coefficient truncation
 
-# Agreement tolerance of the cross-method check
-atol_check = 1e-6
+  # Agreement tolerance of the cross-method check
+  atol_check = 1e-6
 
+  outdir = "output/Comptime_ratios"
+end
 # =============================================================================
 
 all_methods = [:camps, :pp]
@@ -81,21 +82,16 @@ ts = [Int(round(ratio * N)) for ratio in ratios]
 obs_string = "Z₁"
 obsname = "⟨$obs_string⟩ computation time (s)"
 
-out_full = "output/comptimes_ratios_$(N)_full.txt"
-out_avgs = "output/comptimes_ratios_$(N)_avgs.txt"
-out_diffs_full = "output/timediffs_ratios_$(N)_full.txt"
-out_diffs_avgs = "output/timediffs_ratios_$(N)_avgs.txt"
+mkpath(outdir)
+out_full = joinpath(outdir, "comptimes_ratios_$(N)_full.txt")
+out_avgs = joinpath(outdir, "comptimes_ratios_$(N)_avgs.txt")
+out_diffs_full = joinpath(outdir, "timediffs_ratios_$(N)_full.txt")
+out_diffs_avgs = joinpath(outdir, "timediffs_ratios_$(N)_avgs.txt")
 
-param_info = Dict(
-  "methods" => methods,
-  "N" => N,
-  "ratios" => ratios,
-  "ts" => ts,
-  "Nsamples" => Nsamples,
-  "rng_seed" => rng_seed,
-  "warmup_samples" => warmup_samples,
-  "thl_pp" => thl_pp,
-  "obs" => obs_string)
+param_info = [param_header(params; exclude = (:outdir,));
+  "ratios" => join(ratios, ",");
+  "ts" => join(ts, ",");
+  "obs" => obs_string]
 
 # Timings, one entry per ratio; :convert is the gate-conversion sub-timing
 times = Dict(m => Vector{Float64}[] for m in [methods; :convert])
@@ -107,9 +103,8 @@ warmup_misses = Dict{Symbol, Int}()
 """ Warn if compilation landed inside a timed run, ie. if the warm-up missed. """
 function check_warm(st, m, ratio, i)
   iszero(st.compile_time) && return
-  printstyled("WARNING: t/N = $ratio, sample $i, $m: compile_time = $(st.compile_time) s \
-($(round(100 * st.compile_time / st.time; digits = 1))% of $(st.time) s), warm-up missed\n";
-    color = :yellow)
+  log_message("WARNING: t/N = $ratio, sample $i, $m: compile_time = $(st.compile_time) s \
+($(round(100 * st.compile_time / st.time; digits = 1))% of $(st.time) s), warm-up missed")
   warmup_misses[m] = get(warmup_misses, m, 0) + 1
 end
 
@@ -121,8 +116,8 @@ function check_evs(evs, ratio, i)
   ref = first(ms)
   for m in ms[2:end]
     if !isapprox(evs[ref], evs[m]; atol = atol_check)
-      printstyled("WARNING: t/N = $ratio, sample $i: $ref and $m do not match \
-($(evs[ref]) vs $(evs[m]), difference $(evs[ref] - evs[m]))\n"; color = :yellow)
+      log_message("WARNING: t/N = $ratio, sample $i: $ref and $m do not match \
+($(evs[ref]) vs $(evs[m]), difference $(evs[ref] - evs[m]))")
     end
   end
 end
@@ -142,11 +137,10 @@ initialize_output(out_diffs_avgs,
   "CAMPS - PP computation time (s) [t/N, mean, std. err.]",
   param_info)
 
-printstyled("Getting exact $(join(methods, ", ")) computation times of ⟨$obs_string⟩ for \
-N = $N t-rotation circuits, $Nratios aspect ratios t/N = $ratios (t = $ts).\n\
-PP exact (min_abs_coeff $thl_pp).\n\
-Nsamples = $Nsamples, $nthr threads.\n"; color = :cyan)
-prog = Progress(Nratios * Nsamples; desc = "Computing…")
+log_message("Getting exact $(join(methods, ", ")) computation times of ⟨$obs_string⟩ for \
+N = $N t-rotation circuits, $Nratios aspect ratios t/N = $ratios (t = $ts). \
+PP exact (min_abs_coeff $thl_pp). Nsamples = $Nsamples, $nthr threads.")
+prog = ProgressLog("sample", Nratios * Nsamples; frac = 0)
 
 # N is fixed and every method runs at every ratio, so both are loop-invariant
 P = pp.PauliSum(pp.PauliString(N, [:Z], [1]))
@@ -192,7 +186,7 @@ for (r, ratio) in enumerate(ratios)
 
     check_evs(evs, ratio, i)
 
-    next!(prog, showvalues = [("t/N", ratio), ("t", t), ("sample", i)])
+    log_progress!(prog, (r - 1) * Nsamples + i, "t/N" => ratio, "t" => t)
   end
 
   for m in keys(times_r)
@@ -229,8 +223,8 @@ if !isempty(timediffs)
 end
 
 if isempty(warmup_misses)
-  printstyled("Warm-up clean: no compilation inside any timed run.\n"; color = :green)
+  log_message("Warm-up clean: no compilation inside any timed run.")
 else
-  printstyled("WARNING: compilation landed inside timed runs: \
-$(join(("$m: $n" for (m, n) in warmup_misses), ", "))\n"; color = :yellow)
+  log_message("WARNING: compilation landed inside timed runs: \
+$(join(("$m: $n" for (m, n) in warmup_misses), ", "))")
 end

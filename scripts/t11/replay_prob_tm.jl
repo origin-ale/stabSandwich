@@ -6,7 +6,8 @@
 #     [methods=campspp] [p=0,0.01] [samples=1,2,3] [inject=none|phase|mask] [out=<dir>]
 #
 #   run      Phase 0 run directory (required). Its inputs are read from
-#            <run>/files/output/ and checked against <run>/SHA256SUMS first.
+#            <run>/files/output/ (Phase 0) or <run>/files/output/Comptime_prob_tm/ (runs
+#            since Phase 7) and checked against <run>/SHA256SUMS first.
 #   methods  campspp and/or camps (default: the run's own `methods`)
 #   p        doping probabilities (default: the run's own `magic_probs`)
 #   samples  sample ids, 1-based as in the run (default: all of the run's samples)
@@ -55,7 +56,11 @@ end
 haskey(args, "run") || error("Missing run=<Phase 0 run directory>")
 rundir = rstrip(args["run"], '/')
 runid = basename(rundir)
-filesdir = joinpath(rundir, "files", "output")
+# Phase 0 runs wrote into output/; runs since Phase 7 write into output/Comptime_prob_tm/
+filesdir = let flat = joinpath(rundir, "files", "output"),
+               sub = joinpath(flat, "Comptime_prob_tm")
+  isfile(joinpath(sub, "initstates_prob_tm.txt")) ? sub : flat
+end
 inject = Symbol(get(args, "inject", "none"))
 inject in (:none, :phase, :mask) || error("inject must be none, phase or mask, got $inject")
 

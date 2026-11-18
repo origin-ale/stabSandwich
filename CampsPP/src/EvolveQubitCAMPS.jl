@@ -14,7 +14,6 @@
 import MagicTensors as mt
 using QuantumClifford
 using ITensors, ITensorMPS
-using ProgressMeter
 using Random: AbstractRNG
 
 "Default absolute tolerance for recognising a Clifford angle (a multiple of π/4)."
@@ -23,8 +22,6 @@ const CLIFFORD_ATOL = 1e-10
 const CLIFFORD_RTOL = 0.0
 
 bonddim(ψ::mt.QubitCAMPS) = maximum(dim.(linkinds(mt.get_mps(ψ))); init = 1)
-
-generate_showvalues(χ, bd) = () -> [("Bond dimension (max $χ)", bd)]
 
 # == Gates ==============================================================================
 
@@ -174,13 +171,13 @@ function evolve_bonddim(ψ::mt.QubitCAMPS,
                         rtol::Real = CLIFFORD_RTOL)
   k = 0
   s = 0
-  progressthresh = ProgressUnknown(0; dt = 0.05, desc = "Evolving CAMPS… t =", enabled = showprogress)
+  progress = ProgressLog("CAMPS gate", length(paulistrings); enabled = showprogress, indent = 2)
   while s < length(paulistrings) && bonddim(ψ) < χ
     s += 1
     k = apply!(ψ, k, paulistrings[s], phases[s]; atol = atol, rtol = rtol)
-    next!(progressthresh; showvalues = generate_showvalues(χ, bonddim(ψ)))
+    showprogress && log_progress!(progress, s, "bond dim." => (bonddim(ψ), χ))
   end
-  finish!(progressthresh)
+  showprogress && log_done!(progress, s, "bond dim." => (bonddim(ψ), χ))
   return ψ, k, s
 end
 
@@ -196,11 +193,12 @@ function evolve(ψ::mt.QubitCAMPS,
                 atol::Real = CLIFFORD_ATOL,
                 rtol::Real = CLIFFORD_RTOL)
   k = 0
-  progressbar = Progress(t; desc = "Evolving…", enabled = showprogress)
+  progress = ProgressLog("CAMPS gate", t; enabled = showprogress, indent = 2)
   for s in 1:t
     k = apply!(ψ, k, paulistrings[s], phases[s]; atol = atol, rtol = rtol)
-    next!(progressbar)
+    showprogress && log_progress!(progress, s, "k" => k)
   end
+  showprogress && log_done!(progress, t, "k" => k)
   return ψ, k
 end
 
@@ -220,13 +218,14 @@ function evolve_deepcliffords(rng::AbstractRNG,
                               rtol::Real = CLIFFORD_RTOL)
   N = mt.nsites(ψ)
   k = 0
-  progressbar = Progress(t; desc = "Evolving…", enabled = showprogress)
+  progress = ProgressLog("CAMPS layer", t; enabled = showprogress, indent = 2)
   for s in 1:t
     R = random_clifford(rng, N)
     Cdag = mt.get_clifford(ψ; daggered = true)
     Cdag.clifford = Cdag.clifford * inv(R) # C ← R·C
     k = apply!(ψ, k, paulistrings[s], phases[s]; atol = atol, rtol = rtol)
-    next!(progressbar)
+    showprogress && log_progress!(progress, s, "k" => k)
   end
+  showprogress && log_done!(progress, t, "k" => k)
   return ψ, k
 end

@@ -3,6 +3,7 @@ module CampsPP
 # Formerly the separate package DisentangleCAMPS, merged in unchanged as a submodule.
 include("DisentangleCAMPS.jl")
 using .DisentangleCAMPS
+export ProgressLog, isdue, needs_final, log_progress!, log_done!, log_message
 
 # PauliPropagation ↔ MagicTensors bridge (converter, expectation seam, pp helpers)
 include("MagicTensorsPauliPropagation.jl")
@@ -20,7 +21,6 @@ export save_full_samples
 export save_per_sample
 export save_peaks
 export save_stats
-export append_stats
 export save_stats_maxcol
 export save_doped_gates
 

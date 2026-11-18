@@ -2,7 +2,7 @@
 
 julia_version = "1.13.3"
 manifest_format = "2.1"
-project_hash = "d041a8655702cb52b3b0d414454d579ebb9298ab"
+project_hash = "874397cc5b782a7febba077e6f566ce50ef36a4e"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "bbc22a9a08a0ef6460041086d8a7b27940ed4ffd"
@@ -284,7 +284,7 @@ uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
 version = "1.18.7+0"
 
 [[deps.CampsPP]]
-deps = ["ITensorMPS", "ITensors", "MagicTensors", "PauliPropagation", "ProgressMeter", "QuantumClifford", "Random", "Revise", "Statistics"]
+deps = ["Dates", "ITensorMPS", "ITensors", "MagicTensors", "PauliPropagation", "QuantumClifford", "Random", "Statistics"]
 path = "CampsPP"
 uuid = "5093fef3-1b34-48b8-8e23-46bc6a6eb350"
 version = "0.1.0"
@@ -1604,13 +1604,6 @@ git-tree-sha1 = "990016fb1508b0726a70039f39569720d054c78d"
 registries = "General"
 uuid = "efd6af41-a80b-495e-886c-e51b0c7d77a3"
 version = "0.1.7"
-
-[[deps.ProgressMeter]]
-deps = ["Distributed", "Printf"]
-git-tree-sha1 = "fbb92c6c56b34e1a2c4c36058f68f332bec840e7"
-registries = "General"
-uuid = "92933f4c-e287-5a05-a399-4b506db050ca"
-version = "1.11.0"
 
 [[deps.PtrArrays]]
 git-tree-sha1 = "4fbbafbc6251b883f4d2705356f3641f3652a7fe"
