@@ -37,7 +37,6 @@ MUTANTS = [
     ("D1", D, "if XQ[k+1:n] != zeros(n-k)", "if any(XQ[k+2:n])"),
     ("D3", D, "sign = (Q.phase[1] == 0x0) ? +1 : -1", "sign = +1"),
     ("D5", D, "_apply_on_sites!(D, tCX, [i, j])", "_apply_on_sites!(D, tCX, [j, i])"),
-    ("D6", D, "return apply(P, inv(phasei)), phasei", "return apply(P, phasei), phasei"),
     ("P1", P, "mt.QubitPauli(pauliop_from_ppterm(term, N)), ComplexF64(coeff))",
               "mt.QubitPauli(pauliop_from_ppterm(term, N)), ComplexF64(conj(coeff)))"),
     ("Q2", Q, "    p = σ^2\n", "    p = σ\n"),

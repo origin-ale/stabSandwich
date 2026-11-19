@@ -1,6 +1,6 @@
 # T10 mutants
 
-Mutation tests for the ported (MagicTensors) code paths: 23 hand-picked mutants, each a small
+Mutation tests for the ported (MagicTensors) code paths: 22 hand-picked mutants, each a small
 patch to `CampsPP/src`, run against the full fast-tier suite. They are **not** part of
 `Pkg.test()`; run them by hand, e.g. after the Phase 6 deletions, after a MagicTensors upgrade,
 or after changing the tests they rely on.
@@ -16,7 +16,7 @@ or after changing the tests they rely on.
   checks are on the old stack or compare against the old code.
 
 ```sh
-bash CampsPP/test/mutants/run_mutants.sh "$TMPDIR/mutants"            # BASE + all 23, ~1.5-2 h
+bash CampsPP/test/mutants/run_mutants.sh "$TMPDIR/mutants"            # BASE + all 22, ~1.5-2 h
 bash CampsPP/test/mutants/run_mutants.sh "$TMPDIR/mutants" 600 BASE E7 E12
 python3 -I CampsPP/test/mutants/who_caught.py "$TMPDIR/mutants/results" E12 T6
 ```
@@ -46,7 +46,6 @@ Results on `3384883`, before the hang guard described below. The number is the f
 | D1 | Disentangler.jl | qubit k+1 classified as logical | killed, 599 |
 | D3 | Disentangler.jl | sign of Q dropped | killed, 388 |
 | D5 | Disentangler.jl | CNOT control and target swapped in `build_D` | killed, 462 (hung) |
-| D6 | Disentangler.jl | `reducetoX` returns +X instead of −X | **equivalent** (see below) |
 | P1 | MagicTensorsPauliPropagation.jl | complex coefficients conjugated | killed, 23 |
 | Q2 | DisentangleQubitCAMPS.jl | entropy score uses σ instead of σ² | killed, 302 |
 | Q4 | DisentangleQubitCAMPS.jl | search without `orthogonalize!` | killed, 74 (mostly errors, see below) |
@@ -76,10 +75,10 @@ P1 17, Q2 8, Q4 43 (40 errors), T1 9, T2 7, T6 1.
 
 ## Notes
 
-- **D6 is equivalent.** The phase of the reduced string is never read: `disentangler` takes the
-  sign from Q before `reducetoX`, and `build_D` reads only the X/Z bits. (The comment at
-  `Disentangler.jl:87`, "Y → X instead of −X", describes a sign that is neither produced nor
-  used.)
+- **D6 deleted (2026-11-19).** It made `reducetoX` return S†·P·S (+X) instead of S·P·S† (−X).
+  It was equivalent (the sign of the reduced string is never read), and post-port item 5 made
+  that change in `src`, so the mutant would now be identical to the code. The 2026-11-16 and
+  2026-11-17 results above predate the deletion.
 - **E4 ≡ E5**: swapping the n = 1 and n = 3 tableaux is the same as applying G instead of G†.
 - **E12 is caught only by the two threshold ladders** (`TestApplyDense.jl`, `TestTimeEvolution.jl`),
   since every other test runs at thl ≤ 1e-11. Known limitation (user, 2026-11-16): nothing ties

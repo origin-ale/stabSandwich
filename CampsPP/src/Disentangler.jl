@@ -103,12 +103,14 @@ end
 """```reducetoX(P, i)```
 
 For ```disentangler```, when P has Y on qubit i: the phase gate S = diag(1, i) on qubit i, \
-and S·P·S† (```apply(P, S†)```), which turns the Y into X with the overall sign flipped \
-(S·Y·S† = −X; checked against dense matrices). Returns ```(S·P·S†, S)```."""
+and P mapped through it, S†·P·S (```apply(P, S)```), which turns the Y into X with the \
+sign kept (S†·Y·S = +X). Returns ```(S†·P·S, S)```. The sign of the returned string is \
+bookkeeping: ```disentangler``` takes the sign from Q before this step, and ```build_D``` \
+reads only X/Z bits (test/CONVENTIONS.md §4)."""
 function reducetoX(P::PauliOperator, i::Integer)
   phasei = one(CliffordOperator, length(P))
-  _apply_on_sites!(phasei, tPhase, [i]) # Returned string is S·P·S†: +Y → −X
-  return apply(P, inv(phasei)), phasei
+  _apply_on_sites!(phasei, tPhase, [i]) # Returned string is S†·P·S: +Y → +X
+  return apply(P, phasei), phasei
 end
 
 "The first free qubit (index > k) on which P has X or Y; errors if there is none."
