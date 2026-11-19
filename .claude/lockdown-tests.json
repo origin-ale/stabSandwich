@@ -2,8 +2,6 @@
   "permissions": {
     "deny": [
       "Edit(//Users/alessandro/Programmi/stabSandwich/CampsPP/src/**)",
-      "Edit(//Users/alessandro/Programmi/stabSandwich/DisentangleCAMPS/src/**)",
-      "Edit(//Users/alessandro/Programmi/stabSandwich/dmrgCliffordMPS/src/**)",
       "Edit(//Users/alessandro/Programmi/stabSandwich/.claude/**)"
     ],
     "blockWritesOutsideWorkingDirectories": true
