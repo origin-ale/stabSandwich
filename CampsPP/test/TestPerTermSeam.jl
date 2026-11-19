@@ -15,6 +15,15 @@
 #     any seam.
 # When the code lands, the gate opens by itself and the broken markers disappear.
 #
+# Cost. The CAMPS-PP speed-up is a result of the investigation, so §5 also pins the cost of
+# `:perterm`: each distinct non-empty prefix of the cut conjugated strings gets its left
+# environment built exactly once. Unsorted terms, a wrong sort key or no reuse change no value
+# and are caught only here. The groups marked [item 4 cost] count the environments through the
+# `nsteps` hook of `CampsPP.perterm_expectation` (gate `SEAM_COST`, helpers.jl, which states
+# the hook) and compare with the prefix-tree count. Until the hook exists, each group records one
+# `@test_broken false`. One more check, gated the same way, ties the seam's `:perterm` route to that
+# function: the seam's value is bitwise equal to `perterm_expectation` on the conjugated sum.
+#
 # States. The CAMPS states are built directly from their two parts, so the frame C and the MPS
 # are known without asking the state: a random MPS (random complex tensors, bond dimensions
 # 1–8, not normalised) in a chosen gauge, and a random Clifford C stored as C or as C†
@@ -241,12 +250,56 @@ end
 
 "One broken marker for an [item 4] group while the seam lacks the item 4 code."
 item4_pending() = @test_broken false
+"One broken marker for an [item 4 cost] group while `perterm_expectation` has no `nsteps` hook."
+cost_pending() = @test_broken false
+
+# -- Cost of :perterm (§5) --------------------------------------------------------------------
+
+"Q cut after its last non-identity site (\"\" for the identity)."
+cutstr(Q) = Q[1:something(findlast(!=('I'), Q), 0)]
+
+"Spec cost (§5): the number of distinct non-empty prefixes of the cut strings (prefix-tree nodes)."
+prefix_nodes(Qs) = length(Set(c[1:k] for c in cutstr.(Qs) for k in 1:length(c)))
+
+"Cost without any reuse: every term builds all its environments."
+noreuse_cost(Qs) = sum(length ∘ cutstr, Qs; init = 0)
+
+"""
+Cost when the terms are taken in the given order and each reuses only the previous term's
+environments, along their common prefix: Σ (mᵢ − common prefix with term i−1). Used only
+to show that a test sum tells the spec count apart from other orders.
+"""
+function chain_cost(Qs)
+  cost, prev = 0, ""
+  for c in cutstr.(Qs)
+    l = 0
+    while l < min(length(c), length(prev)) && c[l+1] == prev[l+1]
+      l += 1
+    end
+    cost += length(c) - l
+    prev = c
+  end
+  return cost
+end
+
+"`QubitPauliSum` from (string, coefficient) rows, strings unsigned (character j = qubit j)."
+function qpsum(N, rows)
+  S = zero(mt.QubitPauliSum, N)
+  for (str, c) in rows
+    push!(S, mt.QubitPauli(seam_strop(str)), c)
+  end
+  return S
+end
+
+"Σ c ⟨v|Q|v⟩ over (string, coefficient) rows, on a dense vector v."
+dense_rows(v, rows) = sum((ComplexF64(c) * DR.expect(v, q) for (q, c) in rows); init = zero(ComplexF64))
 
 # ============================================================================================
 
 @testset "item 4: pp seam (CONVENTIONS.md §5)" begin
-  @info "item 4 seam tests: SEAM_ITEM4 = $SEAM_ITEM4" *
-        (SEAM_ITEM4 ? "" : " (groups marked [item 4] are recorded as broken)")
+  @info "item 4 seam tests: SEAM_ITEM4 = $SEAM_ITEM4, SEAM_COST = $SEAM_COST" *
+        (SEAM_ITEM4 ? "" : " (groups marked [item 4] are recorded as broken)") *
+        (SEAM_COST ? "" : " (groups marked [item 4 cost] are recorded as broken)")
 
   # -- Self-checks of the test helpers ----------------------------------------------------
 
@@ -409,6 +462,7 @@ item4_pending() = @test_broken false
       item4_pending()
     else
       rng = Xoshiro(hash((:item4kw, N)))
+      ndiffer = Ref(0)            # cases where :perterm and :mpo differ bitwise
       for trial in 1:ntrials, d in (false, true)
         m0 = random_raw_mps(rng, N, rand(rng, 1:8))
         v = mps_dense(m0)
@@ -422,6 +476,7 @@ item4_pending() = @test_broken false
             ev_default = mt.expectation(ψ, O)
             ev = Dict(meth => mt.expectation(ψ, O; method = meth) for meth in (:perterm, :mpo))
             @test isequal(ev_default, ev[:perterm])                # :perterm is the default
+            ndiffer[] += !isequal(ev[:perterm], ev[:mpo])
             @test abs(ev[:perterm] - spec) <= EXACT_ATOL
             @test abs(ev[:mpo] - spec) <= EXACT_ATOL
             @test abs(ev[:perterm] - ev[:mpo]) <= 1e-12
@@ -441,6 +496,14 @@ item4_pending() = @test_broken false
           @test mt.expectation(ψ, E) == 0
         end
       end
+      # Negative check for "the default is :perterm": the two methods round differently on
+      # some case here, so a default of :mpo would fail the bitwise check above.
+      # This is an assumption about rounding, not a spec property: it holds for the ITensors
+      # and MagicTensors versions in the Manifest (2026-11-19). After an update the two methods
+      # could agree bitwise on every seeded case, and this would then fail with nothing wrong
+      # in the code. If that happens, add cases or change the seeds; don't delete the check,
+      # because without it the default check above can't fail.
+      @test ndiffer[] > 0
     end
   end
 
@@ -453,6 +516,15 @@ item4_pending() = @test_broken false
       for meth in (:dense, :MPO, :per_term, :exact)
         @test_throws ArgumentError mt.expectation(ψ, O; method = meth)
       end
+      # "Any other `method`" (§5) includes values that are not Symbols, among them the valid
+      # names as strings: an ArgumentError, not a TypeError or a silent fallback.
+      for meth in ("perterm", "mpo", 1, nothing, (:perterm,))
+        @test_throws ArgumentError mt.expectation(ψ, O; method = meth)
+      end
+      # Also with the other keywords and on an empty sum, where no term reaches either method.
+      @test_throws ArgumentError mt.expectation(ψ, O; method = "mpo", normalized = true)
+      @test_throws ArgumentError mt.expectation(ψ, pp.PauliSum(Float64, 3); method = "perterm")
+      @test_throws ArgumentError mt.expectation(ψ, pp.PauliSum(Float64, 3); method = :dense)
     end
   end
 
@@ -508,6 +580,119 @@ item4_pending() = @test_broken false
         end
         @test isequal(evv, ev)
       end
+    end
+  end
+
+  # -- [item 4 cost] environments built (§5, cost of :perterm) ---------------------------
+
+  @testset "[item 4 cost] hand pins: environments built" begin
+    if !SEAM_COST
+      cost_pending()
+    else
+      cases = [
+        # {XZZ, XZY, XYI, ZII}, cut to {XZZ, XZY, XY, Z}: prefixes X, XZ, XZZ, XZY, XY, Z → 6.
+        (3, ["XZZ", "XZY", "XYI", "ZII"], 6),
+        # IIII: none. ZZZZ: Z, ZZ, ZZZ, ZZZZ (4). ZZZX, differing only at site N: ZZZX (+1).
+        # ZZXI → ZZX (+1). IZII → I, IZ (+2). XIII → X (+1). Total 9.
+        (4, ["IIII", "ZZZZ", "ZZZX", "ZZXI", "IZII", "XIII"], 9),
+        (3, ["III"], 0),                    # the identity alone needs no environment
+        (3, ["IIZ"], 3),                    # I, II, IIZ: leading identities still count
+        (3, String[], 0),                   # empty sum
+      ]
+      rng = Xoshiro(91)
+      for (N, Qs, n) in cases
+        @test prefix_nodes(Qs) == n         # the helper against the hand count
+        m = random_raw_mps(rng, N, 4)
+        v = mps_dense(m)
+        rows = [(q, randcoeff(rng, ComplexF64)) for q in Qs]
+        Q = qpsum(N, rows)
+        r = Ref(0)
+        ev = CampsPP.perterm_expectation(m, Q; nsteps = r)
+        @test r[] == n
+        @test abs(ev - dense_rows(v, rows)) <= EXACT_ATOL
+        @test isequal(ev, CampsPP.perterm_expectation(m, Q))     # the hook changes no value
+        r = Ref(5)
+        CampsPP.perterm_expectation(m, Q; nsteps = r)
+        @test r[] == 5 + n                                        # added to, not overwritten
+      end
+      # Negative checks of the helpers on the first case. No reuse: 3 + 3 + 2 + 1 = 9.
+      # The order XZZ, ZII, XZY, XYI reusing the previous term only: 3 + 1 + 3 + 1 = 8
+      # (XYI shares X with XZY).
+      # Sorted (XYI, XZY, XZZ, ZII): 2 + 2 + 1 + 1 = 6, the prefix-tree count.
+      @test noreuse_cost(cases[1][2]) == 9
+      @test chain_cost(["XZZ", "ZII", "XZY", "XYI"]) == 8
+      @test chain_cost(["XYI", "XZY", "XZZ", "ZII"]) == 6
+    end
+  end
+
+  @testset "[item 4 cost] environments built = prefix-tree nodes, N = $N" for N in (2, 3, 5, 8, 46)
+    if !SEAM_COST
+      cost_pending()
+    else
+      rng = Xoshiro(hash((:item4cost, N)))
+      for trial in 1:ntrials
+        m = random_raw_mps(rng, N, N <= 8 ? rand(rng, 1:8) : 3)
+        Qs = designed_Qs(rng, N, N <= 8 ? min(40, 4^N) : 200)
+        rows = [(q, randcoeff(rng, ComplexF64)) for q in Qs]
+        n = prefix_nodes(Qs)
+        r = Ref(0)
+        ev = CampsPP.perterm_expectation(m, qpsum(N, rows); nsteps = r)
+        @test r[] == n
+        N <= 8 && @test abs(ev - dense_rows(mps_dense(m), rows)) <= EXACT_ATOL
+        # The sum tells the spec count apart from no reuse and from shuffled orders.
+        @test n < noreuse_cost(Qs)
+        @test all(chain_cost(shuffle(rng, Qs)) > n for _ in 1:5)
+      end
+    end
+  end
+
+  @testset "[item 4 cost] the seam's :perterm route is perterm_expectation on C†PC" begin
+    if !SEAM_COST
+      cost_pending()
+    else
+      # Bitwise: the counted function is the one the seam runs. The rows are C†PC from
+      # QuantumClifford with the sign folded into the coefficient (§5); coefficients are
+      # bounded away from 0, so the sign flip is exact.
+      rng = Xoshiro(77)
+      for N in (3, 6), d in (false, true)
+        m = random_raw_mps(rng, N, 6)
+        C = random_clifford(rng, N)
+        ψ = camps_from(m, C; daggered = d)
+        O = sum_from_Q(rng, C, designed_Qs(rng, N, 40); T = ComplexF64)
+        Cinv = inv(C)
+        rows = map(collect(O.terms)) do (t, c)
+          Q = seam_conj(Cinv, seam_strop(termstring(t, N)))
+          (seam_opstring(Q), ComplexF64(c) * seam_sign(Q))
+        end
+        @test isequal(mt.expectation(ψ, O), CampsPP.perterm_expectation(m, qpsum(N, rows)))
+      end
+    end
+  end
+
+  @testset "[item 4 cost] perterm_expectation rejects a sum of another size" begin
+    if !SEAM_COST
+      cost_pending()
+    else
+      # The seam always passes a sum on the MPS's own qubits, so this guards direct calls (as
+      # in these tests): a sum on more qubits must not have its extra qubits read as
+      # identity, and a sum on fewer must not be padded. Both raise DimensionMismatch, also when
+      # the extra qubits carry only I and when the sum is empty.
+      rng = Xoshiro(23)
+      N = 4
+      m = random_raw_mps(rng, N, 3)
+      for (M, Qs) in ((5, ["XZYII", "ZIIII"]),          # extra qubit, identity only
+                      (5, ["XZYIX"]),                   # extra qubit, non-identity
+                      (6, ["IIIIII"]),                  # identity term only
+                      (3, ["XZY", "ZII"]),              # fewer qubits
+                      (5, String[]), (3, String[]))     # empty sums
+        Q = qpsum(M, [(q, 1.0) for q in Qs])
+        @test_throws DimensionMismatch CampsPP.perterm_expectation(m, Q)
+        @test_throws DimensionMismatch CampsPP.perterm_expectation(m, Q; nsteps = Ref(0))
+      end
+      # Control: the same strings cut to N qubits are accepted and match the dense value.
+      rows = [("XZYI", 1.0), ("ZIII", -0.5)]
+      @test abs(CampsPP.perterm_expectation(m, qpsum(N, rows)) -
+                dense_rows(mps_dense(m), rows)) <= EXACT_ATOL
     end
   end
 end

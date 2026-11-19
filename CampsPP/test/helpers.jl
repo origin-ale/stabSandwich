@@ -82,6 +82,18 @@ Does the pp seam take the post-port item 4 keywords `method` and `normalized`
 const SEAM_ITEM4 = hasmethod(mt.expectation,
   Tuple{mt.QubitCAMPS, typeof(pp.PauliSum(ComplexF64, 2))}, (:method, :normalized))
 
+"""
+Can the tests see the cost of `method = :perterm` (CONVENTIONS.md §5, "Cost of
+`method = :perterm`")? The hook, for the porting session: `CampsPP.perterm_expectation(mps,
+Q::QubitPauliSum; nsteps::Ref{Int})` adds to `nsteps[]` the number of left environments it
+builds, one per site absorbed into an environment, and returns the same value as without
+`nsteps`. A sum whose number of qubits differs from `length(mps)` raises `DimensionMismatch`
+(review fix, 2026-11-19). The cost tests are recorded as broken until the hook exists.
+"""
+const SEAM_COST = isdefined(CampsPP, :perterm_expectation) &&
+  hasmethod(CampsPP.perterm_expectation,
+            Tuple{CampsPP.ITensorMPS.MPS, mt.QubitPauliSum}, (:nsteps,))
+
 "The frame C† as a `CliffordOperator` copy (frame-dependent tests only)."
 frame_dagger(ψ::mt.QubitCAMPS) = copy(mt.get_clifford(ψ; daggered = true).clifford)
 
