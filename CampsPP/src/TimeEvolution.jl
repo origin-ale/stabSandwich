@@ -137,8 +137,8 @@ function getlayer(i, layer_ends)
 end
 
 # Layer-end disentangler of `campssrc_circuit_dynamics`: up to N sweeps of `strategy` with
-# `criterion`, stopping once a sweep gains ≤ 6, with no SVD truncation. On these
-# nearest-neighbour sweeps `:chi3` never applies a gate (see DisentangleQubitCAMPS.jl).
+# `criterion`, stopping once a sweep gains ≤ 6, with no SVD keywords: the applied gates drop
+# only numerical zeros (σ ≤ τ·σ_max, see DisentangleQubitCAMPS.jl and CONVENTIONS.md §2).
 const LAYER_MIN_DIFF = 6
 layer_disentangler(::mt.QubitCAMPS, criterion, strategy, N) =
   sweep_disentangler(criterion, strategy, N; min_diff = LAYER_MIN_DIFF)

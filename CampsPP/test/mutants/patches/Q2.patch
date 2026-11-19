@@ -1,6 +1,6 @@
 --- a/CampsPP/src/DisentangleQubitCAMPS.jl
 +++ b/CampsPP/src/DisentangleQubitCAMPS.jl
-@@ -56,7 +56,7 @@
+@@ -76,7 +76,7 @@
  function criterion_value(::Val{:entangle}, spec)
    ee = 0.0 # Same summation order as the old `eEntropy`
    for σ in spec

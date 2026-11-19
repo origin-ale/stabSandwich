@@ -1,10 +1,10 @@
 --- a/CampsPP/src/DisentangleQubitCAMPS.jl
 +++ b/CampsPP/src/DisentangleQubitCAMPS.jl
-@@ -103,7 +103,6 @@
+@@ -135,7 +135,6 @@
    # Search on a copy, so that the real MPS (and its bond dimensions) is untouched when no gate
    # is applied, as in the old code.
    trial = copy(mt.get_mps(ψ))
 -  orthogonalize!(trial, n)
-   id_value = bond_value(de, trial, _ID_2Q, n)
-   values = [bond_value(de, trial, M, n) for M in de.matrices]
-   min_value, best = findmin(values) # First minimum, as the old code
+   id_value, _ = bond_value(de, trial, _ID_2Q, n)
+   scored = [bond_value(de, trial, M, n) for M in de.matrices]
+   min_value, best = findmin(first, scored) # First minimum, as the old code

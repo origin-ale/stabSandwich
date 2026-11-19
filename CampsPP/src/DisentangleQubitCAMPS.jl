@@ -9,19 +9,25 @@
 # - the bond search: every gate is tried on a copy of the MPS orthogonalized at the bond, the
 #   first minimum of the criterion wins, and it is applied only if strictly below the identity;
 #   the real MPS is touched only when a gate is applied;
-# - the criteria: `:chi3` = (number of singular values)³ and `:entangle` = von Neumann entropy
-#   in bits of the squared singular values;
+# - the criteria: `:chi3` = (numerical rank)³ and `:entangle` = von Neumann entropy in bits of
+#   the squared singular values;
 # - the sweeps: `:snake` (forward then backward over the bonds, skipping bonds of dimension 1 in
 #   a snapshot taken at the start of each direction) and `:brickwork` (odd bonds, then even
 #   bonds in reverse);
 # - the stopping rule: repeat the sweep up to `max_iter` times, stop once its total gain is
 #   ≤ `min_diff`.
 #
-# `svd_kwargs` go only to the SVD of the applied gate; the search SVDs are untruncated, as in
-# the old code (its `disentangler(mps, nL, nR)` does not pass them on for neighbouring sites).
-# ITensors keeps exact zero singular values, so in the search the number of singular values is
-# min(2χ_L, 2χ_R) for every candidate gate: on these nearest-neighbour sweeps `:chi3` never
-# finds an improvement and never applies a gate, in the old code and here alike.
+# Numerical zeros (post-port item 8; test/CONVENTIONS.md §2): a singular value σ ≤ τ·σ_max of
+# the same two-site SVD, τ = `NUMERICAL_ZERO_TAU` = 1e-10, counts as zero. The `:chi3` search
+# counts only the values above it (the numerical rank r), and the applied gate's SVD keeps
+# exactly r values (`maxdim = r`). This departs from the old code on purpose: there the search
+# counted every value, and ITensors keeps exact zeros, so every candidate scored
+# min(2χ_L, 2χ_R)³, the same as the identity, and `:chi3` never applied a gate; `:entangle`
+# gates kept the zero-padded bond, which could grow it. Old `:camps` data ran with no
+# layer-end disentangling; the `pre-port` tag reproduces it.
+#
+# `svd_kwargs` go only to the SVD of the applied gate, on top of the τ rule (a `maxdim` among
+# them is combined with r by `min`); the search SVDs are untruncated and ignore them.
 #
 # Frame writes go through `mt.transform!`, which fetches C† immediately before writing it.
 
@@ -53,8 +59,20 @@ old_entangle_gates() =
 
 # == Criteria ===========================================================================
 
+"""τ of test/CONVENTIONS.md §2: across a bond, a singular value σ ≤ τ·σ_max counts as zero
+(relative to the largest value σ_max of the same SVD, per value; not ITensors' cumulative
+`cutoff`). A fixed constant, measured in `scripts/item8/`; not a run parameter."""
+const NUMERICAL_ZERO_TAU = 1e-10
+
+"Numerical rank of the singular values `spec`: how many lie above τ·σ_max."
+function numerical_rank(spec)
+  isempty(spec) && return 0
+  zero_level = NUMERICAL_ZERO_TAU * maximum(spec)
+  return count(>(zero_level), spec)
+end
+
 # Score of the singular values `spec` across the bond; lower is less entangled.
-criterion_value(::Val{:chi3}, spec) = float(length(spec)^3)
+criterion_value(::Val{:chi3}, spec) = float(numerical_rank(spec)^3)
 function criterion_value(::Val{:entangle}, spec)
   ee = 0.0 # Same summation order as the old `eEntropy`
   for σ in spec
@@ -73,7 +91,10 @@ end
 `MagicTensors.AbstractLocalDisentangler` with the old CliffordMPS bond search: on bond
 (n, n+1), try each gate of `old_entangle_gates()`, score the resulting singular values with
 `criterion` (`:chi3` or `:entangle`), and apply the first best gate if it scores strictly below
-the identity. The search SVDs are untruncated; `svd_kwargs` apply to the applied gate only.
+the identity. Singular values ≤ τ·σ_max (`NUMERICAL_ZERO_TAU`) count as zero: `:chi3` scores
+(numerical rank r)³, and the applied gate's SVD keeps exactly the r values of the chosen
+candidate, for either criterion. The search SVDs are otherwise untruncated; `svd_kwargs` apply
+to the applied gate only, on top of the τ rule.
 `disentangle!(de, ψ, n, move_ortho_right)` returns `(1, gain, gate index)` or `(0, 0.0, 0)`."""
 struct BondSearchDisentangler{C} <: mt.AbstractLocalDisentangler
   gates::Vector{mt.QubitCliffordGate}
@@ -92,10 +113,19 @@ end
 "Two-qubit identity, scored first as the reference (the old `Clifford2Index(0)`)."
 const _ID_2Q = ComplexF64[1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 1]
 
-# Criterion value after applying the two-qubit `matrix` on sites (n, n+1) of `mps`
+# (criterion value, numerical rank) after applying the two-qubit `matrix` on sites (n, n+1)
+# of `mps`
 function bond_value(::BondSearchDisentangler{C}, mps, matrix, n) where {C}
-  _, S, _ = mt.apply_and_svd(mps, matrix, n) # Untruncated, as the old search
-  return criterion_value(Val(C), diag(S))
+  _, S, _ = mt.apply_and_svd(mps, matrix, n) # Untruncated: τ is applied to the values here
+  spec = diag(S)
+  return criterion_value(Val(C), spec), numerical_rank(spec)
+end
+
+# SVD keywords of the applied gate: the user's `svd_kwargs`, with `maxdim` capped at the
+# numerical rank `r` of the chosen candidate (the τ rule).
+function applied_svd_kwargs(de::BondSearchDisentangler, r::Int)
+  maxdim = min(r, get(de.svd_kwargs, :maxdim, r))
+  return (; de.svd_kwargs..., maxdim)
 end
 
 function mt.disentangle!(de::BondSearchDisentangler,
@@ -106,15 +136,16 @@ function mt.disentangle!(de::BondSearchDisentangler,
   # is applied, as in the old code.
   trial = copy(mt.get_mps(ψ))
   orthogonalize!(trial, n)
-  id_value = bond_value(de, trial, _ID_2Q, n)
-  values = [bond_value(de, trial, M, n) for M in de.matrices]
-  min_value, best = findmin(values) # First minimum, as the old code
+  id_value, _ = bond_value(de, trial, _ID_2Q, n)
+  scored = [bond_value(de, trial, M, n) for M in de.matrices]
+  min_value, best = findmin(first, scored) # First minimum, as the old code
   min_value < id_value || return 0, 0.0, 0
 
   mps = mt.get_mps(ψ)
   orthogonalize!(mps, n) # The old applyGateNN! always re-centres at n first
   mt.transform!(ψ, de.gates[best], [n, n + 1];
-                move_orthogonality_right = move_ortho_right, de.svd_kwargs...)
+                move_orthogonality_right = move_ortho_right,
+                applied_svd_kwargs(de, last(scored[best]))...)
   return 1, id_value - min_value, best
 end
 

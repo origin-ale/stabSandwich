@@ -1,6 +1,6 @@
 --- a/CampsPP/src/MagicTensorsPauliPropagation.jl
 +++ b/CampsPP/src/MagicTensorsPauliPropagation.jl
-@@ -20,7 +20,7 @@
+@@ -21,7 +21,7 @@
    out = mt.QubitPauliSum(N)
    for (term, coeff) in psum.terms
      # A fresh key vector per term: the sum keeps the vector it is given.
