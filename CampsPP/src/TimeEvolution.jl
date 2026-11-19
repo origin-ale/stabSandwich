@@ -160,8 +160,10 @@ const PP_NORM_RTOL = 1e-8
 Throw if Pauli propagation raised Σ|c|² above `norm_obs`, its value for the input
 observable, by more than `rtol` relative. Pauli rotations and Cliffords preserve Σ|c|² and
 truncation only removes terms, so a larger value means the propagated sum is corrupt (as
-with the PauliPropagation 0.7.3 hash bug described at `__init__` in CampsPP.jl). Throwing
-keeps its expectation values out of the output. Rounding drift is far below `rtol`.
+with the PauliPropagation 0.7.3 hash bug, fixed by PauliPropagation 0.9: 0.7.3 created
+Pauli-string integer types at runtime, and a `PauliSum` filled in the world age where its
+type was created was corrupted once used in a later one). Throwing keeps its expectation
+values out of the output. Rounding drift is far below `rtol`.
 """
 function check_pp_norm(norm_obs::Real, paulisum::pp.PauliSum; rtol::Real = PP_NORM_RTOL)
   norm_out = sumsquares(paulisum)

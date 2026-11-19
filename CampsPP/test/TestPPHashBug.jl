@@ -1,52 +1,44 @@
-# The PauliPropagation 0.7.3 hash bug and CampsPP's two fixes:
-#   1. `CampsPP.__init__` (CampsPP.jl) creates every PP term type up to 64 bits (N ≤ 32)
-#      when CampsPP loads;
-#   2. `check_pp_norm` (TimeEvolution.jl), called after each `pp.propagate` in
-#      `pauliprop_circuit_dynamics`, throws when Σ|c|² rises above the input observable's.
+# Regression test that the PauliPropagation 0.7.3 hash bug is gone on PP ≥ 0.9 (the
+# acceptance test of item 3 of the post-port plan), plus the tests of the Σ|c|² guard
+# `check_pp_norm` (TimeEvolution.jl), which stays after the upgrade.
 #
-# The bug: PP creates the term types Julia lacks (UInt24, UInt40, UInt48, UInt56 below 64
-# bits) with `@eval` the first time `getinttype` needs one. That adds a `hash` method visible
-# only from the next world age, so a `PauliSum` filled in the top-level statement that created
-# its type cannot find its own keys from the next statement on: terms are duplicated and
-# Σ|c|² grows. Affected: N = 9–12 and 17–28. Diagnosis: port plan, "Pre-existing upstream bug
-# found in the smoke runs".
+# The bug (PP 0.7.3, Julia ≥ 1.13): PP created the term types Julia lacks (UInt24, UInt40,
+# UInt48, UInt56, …) with `@eval` the first time `getinttype` needed one. That added a `hash`
+# method visible only from the next world age, so a `PauliSum` filled in the top-level
+# statement that created its type could not find its own keys from the next statement on:
+# terms were duplicated and Σ|c|² grew. PP ≥ 0.9 uses only built-in integers and
+# `NTupleInteger` (CONVENTIONS.md §3), so nothing is created at runtime.
 #
-# Whether a type exists depends on everything a process has run, and this process loaded
-# CampsPP long ago, so the load-order checks run in fresh Julia processes on the test
-# environment (`run_child`). The children only report values; every check is made here.
-# Expected values: the CONVENTIONS.md §3 key-width rule, hand values, the dense reference.
+# Written before the upgrade: the bug checks fail on 0.7.3 by design (that red run is the
+# proof that the trigger can see the bug) and must pass on ≥ 0.9.
 #
-# On upgrading to PauliPropagation ≥ 0.9 (no types created at runtime) the bare-PP pin and the
-# type checks of "after `using CampsPP`" fail by design: delete them with the `__init__`
-# workaround, and keep the Σ|c|² guard tests.
+# The bug checks run in fresh Julia processes that load only PauliPropagation (`run_child`,
+# helpers.jl), so no workaround in CampsPP can mask the bug, and each N is the first use of
+# its key type in that process. The children only report values; every check is made here.
+# Expected values: hand values, the dense reference, the §3 key-type rule.
 
-# -- Key widths ---------------------------------------------------------------------------
+# -- The N that 0.7.3 broke (kept only to make sure the trigger covers them) ---------------
 
-"Key width in bits of a PP term at N qubits (CONVENTIONS.md §3): 8⌈2N/8⌉."
-keybits(N) = 8 * cld(2N, 8)
-
-# Widths below 64 bits that Julia has no built-in type for: PP creates them at runtime, and
-# BitIntegers gives them their own `hash`.
-const RUNTIME_WIDTHS = [24, 40, 48, 56]
-const AFFECTED_N = [N for N in 1:32 if keybits(N) in RUNTIME_WIDTHS]
-"The first N of each runtime width, whose first use creates the type."
-const FIRST_N = [minimum(N for N in AFFECTED_N if keybits(N) == w) for w in RUNTIME_WIDTHS]
+"N whose 0.7.3 key type (8⌈2N/8⌉ bits) was created at runtime with a BitIntegers `hash`."
+const BROKEN_073_N = vcat(9:12, 17:28)
+"The first N of each such 0.7.3 width (24, 40, 48, 56 bits): the statements that broke."
+const FIRST_073_N = [9, 17, 21, 25]
+"Both sides of every type boundary of the ≥ 0.9 rule, plus N = 46 and limb boundaries."
+const RULE_BOUNDARY_N = [4, 5, 8, 9, 16, 17, 32, 33, 46, 64, 65, 96, 97, 128, 129]
+"Trigger order: the 0.7.3 first-of-width N first, then 1:32, 33, 46 and the rule boundaries."
+const TRIGGER_N = unique(vcat(FIRST_073_N, 1:32, 33, 46, RULE_BOUNDARY_N))
 
 # -- Child code (`run_child` and its `report`/`errorinfo`/`datarows`: helpers.jl) ----------
 
 """
-Child code: two top-level statements at N qubits. The first builds the one-term sum Z₁, which
-creates the term type if PP lacks it; the second adds Z₁ again. A correct sum then holds one
-term with coefficient 2. Reports the sorted coefficients as "trigger N".
+Child code: two top-level statements at N qubits. The first builds the one-term sum Z₁ (on
+0.7.3 it created the term type if PP lacked it); the second adds Z₁ again. A correct sum then
+holds one term with coefficient 2. Reports the sorted coefficients as "trigger N".
 """
 trigger_code(N) = """
   P_$N = pp.PauliSum(pp.PauliString($N, [:Z], [1]))
   pp.add!(P_$N, pp.PauliString($N, [:Z], [1])); report("trigger $N", sort(collect(values(P_$N.terms))))
   """
-
-"Child code: report whether PP defines each runtime-width type, as `name`."
-defined_code(name) =
-  "report(\"$name\", [isdefined(pp, Symbol(:UInt, w)) for w in $RUNTIME_WIDTHS])\n"
 
 # -- Guard helpers ------------------------------------------------------------------------
 
@@ -64,63 +56,55 @@ end
 "A one-term sum with Σ|c|² = `x` (up to rounding)."
 sum_of_squares(x) = sum_with([sqrt(x)])
 
-@testset "PP hash bug (PauliPropagation 0.7.3) and its fixes" begin
+@testset "PP hash bug gone (PauliPropagation ≥ 0.9) and the Σ|c|² guard" begin
 
-  @testset "runtime key widths" begin
-    @test AFFECTED_N == vcat(9:12, 17:28)
-    @test FIRST_N == [9, 17, 21, 25]
-    # PP names its types by the §3 width, so the names the children look up are the right ones.
-    @test all(nameof(pp.getinttype(N)) == Symbol(:UInt, keybits(N)) for N in [1:32; 46])
+  @testset "preconditions" begin
+    # The bug showed only on Julia ≥ 1.13; on older Julia the trigger is clean even on 0.7.3,
+    # so these tests would pass without proving anything.
+    @test VERSION >= v"1.13"
+    @test issubset(FIRST_073_N, BROKEN_073_N)
+    @test issubset(BROKEN_073_N, TRIGGER_N)
+    @test TRIGGER_N[1:length(FIRST_073_N)] == FIRST_073_N
+    @test all(N -> N in TRIGGER_N, RULE_BOUNDARY_N)
   end
 
-  @testset "bare PauliPropagation: the trigger corrupts the sum (assumption pin)" begin
-    # Without CampsPP, the first use of each runtime width creates the type in the statement
-    # that fills the sum, and the next statement cannot find Z₁, so it adds a second entry
-    # beside the stale one. Unaffected: N = 12, whose type N = 9 already made; N = 14
-    # (built-in UInt32); N = 33 and 46 (UInt72, UInt96: no BitIntegers `hash` above 64 bits;
-    # N = 46 is the production size). This shows the trigger can see the bug, so the
-    # fixed-side test below is not vacuous.
-    others = [12, 14, 33, 46]
-    r = run_child("import PauliPropagation as pp\n" * defined_code("defined before") *
-                  join(trigger_code.(vcat(FIRST_N, others))))
-    @test r["defined before"] == falses(length(RUNTIME_WIDTHS))
-    @testset "N = $N, creates UInt$(keybits(N))" for N in FIRST_N
-      @test r["trigger $N"] == [1.0, 1.0]
-    end
-    @testset "N = $N, unaffected" for N in others
+  @testset "bare PauliPropagation: the trigger keeps one term" begin
+    r = run_child("import PauliPropagation as pp\n" * join(trigger_code.(TRIGGER_N)))
+    @testset "N = $N" for N in TRIGGER_N
       @test r["trigger $N"] == [2.0]
     end
   end
 
-  @testset "after `using CampsPP`" begin
-    # Fix 1: loading CampsPP creates the runtime-width types, so nothing at N ≤ 32 creates a
-    # type later. The reproducer from the bug report (its value was 1.822 with Σc² = 4.34)
-    # runs before the triggers, so it is the first use of UInt24 if `__init__` did nothing.
-    r = run_child("import PauliPropagation as pp\n" * defined_code("defined before") *
-                  "using CampsPP\n" * defined_code("defined after") * """
+  @testset "bare PauliPropagation: getinttype creates no types" begin
+    # The root cause: on 0.7.3 `getinttype` evaluated new types into PP, which advances the
+    # world counter. Up to 200 qubits (NTupleInteger{7}), nothing may be defined.
+    r = run_child("""
+      import PauliPropagation as pp
       let w = Base.get_world_counter()
-        foreach(pp.getinttype, 1:32)
+        foreach(pp.getinttype, 1:200)
         report("world unchanged", Base.get_world_counter() == w)
       end
-      using Random
-      g, ph = rotation_circuit(MersenneTwister(101), 10, 10)
-      S = pp.propagate(g, pp.PauliSum(pp.PauliString(10, [:Z], [1])), -2 .* ph; min_abs_coeff = 0.0)
-      report("reproducer", (pp.overlapwithzero(S), sum(abs2, values(S.terms))))
-      """ * join(trigger_code.(AFFECTED_N)))
-    @test r["defined before"] == falses(length(RUNTIME_WIDTHS))  # so CampsPP made them
-    @test r["defined after"] == trues(length(RUNTIME_WIDTHS))
-    @test r["world unchanged"]           # `getinttype` defines nothing for N ≤ 32 any more
+      """)
+    @test r["world unchanged"]
+  end
 
-    g, ph = rotation_circuit(MersenneTwister(101), 10, 10)
-    Z1 = pp.PauliSum(pp.PauliString(10, [:Z], [1]))
-    ref = dense_dynamics(10, Int[], g, ph, Z1, [length(g)])[end]
+  @testset "bare PauliPropagation: the bug-report reproducer" begin
+    # N = 10 rotation circuit, seed 101 (on 0.7.3 it gave 1.822 with Σc² = 4.34). The first
+    # statement builds the circuit and Z₁, the first use of the key type in the child; the
+    # second propagates. Gates are passed as literals, since the child does not load CampsPP.
+    N = 10
+    g, ph = rotation_circuit(MersenneTwister(101), 10, N)
+    gates_code = "[" * join(("pp.PauliRotation($(repr(r.symbols)), $(repr(r.qinds)))" for r in g), ", ") * "]"
+    r = run_child("""
+      import PauliPropagation as pp
+      g = $gates_code; ph = $(repr(ph)); Z1 = pp.PauliSum(pp.PauliString($N, [:Z], [1]))
+      S = pp.propagate(g, Z1, -2 .* ph; min_abs_coeff = 0.0); report("reproducer", (pp.overlapwithzero(S), sum(abs2, values(S.terms))))
+      """)
+    Z1 = pp.PauliSum(pp.PauliString(N, [:Z], [1]))
+    ref = dense_dynamics(N, Int[], g, ph, Z1, [length(g)])[end]
     ev, sumsq = r["reproducer"]
     @test abs(ev - ref) <= EXACT_ATOL
     @test abs(sumsq - 1) <= EXACT_ATOL
-
-    @testset "trigger, N = $N" for N in AFFECTED_N
-      @test r["trigger $N"] == [2.0]
-    end
   end
 
   @testset "sumsquares and check_pp_norm" begin
@@ -169,61 +153,11 @@ sum_of_squares(x) = sum_with([sqrt(x)])
     end
   end
 
-  @testset "pauliprop_circuit_dynamics throws on a corrupt observable" begin
-    # Fix 2. The child builds Z₁ at N = 10 with bare PP, in the statement that creates UInt24,
-    # and loads CampsPP after it, so the observable is corrupt (checked) and the first
-    # propagation raises Σ|c|². Every PP entry point must throw at the first record point,
-    # before writing its value.
-    N, ones, t, χ_campspp = 10, [2, 5], 2, 2
-    le = spec_layer_ends(N, t)
-    r = run_child("""
-      import PauliPropagation as pp
-      obs = pp.PauliSum(pp.PauliString($N, [:Z], [1]))
-      report("obs corrupt", let C = deepcopy(obs)
-        pp.add!(C, pp.PauliString($N, [:Z], [1])); sort(collect(values(C.terms)))
-      end)
-      using CampsPP
-      import MagicTensors as mt
-      gates, phases = xxz_circuit(0.3, 0.7, $t, $N)
-      le = $le
-      ψ = computationalcamps(mt.QubitCAMPS, $N, $ones)
-      mktempdir() do dir
-        path = joinpath(dir, "onebit.txt")
-        initialize_output(path, "Z1", Dict())
-        report("onebit", errorinfo(() -> pauliprop_circuit_dynamics(
-          $ones, gates, phases, 0.0, typemax(Int), obs, path; layer_ends = le)))
-        report("onebit rows", datarows(path))
-        path = joinpath(dir, "camps.txt")
-        initialize_output(path, "Z1", Dict())
-        report("camps", errorinfo(() -> pauliprop_circuit_dynamics(
-          ψ, 0, gates, phases, 0.0, typemax(Int), obs, path; layer_ends = le)))
-        report("camps rows", datarows(path))
-      end
-      report("campspp", errorinfo(() -> campspp_circuit_dynamics(
-        ψ, $χ_campspp, 0.0, typemax(Int), gates, phases, obs; layer_ends = le)))
-      """)
-    @test r["obs corrupt"] == [1.0, 1.0]   # the bug did hit the observable
-    @testset "$entry" for entry in ("onebit", "camps", "campspp")
-      threw, msg = r[entry]
-      @test threw
-      @test occursin("corrupt", msg)
-    end
-    @test r["onebit rows"] == [0]          # the t = 0 value only
-    @test r["camps rows"] == Int[]         # this method records no t = 0 value
-
-    @testset "control: the same runs on a correct observable" begin
-      gates, phases = xxz_circuit(0.3, 0.7, t, N)
-      O = pp.PauliSum(pp.PauliString(N, [:Z], [1]))
-      ref = dense_dynamics(N, ones, gates, phases, O, le)
-      _, evs = pauliprop_circuit_dynamics(ones, gates, phases, 0.0, typemax(Int), O; layer_ends = le)
-      @test maxabsdiff(evs, ref) <= EXACT_ATOL
-      ψ = computationalcamps(mt.QubitCAMPS, N, ones)
-      _, evs = pauliprop_circuit_dynamics(ψ, 0, gates, phases, 0.0, typemax(Int), O; layer_ends = le)
-      @test maxabsdiff(evs, ref[2:end]) <= EXACT_ATOL
-      evs, _, _, _, _, _, s_switch = campspp_circuit_dynamics(
-        ψ, χ_campspp, 0.0, typemax(Int), gates, phases, O; layer_ends = le, track = true)
-      @test maxabsdiff(evs, ref) <= EXACT_ATOL
-      @test s_switch < le[1]                 # PP evaluates every record point
-    end
-  end
+  # Not kept from the 0.7.3 file: "pauliprop_circuit_dynamics throws on a corrupt observable",
+  # which raised Σ|c|² with the hash bug itself. With the bug gone nothing in `propagate` can
+  # raise it: Pauli rotations and Cliffords preserve it, PP rejects noise strengths outside
+  # [0, 1] and has no Heisenberg-picture ImaginaryPauliRotation (checked on 0.7.3 and 0.9.2),
+  # and a custom gate would need PP internals that changed between the versions. A sum with
+  # an inflated Σ|c|² built by hand does not trip the guard either, since the guard compares
+  # against the input's own Σ|c|². So only the in-process `check_pp_norm` tests remain.
 end

@@ -111,6 +111,55 @@ end
     @test O.terms == before
   end
 
+  # -- Item 3: converter across the PP ≥ 0.9 key types -----------------------------------
+  # Uses `BOUNDARY_N`, `ppstring` and `random_boundary_string` from TestPPKeys.jl.
+  # Strings built by hand and passed to PP by symbol (`ppstring`, TestPPKeys.jl), so the
+  # expected strings do not go through any bit reading. N covers both sides of each type
+  # boundary of the ≥ 0.9 rule (CONVENTIONS.md §3) and the 64-bit limb boundaries above 64
+  # qubits (`random_boundary_string` puts Paulis on qubits 32|33, 64|65, …). Runs on any PP
+  # version.
+
+  @testset "item 3: converter round trip, N = $N, $T" for N in BOUNDARY_N, T in (Float64, ComplexF64)
+    rng = Xoshiro(hash((:item3conv, N, T)))
+    rows = Dict{String, T}()
+    while length(rows) < min(40, big(4)^N - 1)
+      str = N <= 3 ? String(rand(rng, collect("IXYZ"), N)) : random_boundary_string(rng, N)
+      all(==('I'), str) && continue
+      rows[str] = T <: Complex ? complex(rand(rng, (-1, 1)) * (0.1 + rand(rng)), randn(rng)) :
+                                 rand(rng, (-1, 1)) * (0.1 + rand(rng))     # signed, nonzero
+    end
+    O = pp.PauliSum(T, N)
+    for (str, c) in rows
+      pp.add!(O, ppstring(str, c))
+    end
+    @test length(O) == length(rows)
+    S = mt.QubitPauliSum(O)
+    @test mt.nsites(S) == N
+    @test stringdict(S) == Dict(str => ComplexF64(c) for (str, c) in rows)
+    @test allunique(objectid.(collect(keys(S.paulis))))
+    for (str, c) in Iterators.take(rows, 10)
+      t = ppstring(str, c).term
+      @test opstring(pauliop_from_ppterm(t, N)) == str
+      @test stringdict(mt.QubitPauliSum(ppstring(str, c))) == Dict(str => ComplexF64(c))
+    end
+  end
+
+  @testset "item 3: empty sums, N = $N" for N in (1, 10, 46, 70)
+    S = mt.QubitPauliSum(pp.PauliSum(N))
+    @test length(S) == 0
+    @test mt.nsites(S) == N
+  end
+
+  @testset "item 3: no key aliasing, all 4^3 strings" begin
+    strs = [String([a, b, c]) for a in "IXYZ", b in "IXYZ", c in "IXYZ"][:]
+    O = pp.PauliSum(Float64, 3)
+    for (i, str) in enumerate(strs)
+      pp.add!(O, ppstring(str, Float64(i)))
+    end
+    @test length(O) == 64
+    @test stringdict(mt.QubitPauliSum(O)) == Dict(str => ComplexF64(i) for (i, str) in enumerate(strs))
+  end
+
   # -- Seam ------------------------------------------------------------------------------
 
   @testset "expectation(QubitCAMPS, pp.PauliSum) vs dense, N = $N" for N in (3, 4, 5)

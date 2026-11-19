@@ -44,7 +44,7 @@ on a laptop with other work running; they are indicative only (Phase 5 does the 
 
 - The plan asked for sums of about 10², 5·10² and 10³ terms. The user chose to stop at two
   sums: the converter works term by term, so a 538-term sum exercises the same code paths
-  (`UInt96` keys, qubits above 32, signs, coefficients, frame) as a 1000-term one. The
+  (keys wider than 64 bits: `UInt96` on PP 0.7.3, `UInt128` on ≥ 0.9; qubits above 32, signs, coefficients, frame) as a 1000-term one. The
   old-reference ceiling is therefore 538 terms; a 10³-term old timing, if wanted for
   Phase 5, comes from the pre-port worktree.
 - If a larger sum is wanted later: in this sample, PP alone gives 1161 terms at the end of

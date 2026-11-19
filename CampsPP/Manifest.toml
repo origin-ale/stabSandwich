@@ -2,7 +2,7 @@
 
 julia_version = "1.13.3"
 manifest_format = "2.1"
-project_hash = "589308a377b0643be89974a93b4ebd749a73def9"
+project_hash = "7ca72d49a652b235c3c45a6fc1b6c36d3ac0a625"
 
 [[deps.AbstractAlgebra]]
 deps = ["LinearAlgebra", "MacroTools", "Preferences", "Random", "RandomExtensions", "SparseArrays"]
@@ -912,17 +912,19 @@ uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 version = "2.8.4"
 
 [[deps.PauliPropagation]]
-deps = ["AcceleratedKernels", "BitIntegers", "Bits", "JSON", "LinearAlgebra", "PlotGraphviz", "ProfileCanvas", "Random", "StatsBase", "Test", "UUIDs"]
-git-tree-sha1 = "757b43af3c247d9fad953dd056d3df76fe6e6a08"
+deps = ["AcceleratedKernels", "Bits", "JSON", "LinearAlgebra", "PlotGraphviz", "ProfileCanvas", "Random", "StatsBase", "Test", "UUIDs"]
+git-tree-sha1 = "a11f12b0df06b693fe068e75d72902e803e3b7b6"
 registries = "General"
 uuid = "293282d5-3c99-4fb6-92d0-fd3280a19750"
-version = "0.7.3"
+version = "0.9.2"
 
     [deps.PauliPropagation.extensions]
     PauliPropagationCUDA = "CUDA"
+    PauliPropagationYao = "YaoBlocks"
 
     [deps.PauliPropagation.weakdeps]
     CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+    YaoBlocks = "418bc28f-b43b-5e0b-a6e7-61bbc1a2c1df"
 
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "Zstd_jll", "p7zip_jll"]

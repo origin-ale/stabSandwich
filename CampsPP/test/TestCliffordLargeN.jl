@@ -5,7 +5,7 @@
 #
 # Unlike the undoped XXZ test (a bit permutation), these circuits spread the stabilizers
 # over all 46 qubits, so the CAMPS frame is a dense Clifford and PP's Pauli strings are high
-# weight with UInt96 keys. The hand-over tests evaluate a 46-qubit Pauli sum on such a CAMPS
+# weight with keys wider than 64 bits (UInt128 on PP ≥ 0.9, UInt96 on 0.7.3). The hand-over tests evaluate a 46-qubit Pauli sum on such a CAMPS
 # through the pp → QubitPauliSum converter and the MagicTensors `expectation` seam (T8).
 
 isdefined(@__MODULE__, :StabilizerReference) ||
