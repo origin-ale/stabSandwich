@@ -45,9 +45,11 @@ const _OLD_ENTANGLE_SET = ((1, 0, 0),
 """```old_entangle_gates()```
 
 The 19 two-qubit Cliffords of the old CliffordMPS `Clifford2IndexSet(:entangle)`, in the old
-order, as `QuantumClifford.CliffordOperator`s."""
+order, as `QuantumClifford.CliffordOperator`s. `l * r` uses `l.buffer` as scratch space, so the
+shared constant `_OLD_R[r]` is copied first, which keeps concurrent calls from corrupting each
+other."""
 old_entangle_gates() =
-  [_OLD_R[r] * (_OLD_A[1 + a1] ⊗ _OLD_A[1 + a2]) for (r, a1, a2) in _OLD_ENTANGLE_SET]
+  [copy(_OLD_R[r]) * (_OLD_A[1 + a1] ⊗ _OLD_A[1 + a2]) for (r, a1, a2) in _OLD_ENTANGLE_SET]
 
 # == Criteria ===========================================================================
 

@@ -45,9 +45,12 @@ end
 Compose the Clifford `op`, acting on the qubits `sites`, after C (C ← op·C, phases tracked), in
 place. QuantumClifford has no `apply!(::CliffordOperator, ::CliffordOperator, sites)`; this
 replaces the one the old vendored CliffordMPS defined (plan, design correction 3).
-`Stabilizer(C.tab)` wraps C's tableau without copying it, so the write goes to C."""
+`Stabilizer(C.tab)` wraps C's tableau without copying it, so the write goes to C.
+QuantumClifford's `apply!` uses `op.buffer` as scratch space, and callers pass its global
+constants (`tSWAP`, `tPhase`, `tCNOT`), so `op` is copied first: concurrent tasks would
+otherwise share that buffer and corrupt each other's rows and phases."""
 function _apply_on_sites!(C::CliffordOperator, op::CliffordOperator, sites::AbstractVector{<:Integer})
-  apply!(Stabilizer(C.tab), sites, op)
+  apply!(Stabilizer(C.tab), sites, copy(op))
   return C
 end
 
