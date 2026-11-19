@@ -1,4 +1,4 @@
-# Phase 5: local micro-benchmarks of the NEW stack (this branch): the pp → `QubitPauliSum`
+# Phase 5: local micro-benchmarks of the NEW stack (`main`): the pp → `QubitPauliSum`
 # converter, the frame conjugation, the `expectation` seam (conjugate → OpSum → MPO → inner) and
 # a per-term prototype of ⟨ψ|O|ψ⟩ (the plan's optional replacement for the MPO route; benchmark
 # only, not in src/). Run from the repository root, under a timeout:

@@ -44,7 +44,7 @@ Old and new at the same thread count (`-t 10`; BLAS gets as many again). The T11
 Commit and push this directory first, then, on `carlos`:
 
 ```bash
-cd campspp/stabSandwich && git pull               # port-magictensors
+cd campspp/stabSandwich && git pull               # main (the port branch was merged and deleted)
 # Old code: a worktree at the pre-port commit (once). Its run.sh predates the thread cap, so
 # always pass -t; --no-pull because the worktree is on a detached HEAD.
 git worktree add ../stabSandwich-old 4c49e78

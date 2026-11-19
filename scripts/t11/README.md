@@ -17,34 +17,44 @@ is in "Old-vs-new regression design" (Phase T) and "Phase 0" of the port plan.
 
 ## Remote runs (you, on `carlos`)
 
-Commit and push the branch first, because `run.sh` refuses a dirty tree. The remote
-clone ran Phase 0 on `main`, so check out the port branch and instantiate it once
-(MagicTensors is fetched from GitHub):
+Replays run from `main`. Commit and push first: `run.sh` refuses a dirty tree, and it
+pulls (`git pull --ff-only`) before each run. It doesn't instantiate, so run
+`Pkg.instantiate()` on `carlos` after any commit that changes a Manifest (MagicTensors
+is fetched from GitHub). The port branch `port-magictensors` was merged and deleted; a
+clone still on it can't pull, so switch it to `main` (`git fetch --prune && git checkout
+main`).
 
 ```bash
 cd campspp/stabSandwich
-git fetch && git checkout port-magictensors
+git pull --ff-only
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
-scripts/remote/run.sh scripts/t11/replay_prob_tm.jl run=output/runs/20261110-150852-Comptime_prob_tm
+scripts/remote/run.sh -t 10 scripts/t11/replay_prob_tm.jl run=output/runs/20261110-150852-Comptime_prob_tm out=output/t11/<label>/A
 # once A has finished (one run at a time):
-scripts/remote/run.sh scripts/t11/replay_prob_tm.jl run=output/runs/20261110-160640-Comptime_prob_tm
+scripts/remote/run.sh -t 10 scripts/t11/replay_prob_tm.jl run=output/runs/20261110-160640-Comptime_prob_tm out=output/t11/<label>/B
 ```
+
+`out=` keeps a new replay apart from earlier ones (the default is
+`output/t11/<Phase 0 id>/`); `<label>` names the change being checked, e.g. `item3`.
+B runs `:camps` only: PP builds its gates (`pp.PauliRotation` → `getpauli`) but propagates
+nothing, so A carries most of the weight for a change to PauliPropagation.
 
 **Threads:** at most 20 at once on `carlos`. `run.sh` refuses `-t auto` and anything
 above 20, and defaults to 10. The scripts also set BLAS to the same number of
 threads, so a run can use about twice its `-t`: keep `-t` at 10 or below. The Phase 0 runs and the first replays (2026-11-16) used
 `-t auto`; times from a different thread setting aren't comparable with those.
 Times are indicative only, because the cluster is shared.
-Each replay writes to `output/t11/<Phase 0 id>/`, and `run.sh` copies that into
-its own run directory.
+Each replay writes to its `out=` directory (default `output/t11/<Phase 0 id>/`), and
+`run.sh` copies that into its own run directory.
 
 ## Comparison (local, after `fetch.sh`)
 
 ```bash
 julia --project=. scripts/t11/compare_prob_tm.jl \
   old=output/runs/20261110-150852-Comptime_prob_tm/files/output \
-  new=output/runs/<replay A id>/files/output/t11/20261110-150852-Comptime_prob_tm
+  new=output/runs/<replay A id>/files/output/t11/<label>/A
 ```
+
+Without `out=`, the replay is under `files/output/t11/20261110-150852-Comptime_prob_tm`.
 
 Do the same for B. Always read the reference from the run directories, never from
 `output/`: the Phase 0 jobs share file names there.
@@ -63,7 +73,7 @@ for review and are not pass/fail.
 
 `randrot_complexity.jl` runs the script's computation without the plotting, on
 either stack. The old stack runs from the pre-port worktree, and the new stack
-from this branch:
+from `main`:
 
 ```bash
 julia --project=../stabSandwich-old scripts/t11/randrot_complexity.jl stack=old out="$TMPDIR/rr_old.dat"

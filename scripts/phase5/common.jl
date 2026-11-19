@@ -1,5 +1,5 @@
 # Phase 5 benchmarks: helpers shared by gen_sums.jl, bench_old.jl and bench_new.jl.
-# Uses only functions that exist on both stacks (old `pre-port` worktree and this branch):
+# Uses only functions that exist on both stacks (old `pre-port` worktree and `main`):
 # `xxz_circuit`, `transferredmagnetization` and PauliPropagation, which the port left unchanged.
 
 import PauliPropagation as pp
