@@ -258,12 +258,19 @@ end
       # D with :brickwork finds nothing to gain; allow one such point per configuration.)
       crit == :entangle && @test count(r.changed for r in recon) >= length(rec) - 1
       # Frame-dependent: compare the frame with the same gates applied without the
-      # layer-end disentangler.
+      # layer-end disentangler, and the bond dimension at every record point.
       plain = computationalcamps(T, N, ones)
-      for (g, ϕ) in zip(gates, phases)
+      plain_bds = [bonddim(plain)]
+      for (i, (g, ϕ)) in enumerate(zip(gates, phases))
         apply!(plain, PauliOperator(getpauli(g, N)), ϕ, thl_camps)
+        i in rec && push!(plain_bds, bonddim(plain))
       end
       push!(frame_changed[(T, crit, strat)], frame_dagger(ψ) != frame_dagger(plain))
+      # [item 8] In the doped configuration, the layer-end bond dimensions with :chi3 are at
+      # most those of the run without the disentangler (plan item 8, "Dynamics").
+      if crit == :chi3 && startswith(cfg.name, "doped")
+        DISENT_ITEM8 ? (@test all(bds .<= plain_bds)) : item8_pending()
+      end
     end
 
     @testset "mps_circuit_dynamics" begin
@@ -282,14 +289,18 @@ end
       # The layer-end disentangler does change the frame with :entangle.
       @test count(frame_changed[(T, :entangle, :brickwork)]) >= 2
       @test count(frame_changed[(T, :entangle, :snake)]) >= 2
-      # With :chi3 ((:chi3, :snake) is the production setting; called with min_diff = 6), it
-      # never acts, at any N and in both stacks: the old search SVDs keep zero singular
-      # values, so :chi3 never sees an improvement (plan, "Note: the old `:chi3` disentangler
-      # never acts"; kept as a faithful no-op by user decision, 2026-11-13). Tested directly
-      # in DisentangleCAMPS/TestDisentangleQubitCAMPS.jl. If :chi3 is ever made meaningful,
-      # this must become a positive check.
-      @test !any(frame_changed[(T, :chi3, :snake)])
-      @test !any(frame_changed[(T, :chi3, :brickwork)])
+      # [item 8] With :chi3 ((:chi3, :snake) is the production setting; min_diff = 6) it now
+      # acts too: singular values ≤ τ·σ_max count as zero (CONVENTIONS.md §2). In the doped
+      # configuration (the first of small_configs()) it changes the frame with both
+      # strategies. This replaces the old no-op guard `!any(frame_changed[(T, :chi3, …)])`.
+      # Tested directly in DisentangleCAMPS/TestDisentangleQubitCAMPS.jl.
+      @test startswith(first(small_configs()).name, "doped")
+      if DISENT_ITEM8
+        @test frame_changed[(T, :chi3, :snake)][1]
+        @test frame_changed[(T, :chi3, :brickwork)][1]
+      else
+        item8_pending()
+      end
     end
   end
 

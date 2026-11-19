@@ -94,6 +94,14 @@ const SEAM_COST = isdefined(CampsPP, :perterm_expectation) &&
   hasmethod(CampsPP.perterm_expectation,
             Tuple{CampsPP.ITensorMPS.MPS, mt.QubitPauliSum}, (:nsteps,))
 
+"""
+Has post-port item 8 landed (CONVENTIONS.md §2, "Numerical zeros": the layer-end `:chi3`
+disentangler acts)? Same hook as in DisentangleCAMPS/TestDisentangleQubitCAMPS.jl:
+`CampsPP.DisentangleCAMPS.NUMERICAL_ZERO_TAU`. Item 8 checks are recorded as broken until then.
+"""
+const DISENT_ITEM8 = isdefined(CampsPP.DisentangleCAMPS, :NUMERICAL_ZERO_TAU)
+item8_pending() = @test_broken false
+
 "The frame C† as a `CliffordOperator` copy (frame-dependent tests only)."
 frame_dagger(ψ::mt.QubitCAMPS) = copy(mt.get_clifford(ψ; daggered = true).clifford)
 

@@ -7,12 +7,22 @@
 # went with the old code; `pre-port:CampsPP/test/DisentangleCAMPS/TestDisentangleQubitCAMPS.jl`
 # has them.
 #
-# Decisions this file encodes (user, 2026-11-13):
-# - `:chi3` stays the faithful no-op of the old code (plan, "Note: the old `:chi3`
-#   disentangler never acts"). It is asserted here as a fact about the algorithm. If `:chi3` is
-#   ever made meaningful, the no-op testset below must be replaced, not loosened.
+# Decisions this file encodes:
+# - Post-port item 8 (user, 2026-11-18/19; CONVENTIONS.md §2, "Numerical zeros"): a singular
+#   value σ ≤ τ·σ_max, τ = 1e-10, counts as zero, in the bond search and in the applied gate.
+#   `:chi3` scores (numerical rank)³ and now acts; an applied `:chi3` gate strictly lowers the
+#   bond dimension; no sweep leaves a numerical zero on a bond. The old no-op `:chi3` (every
+#   value counted, zeros kept) is gone, with no option to keep it (plan item 8, decision 2);
+#   its testset was replaced, not kept alongside. Expected values below come from the spec,
+#   from hand derivations re-checked here on the pinned tableaux, and from frame-invariant
+#   physics.
 # - `:entangle` keeps the old tie rule (no ε). On Clifford-structured states the chosen gate
 #   depends on rounding, so those states are checked through frame-invariant quantities.
+#
+# Gating (tests written before the code, plan "How tests are written"): `DISENT_ITEM8` is
+# true once the code defines the hook `DisentangleCAMPS.NUMERICAL_ZERO_TAU` (the τ of the
+# spec). Until then, the groups marked [item 8] record one `@test_broken false` each instead
+# of running.
 
 using ITensors, ITensorMPS
 using Random
@@ -21,6 +31,19 @@ import CampsPP
 import MagicTensors as mt
 
 const DQ = CampsPP.DisentangleCAMPS
+
+"""
+Has post-port item 8 landed? The hook, for the porting session:
+`CampsPP.DisentangleCAMPS.NUMERICAL_ZERO_TAU`, the constant τ = 1e-10 of CONVENTIONS.md §2
+("Numerical zeros"). Groups marked [item 8] are recorded as broken until it exists.
+"""
+const DISENT_ITEM8 = isdefined(DQ, :NUMERICAL_ZERO_TAU)
+item8_pending() = @test_broken false
+@info "item 8 disentangler tests: DISENT_ITEM8 = $DISENT_ITEM8" *
+      (DISENT_ITEM8 ? "" : " (groups marked [item 8] are recorded as broken)")
+
+"τ of CONVENTIONS.md §2, from the spec (not read from the code)."
+const TAU = 1e-10
 
 # -- Helpers -----------------------------------------------------------------------------
 
@@ -68,6 +91,141 @@ end
 "Do two MPS hold the same tensors (same indices, same entries)?"
 same_tensors(a::MPS, b::MPS) = length(a) == length(b) &&
   all(inds(a[j]) == inds(b[j]) && norm(a[j] - b[j]) == 0 for j in eachindex(a))
+
+# -- Helpers for item 8 (numerical zeros) ------------------------------------------------
+
+"""
+Singular values across bond b of `mps`, largest first: the SVD of the two-site block (b, b+1)
+of a copy orthogonalized at b, untruncated. A stored bond of dimension χ_b gives at most χ_b
+nonzero values; the rest of the min(2χ_{b-1}, 2χ_{b+1}) values are exact or rounding zeros.
+"""
+function bond_spectrum(mps::MPS, b)
+  m = orthogonalize(mps, b)
+  left = b > 1 ? (linkind(m, b - 1), siteind(m, b)) : (siteind(m, b),)
+  _, S, _ = svd(m[b] * m[b + 1], left...)
+  return sort(diag(S); rev = true)
+end
+
+"Numerical rank (CONVENTIONS.md §2): the number of values above τ·σ_max."
+numrank(σ) = count(>(TAU * maximum(σ)), σ)
+
+"""
+Bonds of `mps` that hold a numerical zero: stored dimension above the numerical rank. The
+spec's "no bond holds a singular value ≤ τ·σ_max" is `isempty(padded_bonds(mps))`.
+"""
+padded_bonds(mps::MPS) = [b for b in 1:length(mps)-1 if linkdims(mps)[b] > numrank(bond_spectrum(mps, b))]
+
+"""
+A two-qubit state given by its stabilizer generators (s1, s2): is it a product state after
+pinned gate k? Hand rule: G|ψ⟩ is stabilized by the images G s G†, and a two-qubit
+stabilizer state is a product iff its stabilizer group {s1', s2', s1's2'} holds a weight-1
+string. Uses only the pinned tableaux (`cliffconj`, helpers.jl), not the code.
+"""
+function pinned_disentangles(k, s1, s2)
+  a = cliffconj(pinned_tableau(k), s1)
+  b = cliffconj(pinned_tableau(k), s2)
+  weight(P) = count(j -> xbit(P)[j] || zbit(P)[j], 1:2)
+  return any(==(1), weight.((a, b, a * b)))
+end
+
+"""
+Is the two-qubit Clifford C a local Clifford, or a local Clifford times SWAP? Then the images
+of X₁ and Z₁ act on one and the same qubit, and those of X₂ and Z₂ on one qubit.
+"""
+function local_or_swaplocal(C)
+  supp(P) = [j for j in 1:2 if xbit(P)[j] || zbit(P)[j]]
+  s = [supp(cliffconj(C, P)) for P in (P"XI", P"ZI", P"IX", P"IZ")]
+  return length(s[1]) == 1 && s[1] == s[2] && length(s[3]) == 1 && s[3] == s[4]
+end
+
+"""
+The pinned gates j that undo pinned gate k on every product state: G_j G_k is local, or local
+times SWAP (`A * B` applies B first, TestGoldenSet.jl). On a generic product state |ab⟩
+(random single-qubit states), G_j G_k|ab⟩ is a product exactly for these j (with
+probability 1), so `:chi3` applies the first of them to G_k|ab⟩.
+"""
+undoers(k) = [j for j in 1:19 if local_or_swaplocal(pinned_tableau(j) * pinned_tableau(k))]
+
+"N-qubit MPS with amplitudes ψ (DenseReference layout: qubit 1 is the least significant bit)."
+mps_from_amplitudes(s, ψ) = MPS(ITensor(reshape(ComplexF64.(ψ), ntuple(_ -> 2, length(s))), s...), s)
+
+"""
+N = 4: Φ⁺ = (|00⟩ + |11⟩)/√2 on qubits (2, 3) times (|00⟩ + ε|11⟩)/√(1 + ε²) on qubits
+(1, 4). Bond 2 cuts both pairs, so its Schmidt values are {1, 1, ε, ε}/√(2(1 + ε²)): ratio ε
+to σ_max. A gate on (2, 3) acts on the Φ⁺ factor only: across bond 2 the spectrum becomes
+spec(G Φ⁺) ⊗ {1, ε}/√(1 + ε²).
+"""
+function bell_times_weak_pair(s, ε)
+  ψ = zeros(ComplexF64, 16)
+  for b23 in (0, 1), b14 in (0, 1)   # Φ⁺: b2 = b3; weak pair: b1 = b4
+    ψ[1 + b14 + 2b23 + 4b23 + 8b14] = (b14 == 0 ? 1 : ε) / sqrt(2 * (1 + ε^2))
+  end
+  return mps_from_amplitudes(s, ψ)
+end
+
+"""
+A local bond search that logs, for every gate it applies, the bond, its stored dimension
+before and after, and its numerical rank after. Wraps the search of `sweep_disentangler`, so
+the properties are checked at every applied gate inside real sweeps.
+"""
+struct RecordingSearch{L <: mt.AbstractLocalDisentangler} <: mt.AbstractLocalDisentangler
+  inner::L
+  log::Vector{NamedTuple{(:bond, :before, :after, :rank_after), NTuple{4, Int}}}
+end
+RecordingSearch(inner) =
+  RecordingSearch(inner, NamedTuple{(:bond, :before, :after, :rank_after), NTuple{4, Int}}[])
+
+function mt.disentangle!(r::RecordingSearch, ψ::mt.QubitCAMPS, n::Int, right::Bool)
+  before = linkdims(mt.get_mps(ψ))[n]
+  res = mt.disentangle!(r.inner, ψ, n, right)
+  if res[1] > 0
+    mps = mt.get_mps(ψ)
+    push!(r.log, (bond = n, before, after = linkdims(mps)[n], rank_after = numrank(bond_spectrum(mps, n))))
+  end
+  return res
+end
+
+"`sweep_disentangler(crit, strat, max_iter; min_diff)` with its bond search logged; returns (de, log)."
+function recording_sweep(crit, strat, max_iter; min_diff = 0.0)
+  rec = RecordingSearch(bond_search(DQ.sweep_disentangler(crit, strat, max_iter)))
+  sweep = strat == :snake ? DQ.SnakeDisentangler(rec) : DQ.BrickworkDisentangler(rec)
+  return DQ.MinDiffDisentangler(sweep, max_iter; min_diff), rec.log
+end
+
+"""
+Random product state (random single-qubit states) with pinned gate ks[i] applied on bond
+bonds[i] (disjoint qubit pairs), behind a random frame.
+"""
+function structured_state(rng, N, bonds, ks)
+  s = siteinds("Qubit", N)
+  mps = random_mps(rng, ComplexF64, s; linkdims = 1)
+  for (b, k) in zip(bonds, ks)
+    mt.apply!(mps, Matrix(mt.QubitCliffordGate(pinned_tableau(k))), [b, b + 1])
+  end
+  return mt.QubitCAMPS(mps, mt.QubitCliffordUnitary(random_clifford(rng, N)), false)
+end
+
+"A random nonempty set of bonds in 1:N-1, no two adjacent (disjoint qubit pairs)."
+function disjoint_bonds(rng, N)
+  while true
+    bonds = Int[]
+    b = rand(rng, 1:2)
+    while b <= N - 1
+      if rand(rng) < 0.6
+        push!(bonds, b); b += 2
+      else
+        b += 1
+      end
+    end
+    isempty(bonds) || return bonds
+  end
+end
+
+"Every N-qubit Pauli string up to N = 5; beyond, `nsample` random ones."
+function test_paulis(rng, N; nsample = 300)
+  N <= 5 && return all_pauli_ops(N)
+  return [PauliOperator(0x0, rand(rng, Bool, N), rand(rng, Bool, N)) for _ in 1:nsample]
+end
 
 # -- Gate set ----------------------------------------------------------------------------
 
@@ -177,8 +335,9 @@ end
 # The old snake (dmrgCliffordMPS/src/Disentangler.jl) re-reads the bond dimensions at the start
 # of each direction and does not search bonds of dimension 1 (a product cut has nothing to
 # disentangle). A uniform-χ ≥ 2 state never has such a bond, so a snake that searches every
-# bond would pass tests on those. Without a cutoff (the campssrc setting) the search on a
-# dimension-1 bond finds tie-level "gains" (~1e-16), applies a gate, and grows the bond.
+# bond would pass tests on those. With :entangle, the search on a dimension-1 bond finds
+# tie-level "gains" (~1e-16) and applies a gate; before item 8, with no cutoff (the campssrc
+# setting then), that gate also grew the bond.
 
 "A random MPS with the bond dimensions `dims` (length N-1), behind a random frame."
 function random_state_dims(rng, dims)
@@ -259,60 +418,355 @@ end
   @test gates[:entangle] >= 10   # not vacuous: the search acted on the other bonds
 end
 
-# -- :chi3 is a no-op --------------------------------------------------------------------
+# -- Item 8: numerical zeros; :chi3 acts (CONVENTIONS.md §2) -----------------------------
+#
+# Replaces the old ":chi3 never applies a gate" testset (plan item 8: replaced, not kept
+# alongside). Which mutant of the plan's list each group is meant to catch:
+# - the old no-op (every value counted): every pin where :chi3 acts (Bell, cluster, two
+#   Bell pairs, τ boundary, randomized-exact);
+# - τ 1e6× too tight (1e-16): τ boundary at 0.1τ (gain 56 and bond 2 instead of 7 and 1);
+# - τ 1e6× too loose (1e-4) and counting σ² against a σ-scale τ: τ boundary at 10τ (gain 7
+#   and bond 1 instead of 56 and 2);
+# - `maxdim = r` not passed (padding kept): every bond-dimension pin, `padded_bonds`;
+# - a tie with the identity accepted (≤ for <): product and generic states (brickwork
+#   searches every bond and would apply SWAP), and the gain pins.
 
-@testset ":chi3 never applies a gate (faithful to the old code)" begin
-  # Mechanism (plan, "Note: the old `:chi3` disentangler never acts"): the search SVDs are
-  # untruncated, and ITensors keeps the zero singular values, so every candidate gate scores
-  # (min(2χ_L, 2χ_R))³, the same as the identity, and none is strictly better.
-  N = 4
-  s = siteinds("Qubit", N)
+@testset "item 8 hand derivations, re-checked on the pinned tableaux (no code under test)" begin
+  # Bell pair Φ⁺, stabilizers +XX, +ZZ. By hand, gate 3 (X₁ → ZY, X₂ → ZI, Z₁ → IZ, Z₂ → YZ):
+  # XX → ZY·ZI = +IY and ZZ → IZ·YZ = +YI, so G₃Φ⁺ = |+i⟩|+i⟩ (Y eigenstates), a product.
+  # Gate 1 (SWAP) keeps XX, ZZ; gate 2: XX → ZY·YZ = (−iX)(iX) = +XX, ZZ → IZ·ZI = +ZZ: both
+  # keep it entangled. So gate 3 is the first that disentangles it; CNOT (11) is not.
+  # Over all 19 (plan item 8 lists the same set, checked there on dense matrices):
+  bell_set = [3, 4, 5, 7, 8, 9, 11, 13, 15, 16, 17, 18]
+  @test [k for k in 1:19 if pinned_disentangles(k, P"XX", P"ZZ")] == bell_set
+  @test cliffconj(pinned_tableau(3), P"XX") == P"IY" && cliffconj(pinned_tableau(3), P"ZZ") == P"YI"
+  # Cluster state CZ|++⟩, stabilizers +XZ, +ZX. Gate 2: XZ → ZY·ZI = +IY, ZX → IZ·YZ = +YI,
+  # a product. CNOT (11): XZ → XX·ZZ = −YY, ZX → ZI·IX = +ZX, still maximally entangled.
+  cluster_set = [2, 4, 6, 7, 8, 9, 12, 13, 14, 16, 17, 18]
+  @test [k for k in 1:19 if pinned_disentangles(k, P"XZ", P"ZX")] == cluster_set
+  @test cliffconj(pinned_tableau(2), P"XZ") == P"IY" && cliffconj(pinned_tableau(2), P"ZX") == P"YI"
+  @test cliffconj(pinned_tableau(11), P"XZ") == P"-YY"
+  # Undoing a gate on product states (randomized-exact test below): gates 2–10 are undone by
+  # gates 2 and 12, gates 11–19 by gates 3 and 11, SWAP by SWAP.
+  @test undoers(1) == [1]
+  @test all(undoers(k) == [2, 12] for k in 2:10)
+  @test all(undoers(k) == [3, 11] for k in 11:19)
+  # Negative checks: the helpers reject wrong answers.
+  @test !pinned_disentangles(11, P"XZ", P"ZX")
+  @test !local_or_swaplocal(pinned_tableau(11))                  # CNOT is not local
+  @test local_or_swaplocal(tHadamard ⊗ tPhase) && local_or_swaplocal(pinned_tableau(1))
+  @test !local_or_swaplocal(pinned_tableau(2) * pinned_tableau(11))   # 2 does not undo 11
+  @test local_or_swaplocal(pinned_tableau(3) * pinned_tableau(11))    # 3 does
+end
 
-  @testset "mechanism: the untruncated search SVD keeps zero singular values" begin
-    # CNOT turns the Bell pair on bond 2 into a product state: one nonzero singular value,
-    # but the search still counts two.
-    m = bell_mps(s, 2)
-    orthogonalize!(m, 2)
-    _, S, _ = mt.apply_and_svd(m, Matrix(mt.QubitCliffordGate(tCNOT)), 2)
-    σ = diag(S)
-    @test length(σ) == 2
-    @test maximum(σ) ≈ 1 atol = 1e-12
-    @test minimum(σ) <= 1e-14
+@testset "item 8 property helpers reject wrong answers" begin
+  # A zero-padded bond: SWAP applied to a product state by `mt.apply!` (untruncated) leaves
+  # bond 2 at dimension 2 holding a zero value.
+  s = siteinds("Qubit", 4)
+  m = MPS(ComplexF64, s, "0")
+  mt.apply!(m, Matrix(mt.QubitCliffordGate(tSWAP)), [2, 3])
+  @test linkdims(m) == [1, 2, 1]
+  @test padded_bonds(m) == [2]
+  @test isempty(padded_bonds(bell_mps(s, 2)))
+  # τ is relative to σ_max, per value.
+  @test numrank([1.0, 0.1TAU]) == 1 && numrank([1.0, 10TAU]) == 2
+  @test numrank([2.0, 1.5TAU]) == 1 && numrank([2.0, 1.0, 0.0]) == 2
+  # The spectrum helper on a known state: Φ⁺ ⊗ weak pair, bond 2 = {1, 1, ε, ε}/norm.
+  σ = bond_spectrum(bell_times_weak_pair(s, 1e-3), 2)
+  @test all(isapprox.(σ ./ σ[1], [1, 1, 1e-3, 1e-3]; rtol = 1e-10))
+  # A logged gate that keeps the bond or keeps a zero fails the checks used below.
+  bad = [(bond = 1, before = 2, after = 2, rank_after = 1)]
+  @test !all(e.after < e.before for e in bad)
+  @test !all(e.after == e.rank_after for e in bad)
+end
+
+@testset "[item 8] τ = 1e-10" begin
+  if !DISENT_ITEM8
+    item8_pending()
+  else
+    @test DQ.NUMERICAL_ZERO_TAU === TAU
   end
+end
 
-  @testset "a Bell pair that one gate of the set removes: ($strat), $(isempty(kw) ? "no cutoff" : "cutoff 1e-12")" for
-      strat in (:snake, :brickwork), kw in ((;), (; cutoff = 1e-12))
-    # :chi3 leaves the state untouched, although CNOT (gate 11) would cut bond 2 from 2 to 1.
+@testset "[item 8] :chi3 removes a Bell pair with the first gate of the set that does ($strat)" for
+    strat in (:snake, :brickwork)
+  if !DISENT_ITEM8
+    item8_pending()
+  else
+    N = 4
+    s = siteinds("Qubit", N)
+    ops = all_pauli_ops(N)
     ψ = mt.QubitCAMPS(bell_mps(s, 2), mt.QubitCliffordUnitary(N), false)
-    mps0 = deepcopy(mt.get_mps(ψ)); frame0 = frame_dagger(ψ)
-    num, gain, sweeps = mt.disentangle!(DQ.sweep_disentangler(:chi3, strat, N; kw...), ψ)
-    @test num == 0 && gain == 0.0
-    @test length(sweeps) == 1 && isempty(sweeps[1][3])     # stops after one empty sweep
-    @test same_tensors(mt.get_mps(ψ), mps0)
-    @test frame_dagger(ψ) == frame0
+    @test linkdims(mt.get_mps(ψ)) == [1, 2, 1]
+    ref = physical_expectations(ψ, ops)
+    num, gain, sweeps = mt.disentangle!(DQ.sweep_disentangler(:chi3, strat, N; min_diff = 6), ψ)
+    # Bond 2: the identity has rank 2 (score 8), gate 3 rank 1 (score 1): gain 7 > min_diff,
+    # so a second sweep runs, finds nothing and stops. Bonds 1 and 3 have rank 1, where no
+    # gate is strictly better than the identity.
+    @test num == 1 && gain == 7.0
+    @test length(sweeps) == 2
+    @test sweeps[1][3] == [(3, 2)] && isempty(sweeps[2][3])
+    @test linkdims(mt.get_mps(ψ)) == [1, 1, 1]
+    # Frame: |ψ⟩ = C|mps⟩ (§4). The MPS became G|mps⟩, so C becomes C·G† and the stored
+    # C† becomes G·C† = G (C = 1 here): gate 3 on qubits (2, 3), signs included.
+    @test frame_dagger(ψ) == embed(pinned_tableau(3), N, [2, 3])
+    @test frame_dagger(ψ) != embed(pinned_tableau(11), N, [2, 3])
+    # The bare MPS is G₃Φ⁺ = |+i⟩|+i⟩ on sites 2, 3 (hand derivation above), |0⟩ elsewhere.
+    bare = mt.QubitCAMPS(deepcopy(mt.get_mps(ψ)), mt.QubitCliffordUnitary(N), false)
+    @test physical_expectations(bare, [P"IYII", P"IIYI", P"ZIII", P"IIIZ"]) ≈ [1, 1, 1, 1] atol = 1e-12
+    @test maximum(abs.(physical_expectations(ψ, ops) .- ref)) <= 1e-12
 
-    # Control: :entangle on the same state does remove the pair (gain 1 bit). With the
-    # cutoff, the applied gate's SVD also drops the zero singular value.
+    # :entangle on the same state: the applied gate now also drops the zero value (the old
+    # code, without cutoff, left [1, 2, 1]). Which gate wins is a rounding-decided tie.
     ψe = mt.QubitCAMPS(bell_mps(s, 2), mt.QubitCliffordUnitary(N), false)
-    num_e, gain_e, _ = mt.disentangle!(DQ.sweep_disentangler(:entangle, strat, N; kw...), ψe)
-    @test num_e >= 1
+    num_e, gain_e, _ = mt.disentangle!(DQ.sweep_disentangler(:entangle, strat, N; min_diff = 6), ψe)
+    @test num_e == 1
     @test gain_e ≈ 1 atol = 1e-12
-    @test linkdims(mt.get_mps(ψe)) == (isempty(kw) ? [1, 2, 1] : [1, 1, 1])
+    @test linkdims(mt.get_mps(ψe)) == [1, 1, 1]
   end
+end
 
-  @testset "random generic states, any max_iter and min_diff: ($strat)" for strat in (:snake, :brickwork)
-    rng = Xoshiro(hash((:chi3_noop, strat)))
+@testset "[item 8] :chi3 removes two Bell pairs in one sweep, gain 14 ($strat)" for
+    strat in (:snake, :brickwork)
+  if !DISENT_ITEM8
+    item8_pending()
+  else
+    # N = 6, Φ⁺ on qubits (1, 2) and (4, 5). Snake: bonds 1 and 4 forward (2, 3, 5 skipped).
+    # Brickwork: bonds 1, 3, 5, then 4, 2. Either way gate 3 on bond 1, then on bond 4.
+    N = 6
+    s = siteinds("Qubit", N)
+    mps = bell_mps(s, 1)
+    mt.apply!(mps, Matrix(mt.QubitCliffordGate(tCNOT * (tHadamard ⊗ tId1))), [4, 5])
+    ψ = mt.QubitCAMPS(mps, mt.QubitCliffordUnitary(N), false)
+    @test linkdims(mt.get_mps(ψ)) == [2, 1, 1, 2, 1]
+    num, gain, sweeps = mt.disentangle!(DQ.sweep_disentangler(:chi3, strat, N; min_diff = 6), ψ)
+    @test num == 2 && gain == 14.0
+    @test length(sweeps) == 2
+    @test sweeps[1][3] == [(3, 1), (3, 4)] && isempty(sweeps[2][3])
+    @test all(==(1), linkdims(mt.get_mps(ψ)))
+    @test frame_dagger(ψ) == embed(pinned_tableau(3), N, [1, 2]) * embed(pinned_tableau(3), N, [4, 5])
+  end
+end
+
+@testset "[item 8] :chi3 on a state CNOT does not disentangle: the first gate that does ($strat)" for
+    strat in (:snake, :brickwork)
+  if !DISENT_ITEM8
+    item8_pending()
+  else
+    # The cluster state CZ|++⟩ on qubits (2, 3) of N = 4: gate 2 is the first that makes it
+    # a product (hand derivation above), CNOT is not among them.
+    N = 4
+    s = siteinds("Qubit", N)
+    mps = MPS(ComplexF64, s, "0")
+    mt.apply!(mps, Matrix(mt.QubitCliffordGate(tCPHASE * (tHadamard ⊗ tHadamard))), [2, 3])
+    ψ = mt.QubitCAMPS(mps, mt.QubitCliffordUnitary(N), false)
+    @test linkdims(mt.get_mps(ψ)) == [1, 2, 1]
+    # Check of the input, frame-free: the stabilizers +XZ, +ZX on qubits 2, 3.
+    @test physical_expectations(ψ, [P"IXZI", P"IZXI"]) ≈ [1, 1] atol = 1e-12
+    num, gain, sweeps = mt.disentangle!(DQ.sweep_disentangler(:chi3, strat, N; min_diff = 6), ψ)
+    @test num == 1 && gain == 7.0
+    @test sweeps[1][3] == [(2, 2)] && length(sweeps) == 2 && isempty(sweeps[2][3])
+    @test linkdims(mt.get_mps(ψ)) == [1, 1, 1]
+    @test frame_dagger(ψ) == embed(pinned_tableau(2), N, [2, 3])
+    bare = mt.QubitCAMPS(deepcopy(mt.get_mps(ψ)), mt.QubitCliffordUnitary(N), false)
+    @test physical_expectations(bare, [P"IYII", P"IIYI"]) ≈ [1, 1] atol = 1e-12
+  end
+end
+
+@testset "[item 8] :chi3 on a product state: nothing applied, one empty sweep ($strat)" for
+    strat in (:snake, :brickwork)
+  if !DISENT_ITEM8
+    item8_pending()
+  else
+    # Every bond has rank 1, so no gate can be strictly better than the identity. (Snake
+    # skips all bonds; brickwork searches them all, so a tie accepted with the identity
+    # would show here.)
+    rng = Xoshiro(hash((:item8_product, strat)))
     for _ in 1:4
-      N = rand(rng, 3:6)
-      ψ = random_state(rng, N, rand(rng, 2:4))
+      N = rand(rng, 4:6)
+      ψ = random_state_dims(rng, ones(Int, N - 1))
       mps0 = deepcopy(mt.get_mps(ψ)); frame0 = frame_dagger(ψ)
-      num, gain, sweeps = mt.disentangle!(
-        DQ.sweep_disentangler(:chi3, strat, 5; min_diff = -1.0, cutoff = 1e-12), ψ)
+      num, gain, sweeps = mt.disentangle!(DQ.sweep_disentangler(:chi3, strat, N; min_diff = 6), ψ)
       @test num == 0 && gain == 0.0
-      @test length(sweeps) == 5                            # min_diff < 0: every sweep runs
+      @test length(sweeps) == 1 && isempty(sweeps[1][3])
       @test same_tensors(mt.get_mps(ψ), mps0)
       @test frame_dagger(ψ) == frame0
     end
+  end
+end
+
+@testset "[item 8] :chi3 on a generic entangled two-qubit state: nothing applied ($strat)" for
+    strat in (:snake, :brickwork)
+  # A seeded random two-qubit state. No pinned gate makes it a product, checked here from
+  # the tableaux alone: after gate C, the purity of qubit 1 is (1 + Σ_P ⟨C P C†⟩²)/2 over
+  # P ∈ {XI, YI, ZI}, with ⟨C P C†⟩ on G|a⟩ = ⟨a|C† P C|a⟩ (`cliffconj(inv(C), P)`).
+  # (cos a|00⟩ + sin a|11⟩ would not do: CNOT makes it a product.)
+  rng = Xoshiro(hash((:item8_generic2, strat)))
+  s = siteinds("Qubit", 2)
+  for _ in 1:4
+    mps = random_mps(rng, ComplexF64, s; linkdims = 2)
+    bare = mt.QubitCAMPS(mps, mt.QubitCliffordUnitary(2), false)
+    purity(C) = (1 + sum(abs2, physical_expectations(bare,
+      [cliffconj(inv(C), P) for P in (P"XI", P"YI", P"ZI")]))) / 2
+    @test numrank(bond_spectrum(mps, 1)) == 2
+    @test purity(one(CliffordOperator, 2)) < 1 - 1e-3
+    @test all(purity(pinned_tableau(k)) < 1 - 1e-3 for k in 1:19)
+    if !DISENT_ITEM8
+      item8_pending()
+      continue
+    end
+    ψ = mt.QubitCAMPS(deepcopy(mps), mt.QubitCliffordUnitary(random_clifford(rng, 2)), false)
+    mps0 = deepcopy(mt.get_mps(ψ)); frame0 = frame_dagger(ψ)
+    num, gain, sweeps = mt.disentangle!(DQ.sweep_disentangler(:chi3, strat, 2; min_diff = 6), ψ)
+    @test num == 0 && gain == 0.0
+    @test length(sweeps) == 1 && isempty(sweeps[1][3])
+    @test same_tensors(mt.get_mps(ψ), mps0)
+    @test frame_dagger(ψ) == frame0
+  end
+end
+
+@testset "[item 8] τ boundary: a value at 0.1τ·σ_max is zero, one at 10τ·σ_max is not" begin
+  if !DISENT_ITEM8
+    item8_pending()
+  else
+    # Φ⁺ on (2, 3) times (|00⟩ + ε|11⟩) on (1, 4), N = 4 (`bell_times_weak_pair`). Across
+    # bond 2: identity {1, 1, ε, ε}, gates 1, 2 the same ranks (they keep Φ⁺ entangled),
+    # gate 3 {1, ε} (G₃Φ⁺ is a product), all relative to σ_max. So gate 3 is chosen at both ε:
+    # - ε = 0.1τ: ranks 2 → 1, scores 8 → 1, gain 7, and the 0.1τ value is dropped (bond 1);
+    # - ε = 10τ:  ranks 4 → 2, scores 64 → 8, gain 56, and the 10τ value is kept (bond 2).
+    # The single-bond search on bond 2 only: bonds 1 and 3 carry the weak pair too.
+    N = 4
+    s = siteinds("Qubit", N)
+    ops = all_pauli_ops(N)
+    bs = bond_search(DQ.sweep_disentangler(:chi3, :snake, N; min_diff = 6))
+    for (ε, gain_exp, dim_exp, phys_tol) in ((0.1TAU, 7.0, 1, 1e-10), (10TAU, 56.0, 2, 1e-12))
+      @testset "ε = $(ε / TAU)·τ" begin
+        ψ = mt.QubitCAMPS(bell_times_weak_pair(s, ε), mt.QubitCliffordUnitary(N), false)
+        σ0 = bond_spectrum(mt.get_mps(ψ), 2)
+        @test linkdims(mt.get_mps(ψ)) == [2, 4, 2]
+        @test all(isapprox.(σ0 ./ σ0[1], [1, 1, ε, ε]; rtol = 1e-6))
+        ref = physical_expectations(ψ, ops)
+        @test mt.disentangle!(bs, ψ, 2, false) == (1, gain_exp, 3)
+        mps = mt.get_mps(ψ)
+        @test linkdims(mps)[2] == dim_exp
+        σ = bond_spectrum(mps, 2)
+        @test numrank(σ) == dim_exp
+        dim_exp == 2 && @test σ[2] / σ[1] ≈ ε rtol = 1e-6
+        @test frame_dagger(ψ) == embed(pinned_tableau(3), N, [2, 3])
+        # Dropping the 0.1τ value moves expectations by O(ε); keeping it, by rounding only.
+        @test maximum(abs.(physical_expectations(ψ, ops) .- ref)) <= phys_tol
+
+        # :entangle on the same state: its applied gate drops the 0.1τ value and keeps the
+        # 10τ one. (Which disentangling gate wins is a rounding-decided tie.)
+        ψe = mt.QubitCAMPS(bell_times_weak_pair(s, ε), mt.QubitCliffordUnitary(N), false)
+        bse = bond_search(DQ.sweep_disentangler(:entangle, :snake, N; min_diff = 6))
+        n_e, = mt.disentangle!(bse, ψe, 2, false)
+        @test n_e == 1
+        @test linkdims(mt.get_mps(ψe))[2] == dim_exp
+      end
+    end
+  end
+end
+
+@testset "[item 8] SVD keywords: `cutoff` truncates the applied gate only, on top of τ" begin
+  if !DISENT_ITEM8
+    item8_pending()
+  else
+    # The ε = 10τ state of the τ-boundary test, with cutoff = 1e-12 (ITensors: discarded
+    # weight Σσ²/Σσ²). The search ignores it: gate 3, gain 56, as without. The applied gate's
+    # SVD then also drops the 10τ value, whose weight ε²/(1 + ε²) = 1e-18 is below the
+    # cutoff: bond 2 ends at 1, not 2. The physical state moves by O(ε) only.
+    N = 4
+    s = siteinds("Qubit", N)
+    ops = all_pauli_ops(N)
+    ε = 10TAU
+    ψ = mt.QubitCAMPS(bell_times_weak_pair(s, ε), mt.QubitCliffordUnitary(N), false)
+    ref = physical_expectations(ψ, ops)
+    bs = bond_search(DQ.sweep_disentangler(:chi3, :snake, N; min_diff = 6, cutoff = 1e-12))
+    @test mt.disentangle!(bs, ψ, 2, false) == (1, 56.0, 3)
+    @test linkdims(mt.get_mps(ψ))[2] == 1
+    @test frame_dagger(ψ) == embed(pinned_tableau(3), N, [2, 3])
+    @test maximum(abs.(physical_expectations(ψ, ops) .- ref)) <= 1e-8
+  end
+end
+
+@testset "[item 8] randomized-exact: Clifford-structured states go back to a product ($strat)" for
+    strat in (:snake, :brickwork)
+  # A random product state, a random gate k ∈ 2:19 of the set on each of some disjoint qubit
+  # pairs, a random frame. Each pair has rank 2, and the first gate that makes it a product
+  # again is first(undoers(k)) (2 or 3; derived above from the tableaux). One sweep does all
+  # pairs, gaining 7 each; the second finds nothing. The physical state is unchanged (all 4^N
+  # Pauli strings up to N = 5, 300 random ones beyond).
+  if !DISENT_ITEM8
+    item8_pending()
+  else
+    rng = Xoshiro(hash((:item8_structured, strat)))
+    for _ in 1:6
+      N = rand(rng, 4:8)
+      bonds = disjoint_bonds(rng, N)
+      ks = rand(rng, 2:19, length(bonds))
+      ψ = structured_state(rng, N, bonds, ks)
+      @test linkdims(mt.get_mps(ψ)) == [b in bonds ? 2 : 1 for b in 1:N-1]
+      ops = test_paulis(rng, N)
+      ref = physical_expectations(ψ, ops)
+      num, gain, sweeps = mt.disentangle!(DQ.sweep_disentangler(:chi3, strat, N; min_diff = 6), ψ)
+      @test all(==(1), linkdims(mt.get_mps(ψ)))
+      @test num == length(bonds) && gain == 7.0 * length(bonds)
+      @test length(sweeps) == 2 && isempty(sweeps[2][3])
+      # Order of the sweep: snake goes forward; brickwork does odd bonds, then even in reverse.
+      order = strat == :snake ? sort(bonds) : [sort(filter(isodd, bonds)); sort(filter(iseven, bonds); rev = true)]
+      expected = [(first(undoers(ks[findfirst(==(b), bonds)])), b) for b in order]
+      @test sweeps[1][3] == expected
+      @test maximum(abs.(physical_expectations(ψ, ops) .- ref)) <= 1e-12
+    end
+  end
+end
+
+@testset "[item 8] properties at every applied gate and after every sweep ($crit, $strat)" for
+    crit in (:chi3, :entangle), strat in (:snake, :brickwork)
+  # On inputs without numerical zeros, at every gate the bond search applies:
+  # - the bond keeps exactly its values above τ·σ_max (stored dimension = numerical rank);
+  # - for :chi3, its dimension strictly drops (r_gate < r_identity ≤ dimension before).
+  # After every sweep: no bond holds a numerical zero, and the physical state is unchanged.
+  # States: Clifford-structured (as above) and generic (random bond dimensions 2–3), N = 4–6,
+  # one sweep at a time, three sweeps each.
+  if !DISENT_ITEM8
+    item8_pending()
+  else
+    rng = Xoshiro(hash((:item8_properties, crit, strat)))
+    gates_seen = 0
+    for trial in 1:6
+      N = rand(rng, 4:6)
+      ψ = if isodd(trial)
+        bonds = disjoint_bonds(rng, N)
+        structured_state(rng, N, bonds, rand(rng, 2:19, length(bonds)))
+      else
+        # Capped at the largest possible rank (2 on the end bonds), so there is no padding.
+        random_state_dims(rng, [min(rand(rng, 2:3), 2^b, 2^(N - b)) for b in 1:N-1])
+      end
+      @test isempty(padded_bonds(mt.get_mps(ψ)))       # the input has no numerical zeros
+      ops = test_paulis(rng, N)
+      ref = physical_expectations(ψ, ops)
+      for _ in 1:3
+        de, log = recording_sweep(crit, strat, 1; min_diff = -1.0)
+        # The logging wrapper is transparent: same result as the plain sweep on a copy (same
+        # gates, frame and state; new link indices get fresh ids, so compare by overlap).
+        ψc = deepcopy(ψ)
+        num_c, gain_c, info_c = mt.disentangle!(DQ.sweep_disentangler(crit, strat, 1; min_diff = -1.0), ψc)
+        num, gain, info = mt.disentangle!(de, ψ)
+        @test (num, gain, info) == (num_c, gain_c, info_c)
+        @test frame_dagger(ψ) == frame_dagger(ψc)
+        @test linkdims(mt.get_mps(ψ)) == linkdims(mt.get_mps(ψc))
+        @test abs(inner(mt.get_mps(ψ), mt.get_mps(ψc)) - 1) <= 1e-12
+        @test length(log) == num
+        gates_seen += num
+        @test all(e.after == e.rank_after for e in log)
+        crit == :chi3 && @test all(e.after < e.before for e in log)
+        @test isempty(padded_bonds(mt.get_mps(ψ)))
+        @test maximum(abs.(physical_expectations(ψ, ops) .- ref)) <= 1e-12
+      end
+    end
+    @test gates_seen >= 3                               # not vacuous
   end
 end
 
@@ -320,8 +774,8 @@ end
 
 @testset "every sweep leaves the physical state unchanged" begin
   # The disentangler rewrites |ψ⟩ = C|mps⟩ as (C·G†)(G|mps⟩): every Pauli expectation value
-  # of the physical state must be unchanged after every single sweep (no cutoff, so nothing
-  # is discarded). N = 4: all 256 strings. Generic states and Clifford-structured states
+  # of the physical state must be unchanged after every single sweep (only numerical zeros,
+  # ≤ τ·σ_max, are discarded: rounding level). N = 4: all 256 strings. Generic states and Clifford-structured states
   # (where :entangle's choices are tie-sensitive, but the physics is not).
   N = 4
   ops = all_pauli_ops(N)
@@ -351,7 +805,11 @@ end
         @test abs(norm(mt.get_mps(ψ)) - 1) <= 1e-12
       end
       crit == :entangle && @test acted >= 1              # the frame really changed
-      crit == :chi3 && @test acted == 0
+      # [item 8] :chi3 now acts on the two Bell pairs (each rank 2 → 1). The old
+      # `crit == :chi3 && @test acted == 0` (the no-op) is replaced, not kept.
+      if crit == :chi3 && st.name == "Clifford-structured"
+        DISENT_ITEM8 ? (@test acted >= 1) : item8_pending()
+      end
     end
   end
   # Sensitivity: applying a gate to the MPS without updating the frame is detected.
