@@ -44,7 +44,10 @@ threads, so a run can use about twice its `-t`: keep `-t` at 10 or below. The Ph
 `-t auto`; times from a different thread setting aren't comparable with those.
 Times are indicative only, because the cluster is shared.
 Each replay writes to its `out=` directory (default `output/t11/<Phase 0 id>/`), and
-`run.sh` copies that into its own run directory.
+`run.sh` copies that into its own run directory. Its log (`log.txt` in the run directory)
+records the loaded versions of PauliPropagation, MagicTensors, QuantumClifford, ITensors
+and ITensorMPS. Each version comes with the install directory's slug, which identifies
+the exact code even when the version number doesn't change, as with MagicTensors.
 
 ## Comparison (local, after `fetch.sh`)
 

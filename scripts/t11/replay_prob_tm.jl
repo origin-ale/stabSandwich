@@ -219,6 +219,19 @@ regen_states = all(s -> domainwallstate(mt.QubitCAMPS, MersenneTwister(rng_seed 
 regen_mask(p, s) = doping_mask(MersenneTwister(hash((rng_seed + s, p))), phases_ref, p)
 regen_masks = all(regen_mask(p, s) == saved_mask(p, s) for p in probs_run, s in 1:nsamples_run)
 logline("Replay of $runid on $(Threads.nthreads()) thread(s), Julia $VERSION; inject = $inject")
+# Versions of the packages the results depend on, as loaded (not as the Manifest says): the
+# version and the install directory's slug, which tells code trees apart even when the
+# version doesn't (MagicTensors is pinned to a git rev and stays at 0.0.1).
+function loaded_version(name)
+  ids = [id for id in keys(Base.loaded_modules) if id.name == name]
+  isempty(ids) && return "$name not loaded"
+  m = Base.loaded_modules[only(ids)]
+  path = pathof(m)
+  slug = isnothing(path) ? "?" : basename(dirname(dirname(path)))
+  return "$name $(pkgversion(m)) ($slug)"
+end
+logline("Packages: " * join(loaded_version.(["PauliPropagation", "MagicTensors", "QuantumClifford",
+                                             "ITensors", "ITensorMPS"]), ", "))
 logline("Initial states regenerated from the RNG on this Julia: $(regen_states ? "identical" : "DIFFERENT")")
 logline("Doping masks regenerated from hash((seed, p)) on this Julia: $(regen_masks ? "identical" : "DIFFERENT")")
 warmup_regen = regen_states && regen_masks
