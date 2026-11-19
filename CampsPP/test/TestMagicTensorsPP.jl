@@ -237,6 +237,17 @@ end
       ev = mt.expectation(ψ, O)
       @test abs(ev - old) <= EXACT_ATOL
       @test abs(imag(ev)) <= 1e-12
+      # Post-port item 4 (CONVENTIONS.md §5): the per-term default and the kept MPO route
+      # both reproduce the old value and agree to 1e-12.
+      if SEAM_ITEM4
+        evp = mt.expectation(ψ, O; method = :perterm)
+        evm = mt.expectation(ψ, O; method = :mpo)
+        @test abs(evp - old) <= EXACT_ATOL
+        @test abs(evm - old) <= EXACT_ATOL
+        @test abs(evp - evm) <= 1e-12
+      else
+        @test_broken false
+      end
     end
   end
 end

@@ -75,6 +75,13 @@ state_expectation(ψ::mt.QubitCAMPS, P::PauliOperator) = mt.expectation(ψ, P)
 
 nqubits_state(ψ::mt.QubitCAMPS) = mt.nsites(ψ)
 
+"""
+Does the pp seam take the post-port item 4 keywords `method` and `normalized`
+(CONVENTIONS.md §5, "The pp seam")? Tests of those keywords are recorded as broken until it does.
+"""
+const SEAM_ITEM4 = hasmethod(mt.expectation,
+  Tuple{mt.QubitCAMPS, typeof(pp.PauliSum(ComplexF64, 2))}, (:method, :normalized))
+
 "The frame C† as a `CliffordOperator` copy (frame-dependent tests only)."
 frame_dagger(ψ::mt.QubitCAMPS) = copy(mt.get_clifford(ψ; daggered = true).clifford)
 
