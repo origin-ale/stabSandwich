@@ -1,7 +1,7 @@
 # Phase 5: local micro-benchmarks of the NEW stack (`main`): the pp → `QubitPauliSum`
-# converter, the frame conjugation, the `expectation` seam (conjugate → OpSum → MPO → inner) and
-# a per-term prototype of ⟨ψ|O|ψ⟩ (the plan's optional replacement for the MPO route; benchmark
-# only, not in src/). Run from the repository root, under a timeout:
+# converter, the frame conjugation, the `expectation` seam with `method = :mpo` (conjugate → OpSum → MPO → inner) and
+# a per-term prototype of ⟨ψ|O|ψ⟩ (item 4 moved this into src as the default `method = :perterm`;
+# the prototype here is kept for comparison). Run from the repository root, under a timeout:
 #
 #   julia -t 1 --project=. scripts/phase5/bench_new.jl [maxmpo=1161] [budget=900] [out=output/phase5/bench_new.tsv]
 #
@@ -155,7 +155,7 @@ end
 files = sum_files()
 # Warm-up on the smallest sum, so no row below carries compilation.
 let S = read_sum(first(files))[1]
-  mt.expectation(ψ, S); frame_terms(ψ, mt.QubitPauliSum(S))
+  mt.expectation(ψ, S; method = :mpo); frame_terms(ψ, mt.QubitPauliSum(S))
 end
 
 cols = ["nterms", "conv_s", "conj_s", "seam_s", "opsum_s", "mpo_build_s", "inner_s", "mpo_maxdim",
@@ -180,7 +180,7 @@ for f in files
     # The seam end to end (one timed run: seconds to minutes, compiled by the warm-up), then
     # one run split into its stages.
     GC.gc()
-    seam = @elapsed ev_seam = mt.expectation(ψ, S)
+    seam = @elapsed ev_seam = mt.expectation(ψ, S; method = :mpo)
     Qc = mt.conjugate(Q, C)
     opsum = @elapsed os = ITensorMPS.OpSum(Qc)
     mps = mt.get_mps(ψ)
