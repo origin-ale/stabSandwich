@@ -1,6 +1,6 @@
 --- a/CampsPP/src/DisentangleQubitCAMPS.jl
 +++ b/CampsPP/src/DisentangleQubitCAMPS.jl
-@@ -102,7 +102,6 @@
+@@ -103,7 +103,6 @@
    # Search on a copy, so that the real MPS (and its bond dimensions) is untouched when no gate
    # is applied, as in the old code.
    trial = copy(mt.get_mps(ψ))

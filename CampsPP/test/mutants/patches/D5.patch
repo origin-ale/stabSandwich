@@ -1,6 +1,6 @@
 --- a/CampsPP/src/Disentangler.jl
 +++ b/CampsPP/src/Disentangler.jl
-@@ -100,7 +100,7 @@
+@@ -126,7 +126,7 @@
    for j in eachindex(Q)
      if j != i
        if Q[j] == (true, false) # X

@@ -1,6 +1,6 @@
 --- a/CampsPP/src/EvolveQubitCAMPS.jl
 +++ b/CampsPP/src/EvolveQubitCAMPS.jl
-@@ -78,7 +78,7 @@
+@@ -76,7 +76,7 @@
  "Frame update for the Clifford rotation exp(i·n·π/4·P): C ← G·C, i.e. C† ← C†·G†."
  function apply_clifford_rotation!(ψ::mt.QubitCAMPS, P::PauliOperator, n::Integer)
    n == 0 && return nothing

@@ -77,3 +77,39 @@ nqubits_state(ψ::mt.QubitCAMPS) = mt.nsites(ψ)
 
 "The frame C† as a `CliffordOperator` copy (frame-dependent tests only)."
 frame_dagger(ψ::mt.QubitCAMPS) = copy(mt.get_clifford(ψ; daggered = true).clifford)
+
+# -- Child processes ----------------------------------------------------------------------
+
+const CHILD_HEADER = raw"""
+report(name, value) = println("RESULT\t", name, "\t", repr(value))
+function errorinfo(f)
+  try
+    f()
+    return (false, "returned normally")
+  catch e
+    return (e isa ErrorException, sprint(showerror, e))
+  end
+end
+datarows(path) = [parse(Int, split(l, '\t')[1]) for l in eachline(path)
+                  if !isempty(strip(l)) && !startswith(l, '#')]
+"""
+
+"""
+Run `code` as a script in a fresh Julia process (this binary and its flags, then `flags`, no
+startup file, the active test environment) and return the values it reported with
+`report(name, value)`, as a Dict name => value. A child that fails makes this throw.
+"""
+function run_child(code::AbstractString; flags::Cmd = ``)
+  out = mktempdir() do dir
+    script = joinpath(dir, "child.jl")
+    write(script, CHILD_HEADER * code)
+    read(`$(Base.julia_cmd()) $flags --startup-file=no --project=$(Base.active_project()) $script`, String)
+  end
+  results = Dict{String, Any}()
+  for line in eachline(IOBuffer(out))
+    startswith(line, "RESULT\t") || continue
+    _, name, value = split(line, '\t'; limit = 3)
+    results[name] = Core.eval(@__MODULE__, Meta.parse(value))
+  end
+  return results
+end

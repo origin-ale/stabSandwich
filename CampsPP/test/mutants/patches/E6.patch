@@ -1,6 +1,6 @@
 --- a/CampsPP/src/EvolveQubitCAMPS.jl
 +++ b/CampsPP/src/EvolveQubitCAMPS.jl
-@@ -80,7 +80,7 @@
+@@ -78,7 +78,7 @@
    n == 0 && return nothing
    Gdag = pauli_rotation_tableau(P, mod(-n, 4))
    Cdag = mt.get_clifford(ψ; daggered = true)

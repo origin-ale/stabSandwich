@@ -47,7 +47,7 @@ place. QuantumClifford has no `apply!(::CliffordOperator, ::CliffordOperator, si
 replaces the one the old vendored CliffordMPS defined (plan, design correction 3).
 `Stabilizer(C.tab)` wraps C's tableau without copying it, so the write goes to C."""
 function _apply_on_sites!(C::CliffordOperator, op::CliffordOperator, sites::AbstractVector{<:Integer})
-  apply!(Stabilizer(C.tab), op, sites)
+  apply!(Stabilizer(C.tab), sites, op)
   return C
 end
 

@@ -1,6 +1,6 @@
 --- a/CampsPP/src/Disentangler.jl
 +++ b/CampsPP/src/Disentangler.jl
-@@ -16,7 +16,7 @@
+@@ -21,7 +21,7 @@
    n = length(Q)
    XQ = xbit(Q)
    ZQ = zbit(Q)

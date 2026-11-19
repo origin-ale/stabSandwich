@@ -1,6 +1,6 @@
 --- a/CampsPP/src/EvolveQubitCAMPS.jl
 +++ b/CampsPP/src/EvolveQubitCAMPS.jl
-@@ -86,7 +86,7 @@
+@@ -84,7 +84,7 @@
  
  "The Heisenberg image C†PC of `P` through the frame of `ψ`, sign included."
  heisenberg_image(ψ::mt.QubitCAMPS, P::PauliOperator) =

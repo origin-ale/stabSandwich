@@ -1,6 +1,6 @@
 --- a/CampsPP/src/EvolveQubitCAMPS.jl
 +++ b/CampsPP/src/EvolveQubitCAMPS.jl
-@@ -118,7 +118,7 @@
+@@ -116,7 +116,7 @@
    nature = paulinature(k, Q)
    if nature == :disentanglable
      D, sign = disentangler(k, Q)

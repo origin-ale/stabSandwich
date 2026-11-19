@@ -1,6 +1,6 @@
 --- a/CampsPP/src/EvolveQubitCAMPS.jl
 +++ b/CampsPP/src/EvolveQubitCAMPS.jl
-@@ -120,7 +120,6 @@
+@@ -118,7 +118,6 @@
      D, sign = disentangler(k, Q)
      mt.apply_to_clifford_dagger!(ψ, mt.QubitCliffordUnitary(inv(D))) # C ← C·D
      addmagicstate!(ψ, k, sign * ϕ)

@@ -32,41 +32,7 @@ const AFFECTED_N = [N for N in 1:32 if keybits(N) in RUNTIME_WIDTHS]
 "The first N of each runtime width, whose first use creates the type."
 const FIRST_N = [minimum(N for N in AFFECTED_N if keybits(N) == w) for w in RUNTIME_WIDTHS]
 
-# -- Child processes ----------------------------------------------------------------------
-
-const CHILD_HEADER = raw"""
-report(name, value) = println("RESULT\t", name, "\t", repr(value))
-function errorinfo(f)
-  try
-    f()
-    return (false, "returned normally")
-  catch e
-    return (e isa ErrorException, sprint(showerror, e))
-  end
-end
-datarows(path) = [parse(Int, split(l, '\t')[1]) for l in eachline(path)
-                  if !isempty(strip(l)) && !startswith(l, '#')]
-"""
-
-"""
-Run `code` as a script in a fresh Julia process (this binary and its flags, no startup file,
-the active test environment) and return the values it reported with `report(name, value)`,
-as a Dict name => value. A child that fails makes this throw.
-"""
-function run_child(code::AbstractString)
-  out = mktempdir() do dir
-    script = joinpath(dir, "child.jl")
-    write(script, CHILD_HEADER * code)
-    read(`$(Base.julia_cmd()) --startup-file=no --project=$(Base.active_project()) $script`, String)
-  end
-  results = Dict{String, Any}()
-  for line in eachline(IOBuffer(out))
-    startswith(line, "RESULT\t") || continue
-    _, name, value = split(line, '\t'; limit = 3)
-    results[name] = Core.eval(@__MODULE__, Meta.parse(value))
-  end
-  return results
-end
+# -- Child code (`run_child` and its `report`/`errorinfo`/`datarows`: helpers.jl) ----------
 
 """
 Child code: two top-level statements at N qubits. The first builds the one-term sum Z₁, which

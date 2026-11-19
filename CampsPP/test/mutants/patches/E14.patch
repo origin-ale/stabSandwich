@@ -1,6 +1,6 @@
 --- a/CampsPP/src/EvolveQubitCAMPS.jl
 +++ b/CampsPP/src/EvolveQubitCAMPS.jl
-@@ -38,7 +38,7 @@
+@@ -36,7 +36,7 @@
    N = nqubits(P)
    R = mt.QubitPauliSum(N)
    push!(R, mt.QubitPauli(N), cos(ϕ))
