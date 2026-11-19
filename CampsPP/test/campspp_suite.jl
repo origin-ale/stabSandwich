@@ -10,6 +10,7 @@ include("helpers.jl")
   include("TestMagicTensorsPP.jl")
   include("TestPPHashBug.jl")
   include("TestDepwarn.jl")
+  include("TestThreads.jl")
   include("TestUtilityFormat.jl")
   include("TestProgress.jl")          # uses helpers from TestTimeEvolution.jl
 end
