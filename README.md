@@ -49,9 +49,13 @@ julia --project=. -t 4 Comptime_prob_tm.jl methods=campspp,pp magic_probs=0,0.02
   `comptime_N<N>_<method>_log.txt` trajectories of `Comptime_prob_tm.jl` have none.
 - **Progress.** Plain timestamped lines on stdout (no progress bars), so a log redirected
   to a file can be followed with `tail -f`.
-- **Threads.** `Comptime_prob_tm.jl` and `TransferredMag_varparams.jl` give BLAS and Strided
-  one thread per Julia thread (`-t`). The timing scripts (`Comptime_ratios.jl`,
-  `Comptime_3_squarecirc.jl`, `switch_optimization.jl`) fix them at 1.
+- **Threads.** Every script gives BLAS and Strided 1 thread: at these sizes more only costs
+  time (plan item 7's thread test, 2026-11-20: `-t 8` was 1.5–1.8× slower than `-t 1`).
+  `Comptime_prob_tm.jl` and `TransferredMag_varparams.jl` take a `blas_threads=…` override
+  (recorded in the output headers; Strided is capped at `-t`). Only
+  `TransferredMag_varparams.jl` runs samples in parallel, one per Julia thread (`-t`);
+  `Comptime_prob_tm.jl` runs them one after another, so that its per-sample times aren't
+  contended, and needs no more than `-t 1`.
 
 | Script | Computes |
 |---|---|
@@ -62,7 +66,7 @@ julia --project=. -t 4 Comptime_prob_tm.jl methods=campspp,pp magic_probs=0,0.02
 | `Comptime_3_squarecirc.jl` | Exact CAMPS, PP and MPS computation time on square (t = N) random rotation circuits, vs N. |
 | `Randrot_complexity.jl` | Entanglement and stabilizer Rényi entropy after t layers of (random Clifford, random Pauli rotation), vs t/N; also saves two plots. |
 
-Remote runs: `scripts/remote/run.sh -t 10 Comptime_prob_tm.jl samples=25` on the target,
+Remote runs: `scripts/remote/run.sh -t 1 Comptime_prob_tm.jl samples=25` on the target,
 then `scripts/remote/fetch.sh <run id>` locally (see `scripts/remote/README.md`).
 
 ## Tests

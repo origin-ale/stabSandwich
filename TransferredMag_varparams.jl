@@ -7,9 +7,6 @@ using Random: MersenneTwister
 @isdefined(ScriptSetup) || include(joinpath(@__DIR__, "scripts", "ScriptSetup.jl"))
 using .ScriptSetup
 
-nthr = Threads.nthreads()
-setup_threads(nthr)
-
 # == Parameters ===============================================================
 # Override from the command line as key=value (`help` lists them), e.g.
 #   julia --project=. TransferredMag_varparams.jl N=12 μs=0.3,0.6 magic_probs=0,1
@@ -26,8 +23,13 @@ params = @parameters begin
   thl = 1e-10                # PP truncation threshold
   Nmax_pauli = 1_000_000     # maximum number of Paulis in PP
   warn_on_prestop = true
+  # BLAS and Strided threads per sample; the samples themselves run on the Julia
+  # threads (-t), so more than 1 here oversubscribes the cores
+  blas_threads = 1
   outdir = "output/TransferredMag_varparams"
 end
+nthr = Threads.nthreads()
+setup_threads(blas_threads)
 
 dope_method = "on_XY"   # no spaces: header entries are single k=v words
 param_pairs = vec([(magic_prob, μ) for magic_prob in magic_probs, μ in μs])
@@ -48,7 +50,7 @@ initialize_output(output_full, "$obsname", param_info)
 
 log_message("Running CAMPS-PP XXZ circuit dynamics over $(length(param_pairs)) (magic_prob, μ) \
 pairs until t = $t for N=$N. χ=$χ, thl = $thl, Nmax_pauli = $Nmax_pauli, \
-Nsamples = $Nsamples. Using $nthr threads.")
+Nsamples = $Nsamples. Using $nthr threads. BLAS/Strided threads per sample: $blas_threads.")
 
 # Samples run on several threads: the shared counter and the log are updated under a lock
 prog = ProgressLog("sample", length(param_pairs) * Nsamples; frac = 0)

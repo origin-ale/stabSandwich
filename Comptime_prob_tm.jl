@@ -11,9 +11,6 @@ using Printf
 @isdefined(ScriptSetup) || include(joinpath(@__DIR__, "scripts", "ScriptSetup.jl"))
 using .ScriptSetup
 
-nthr = Threads.nthreads()
-setup_threads(nthr)
-
 # == Parameters ===============================================================
 # Override from the command line as key=value (`help` lists them); lists are
 # comma-separated, without spaces, e.g.
@@ -55,8 +52,14 @@ params = @parameters begin
   pp_thl = 1e-10 # Threshold for truncation during PP
   pp_Pmax = 10_000_000 # Maximum number of Paulis for PP
 
+  # BLAS and Strided threads. Samples run one after another, so this is the only
+  # parallelism; at these sizes 1 is fastest (plan item 7's thread test: -t 8 was
+  # 1.5–1.8× slower). Strided is capped at the Julia thread count (-t).
+  blas_threads = 1
+
   outdir = "output/Comptime_prob_tm"
 end
+setup_threads(blas_threads)
 # Exponent of campspp_thl, appended to the expectation-value file names ("exact" for 0)
 campspp_thl >= 0 || error("campspp_thl must be ≥ 0, got $campspp_thl")
 campspp_thl_exp = campspp_thl == 0 ? "exact" : abs(round(Int, log10(campspp_thl)))

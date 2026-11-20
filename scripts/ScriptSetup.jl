@@ -11,9 +11,10 @@ standalone package). Use from a script in the repository root:
       N = 46                      # system size
       magic_probs = [0.0, 0.01]   # doping probabilities
       methods = [:campspp]
+      blas_threads = 1            # BLAS and Strided threads
       outdir = "output/MyScript"
     end
-    setup_threads(Threads.nthreads())
+    setup_threads(blas_threads)
     initialize_output(joinpath(outdir, "x.txt"), "obs", param_header(params))
 
 and run with `key=value` overrides, e.g.

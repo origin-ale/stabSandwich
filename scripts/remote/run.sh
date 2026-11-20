@@ -26,12 +26,15 @@
 #               uses to reject truncated transfers; written last, so its
 #               presence means the run has finished
 #
-# THREADS defaults to $JULIA_NUM_THREADS, else 10. It must be a number, or N,M
-# (default and interactive pools), totalling at most 20: the usage limit on the
-# target. "auto" is refused, because it means every core. Scripts that give BLAS
-# one thread per Julia thread (Comptime_prob_tm.jl, the T11 replay) use up to
-# twice THREADS, hence the default of 10. The julia binary is $JULIA if set, else
-# `julia` on PATH.
+# THREADS defaults to $JULIA_NUM_THREADS, else 1. It must be a number, or N,M
+# (default and interactive pools). "auto" is refused, because it means every core.
+# Every script gives BLAS and Strided 1 thread unless a `blas_threads=K` argument
+# says otherwise (plan item 10, 2026-11-20); a K above 1 adds K BLAS threads, so
+# THREADS plus K must stay within 20, the usage limit on the target.
+# Comptime_prob_tm.jl and the T11 replay run samples one after another and need no
+# more than -t 1 (more Julia threads only slow them down); give
+# TransferredMag_varparams.jl, which runs one sample per Julia thread, a larger -t.
+# The julia binary is $JULIA if set, else `julia` on PATH.
 #
 # Stop a run with `kill <worker pid>` (shown by --status); the run is recorded
 # as killed and the lock is released.
@@ -57,7 +60,7 @@ ncores() { nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo "?
 field() { sed -n "s/^$2: //p" "$1" | tail -1; }   # field FILE KEY
 
 max_threads=20       # usage limit on the target (user, 2026-11-16)
-default_threads=10   # room for scripts that also give BLAS one thread per Julia thread
+default_threads=1    # the serial scripts are fastest at -t 1 (plan item 10, 2026-11-20)
 
 total_threads() {    # "8" -> 8, "8,1" -> 9; fails on anything else ("auto", "")
   [[ $1 =~ ^[0-9]+(,[0-9]+)?$ ]] || return 1
@@ -171,8 +174,17 @@ nthreads=$(total_threads "$threads") \
   || die "threads must be a number or N,M, not '$threads' ('auto' would use every core; the limit is $max_threads)"
 [ "$nthreads" -ge 1 ] || die "threads must be at least 1, got '$threads'"
 [ "$nthreads" -le "$max_threads" ] || die "threads '$threads' exceed the limit of $max_threads"
-[ "$nthreads" -le $((max_threads / 2)) ] \
-  || echo "run.sh: note: scripts that give BLAS one thread per Julia thread can use up to $((2 * nthreads)) threads with -t $threads" >&2
+# BLAS threads from the script's own `blas_threads=K` argument (the last one wins; the
+# scripts default to 1, which runs BLAS on the calling thread and adds none)
+blas=1
+for arg in "$@"; do
+  case "$arg" in blas_threads=*) blas=${arg#blas_threads=} ;; esac
+done
+[[ $blas =~ ^[0-9]+$ ]] && [ "$((10#$blas))" -ge 1 ] \
+  || die "blas_threads must be a whole number of at least 1, not '$blas'"
+blas=$((10#$blas))
+[ "$blas" -le 1 ] || [ $((nthreads + blas)) -le "$max_threads" ] \
+  || die "-t $threads plus blas_threads=$blas exceeds the limit of $max_threads threads"
 
 cd "$repo" || die "cannot cd to $repo"
 mkdir -p "$runs"
@@ -207,6 +219,7 @@ echo "$id" >"$lock/run"
   echo "host: $(hostname)"
   echo "cores: $(ncores)"
   echo "threads: $threads"
+  echo "blas threads: $blas"
   echo "julia: $("${JULIA:-julia}" --version 2>/dev/null || echo unknown)"
   echo "start: $(date '+%Y-%m-%d %H:%M:%S %z')"
   echo "log: output/runs/$id/log.txt"

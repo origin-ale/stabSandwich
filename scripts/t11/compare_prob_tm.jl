@@ -14,7 +14,7 @@
 # design"; tolerances decided by the user 2026-11-10):
 #   - inputs: initial bitstring and doped gates identical (a replay of other circuits
 #     isn't a regression test);
-#   - the run parameters in the two headers identical;
+#   - the run parameters in the two headers identical (except the thread setting);
 #   - CAMPS-PP: switch gate, k at the switch and PP stop gate identical; layers run in
 #     CAMPS by both (the old bond-dimension block) |Δ⟨O⟩| ≤ 1e-10, later layers ≤ δ;
 #   - CAMPS (`:camps`): every layer |Δ⟨O⟩| ≤ δ;
@@ -121,8 +121,10 @@ println("old: ", olddir)
 println("new: ", newdir, " (replay_of = ", get(hdr_new, "replay_of", "?"),
   ", inject = ", get(hdr_new, "inject", "?"), ", stack = ", get(hdr_new, "stack", "?"), ")")
 
-# Run parameters: everything except what a replay legitimately changes or adds
-let skip = ("methods", "magic_probs", "samples", "sample_ids", "replay_of", "inject", "stack")
+# Run parameters: everything except what a replay legitimately changes or adds, and the
+# thread setting (`blas_threads`, in headers since 2026-11-20), which changes timings only
+let skip = ("methods", "magic_probs", "samples", "sample_ids", "replay_of", "inject", "stack",
+            "blas_threads")
   for k in sort(collect(union(keys(hdr_old), keys(hdr_new))))
     k in skip && continue
     get(hdr_old, k, nothing) == get(hdr_new, k, nothing) ||

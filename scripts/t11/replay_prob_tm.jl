@@ -14,6 +14,9 @@
 #   inject   sensitivity check only: `phase` multiplies the magic phase by 1.05,
 #            `mask` moves every doped gate pair one XXZ triple later. Default none.
 #   out      output directory (default output/t11/<run id>[_inject-<inject>])
+#   blas_threads  BLAS and Strided threads (default 1, as Comptime_prob_tm.jl; Strided is
+#            capped at the Julia thread count). Replays before 2026-11-20 gave both one
+#            thread per Julia thread, so their times aren't comparable at -t > 1.
 #
 # Nothing is drawn from an RNG: each sample is rebuilt from its saved initial bitstring
 # (`initstates_prob_tm.txt`) and its saved doped gates (`doped_prob_tm.txt`). Every
@@ -35,11 +38,6 @@ using SHA
 
 using Strided
 using LinearAlgebra
-# Same threading set-up as Comptime_prob_tm.jl, so the times are comparable
-Strided.disable_threads()
-nthr = Threads.nthreads()
-BLAS.set_num_threads(nthr)
-ITensors.Strided.set_num_threads(nthr)
 
 logline(msg) = (println("[", Dates.format(now(), "yyyy-mm-dd HH:MM:SS"), "] ", msg); flush(stdout))
 
@@ -48,8 +46,8 @@ args = Dict{String, String}()
 for arg in ARGS
   kv = split(arg, "="; limit = 2)
   length(kv) == 2 || error("Argument `$arg` is not of the form key=value")
-  kv[1] in ("run", "methods", "p", "samples", "inject", "out") ||
-    error("Unrecognised argument `$(kv[1])` (expected run, methods, p, samples, inject, out)")
+  kv[1] in ("run", "methods", "p", "samples", "inject", "out", "blas_threads") ||
+    error("Unrecognised argument `$(kv[1])` (expected run, methods, p, samples, inject, out, blas_threads)")
   haskey(args, kv[1]) && error("Argument `$(kv[1])` given twice")
   args[kv[1]] = kv[2]
 end
@@ -63,6 +61,13 @@ filesdir = let flat = joinpath(rundir, "files", "output"),
 end
 inject = Symbol(get(args, "inject", "none"))
 inject in (:none, :phase, :mask) || error("inject must be none, phase or mask, got $inject")
+
+# Same threading set-up as Comptime_prob_tm.jl (`setup_threads(blas_threads)`, default 1),
+# so the times are comparable
+blas_threads = parse(Int, get(args, "blas_threads", "1"))
+blas_threads >= 1 || error("blas_threads must be at least 1, got $blas_threads")
+BLAS.set_num_threads(blas_threads)
+Strided.set_num_threads(blas_threads)
 
 # == Input integrity ==========================================================
 initstates_file = joinpath(filesdir, "initstates_prob_tm.txt")
@@ -218,7 +223,7 @@ regen_states = all(s -> domainwallstate(mt.QubitCAMPS, MersenneTwister(rng_seed 
   initstates[s], 1:nsamples_run)
 regen_mask(p, s) = doping_mask(MersenneTwister(hash((rng_seed + s, p))), phases_ref, p)
 regen_masks = all(regen_mask(p, s) == saved_mask(p, s) for p in probs_run, s in 1:nsamples_run)
-logline("Replay of $runid on $(Threads.nthreads()) thread(s), Julia $VERSION; inject = $inject")
+logline("Replay of $runid on $(Threads.nthreads()) thread(s), BLAS $(BLAS.get_num_threads()), Strided $(Strided.get_num_threads()), Julia $VERSION; inject = $inject")
 # Versions of the packages the results depend on, as loaded (not as the Manifest says): the
 # version and the install directory's slug, which tells code trees apart even when the
 # version doesn't (MagicTensors is pinned to a git rev and stays at 0.0.1).
@@ -245,6 +250,7 @@ param_info["sample_ids"] = join(sample_ids, ",")
 param_info["replay_of"] = runid
 param_info["inject"] = string(inject)
 param_info["stack"] = "QubitCAMPS"
+param_info["blas_threads"] = string(blas_threads)
 
 campspp_thl_exp = abs(round(Int, log10(campspp_thl)))
 o(name) = joinpath(outdir, name)

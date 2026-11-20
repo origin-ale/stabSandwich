@@ -28,9 +28,9 @@ main`).
 cd campspp/stabSandwich
 git pull --ff-only
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
-scripts/remote/run.sh -t 10 scripts/t11/replay_prob_tm.jl run=output/runs/20261110-150852-Comptime_prob_tm out=output/t11/<label>/A
+scripts/remote/run.sh -t 1 scripts/t11/replay_prob_tm.jl run=output/runs/20261110-150852-Comptime_prob_tm out=output/t11/<label>/A
 # once A has finished (one run at a time):
-scripts/remote/run.sh -t 10 scripts/t11/replay_prob_tm.jl run=output/runs/20261110-160640-Comptime_prob_tm out=output/t11/<label>/B
+scripts/remote/run.sh -t 1 scripts/t11/replay_prob_tm.jl run=output/runs/20261110-160640-Comptime_prob_tm out=output/t11/<label>/B
 ```
 
 `out=` keeps a new replay apart from earlier ones (the default is
@@ -38,10 +38,16 @@ scripts/remote/run.sh -t 10 scripts/t11/replay_prob_tm.jl run=output/runs/202611
 B runs `:camps` only: PP builds its gates (`pp.PauliRotation` → `getpauli`) but propagates
 nothing, so A carries most of the weight for a change to PauliPropagation.
 
-**Threads:** at most 20 at once on `carlos`. `run.sh` refuses `-t auto` and anything
-above 20, and defaults to 10. The scripts also set BLAS to the same number of
-threads, so a run can use about twice its `-t`: keep `-t` at 10 or below. The Phase 0 runs and the first replays (2026-11-16) used
+**Threads:** at most 20 at once on `carlos`. `run.sh` refuses `-t auto`, and anything
+whose `-t` plus `blas_threads=` (when above 1) exceeds 20; it defaults to `-t 1`
+(10 before 2026-11-20). The Phase 0 runs and the first replays (2026-11-16) used
 `-t auto`; times from a different thread setting aren't comparable with those.
+Since 2026-11-20 (plan item 10) the replay, like `Comptime_prob_tm.jl`, gives BLAS and
+Strided **1 thread** by default (`blas_threads=` overrides it, and the value is in the
+output headers; `compare_prob_tm.jl` ignores it). Replays before that, including item 7's
+`-t 10` reruns (`20261120-112052`, `20261120-112533`) and the Phase 5 ones, gave them one
+thread per Julia thread, so their times aren't comparable with newer replays at `-t` > 1.
+Samples run one after another, so `-t 1` is enough for a replay.
 Times are indicative only, because the cluster is shared.
 Each replay writes to its `out=` directory (default `output/t11/<Phase 0 id>/`), and
 `run.sh` copies that into its own run directory. Its log (`log.txt` in the run directory)
