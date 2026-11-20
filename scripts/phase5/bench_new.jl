@@ -1,13 +1,15 @@
 # Phase 5: local micro-benchmarks of the NEW stack (`main`): the pp → `QubitPauliSum`
-# converter, the frame conjugation, the `expectation` seam with `method = :mpo` (conjugate → OpSum → MPO → inner) and
-# a per-term prototype of ⟨ψ|O|ψ⟩ (item 4 moved this into src as the default `method = :perterm`;
-# the prototype here is kept for comparison). Run from the repository root, under a timeout:
+# converter, the frame conjugation, the `expectation` seam with `method = :mpo` (conjugate → OpSum → MPO → inner),
+# the seam's default per-term route (`method = :perterm`, item 4; column `perterm_s`) and the per-term
+# prototype that item 4 moved into src (kept for comparison). Run from the repository root, under a timeout:
 #
 #   julia -t 1 --project=. scripts/phase5/bench_new.jl [maxmpo=1161] [budget=900] [out=output/phase5/bench_new.tsv]
 #
 #   maxmpo  largest sum evaluated through the MPO route (it grows roughly as terms^2.75)
 #   budget  seconds allowed per per-term run; a run whose estimate (from its first terms)
-#           exceeds it is skipped and only the estimate is reported
+#           exceeds it is skipped and only the estimate is reported. The per-term seam has no
+#           cheap estimate of its own, so it runs only when the prototype's prefix estimate is
+#           within budget
 #
 # State: the T8 hand-off state (p = 0.06 sample 1 at its switch gate, bond dimension 112),
 # rebuilt as in TestMagicTensorsPP.jl. Sums: the T8 sums plus output/phase5/sums/ (gen_sums.jl).
@@ -155,12 +157,12 @@ end
 files = sum_files()
 # Warm-up on the smallest sum, so no row below carries compilation.
 let S = read_sum(first(files))[1]
-  mt.expectation(ψ, S; method = :mpo); frame_terms(ψ, mt.QubitPauliSum(S))
+  mt.expectation(ψ, S; method = :mpo); mt.expectation(ψ, S); frame_terms(ψ, mt.QubitPauliSum(S))
 end
 
 cols = ["nterms", "conv_s", "conj_s", "seam_s", "opsum_s", "mpo_build_s", "inner_s", "mpo_maxdim",
-        "frame_terms_s", "naive_s", "naive_est_s", "prefix_s", "prefix_est_s",
-        "ev_seam", "ev_naive", "ev_prefix", "ev_old"]
+        "frame_terms_s", "naive_s", "naive_est_s", "prefix_s", "prefix_est_s", "perterm_s",
+        "ev_seam", "ev_naive", "ev_prefix", "ev_perterm", "ev_old"]
 rows = []
 for f in files
   S, header, _ = read_sum(f)
@@ -198,20 +200,33 @@ for f in files
   prefix, ev_prefix, prefix_est = timed_perterm(perterm_prefix, terms)
   flushprintln("per-term prefix $(fmt(prefix)) s (estimate $(fmt(prefix_est)) s), frame_terms $(fmt(med(bft))) s")
 
+  # The seam's default route (per-term, in src); compiled by the warm-up
+  perterm = NaN; ev_perterm = NaN + 0im
+  if prefix_est <= budget
+    if prefix_est > 60                         # long: one timed run
+      GC.gc()
+      perterm = @elapsed ev_perterm = mt.expectation(ψ, S)
+    else
+      bpt = @benchmark mt.expectation($ψ, $S) samples = 5 evals = 1 seconds = max(1.0, min(budget, 3 * prefix_est))
+      perterm = med(bpt); ev_perterm = mt.expectation(ψ, S)
+    end
+  end
+  flushprintln("per-term seam $(fmt(perterm)) s")
+
   # Agreement: per-term variants with each other and with the seam; the seam with the old value.
   ref = isnan(real(ev_seam)) ? ev_prefix : ev_seam
-  for (name, v) in (("naive", ev_naive), ("prefix", ev_prefix), ("old", ev_old))
+  for (name, v) in (("naive", ev_naive), ("prefix", ev_prefix), ("perterm", ev_perterm), ("old", ev_old))
     isnan(real(v)) || isnan(real(ref)) || flushprintln(@sprintf("  |ev_%s − ref| = %.1e", name, abs(v - ref)))
   end
   push!(rows, (n, med(bconv), med(bconj), seam, opsum, build, inn, maxdim_mpo, med(bft),
-               naive, naive_est, prefix, prefix_est, ev_seam, ev_naive, ev_prefix, ev_old))
+               naive, naive_est, prefix, prefix_est, perterm, ev_seam, ev_naive, ev_prefix, ev_perterm, ev_old))
 end
 
 mkpath(dirname(outpath))
 open(outpath, "w") do io
   println(io, "# Phase 5 new-stack benchmarks (bench_new.jl), $(gethostname()), Julia $(VERSION), ",
           "threads $(Threads.nthreads()), BLAS $(BLAS.get_num_threads()); state bond dimension $bd")
-  println(io, "# times in seconds: BenchmarkTools medians, except seam/opsum/mpo_build/inner and per-term runs estimated above 60 s (one run each); ",
+  println(io, "# times in seconds: BenchmarkTools medians, except seam/opsum/mpo_build/inner and per-term runs (prototype or seam) estimated above 60 s (one run each); ",
           "NaN = not run (above maxmpo, or estimate above budget = $budget s)")
   println(io, join(cols, '\t'))
   for r in rows
