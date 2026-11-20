@@ -8,7 +8,7 @@ plus the remote timing rerun at an equal thread count. Plan: Phase 5 in the port
 |---|---|---|
 | `common.jl` | – | helpers shared by the scripts below (T8 state, sum files) |
 | `gen_sums.jl` | local | real N = 46 PP sums of 10³–10⁵ terms, written to `output/phase5/sums/` |
-| `bench_new.jl` | local | new stack: converter, conjugation, `expectation` seam (MPO) and a per-term prototype |
+| `bench_new.jl` | local | new stack: converter, conjugation, `expectation` seam (MPO route and, since item 4, the default per-term route) and the per-term prototype |
 | `bench_old.jl` | local, old project | old stack: converter (first and second call per size), old `expectation`, term by term |
 | `timing_summary.jl` | local | per-p summary of the per-sample times in `compare_prob_tm.jl` tables |
 | `benchenv/` | – | environment holding only BenchmarkTools, stacked on the repo's by `bench_new.jl` |
@@ -172,3 +172,95 @@ The old stack takes 58.5 s at `-t 10`. The time grows with the thread count. Thi
 hypothesis that BLAS/Strided threading oversubscribes the small dense operations; it is one
 sample per setting, so it's indicative only. In practice: few threads per process, and
 parallelise over samples.
+
+### Rerun on `main` after items 3, 4 and 8 (2026-11-20)
+
+Post-port plan, item 7: one rerun after the PP 0.9.2 upgrade (item 3), the per-term seam
+(item 4) and the `:chi3` disentangler fix (item 8), so their effects are measured together;
+the split by item below is local. Only the new side was rerun; the old A/B runs above are the
+reference.
+
+**Remote replays** (`carlos`, `-t 10`, code `07ebb42`), with the step 2 commands above and
+`out=output/phase5/t10-main/{A,B}`:
+
+| run | id |
+|---|---|
+| new A | `20261120-112052-replay_prob_tm` |
+| new B | `20261120-112533-replay_prob_tm` |
+
+Regression check against old A and B: **PASS** (A 100 cases, B 20). Tables:
+`output/phase5/timing_{A,B}_main.tsv`.
+
+Mean time per sample (indicative, shared cluster):
+
+| job | p | old | port time (2026-11-17) | `main` | `main` / port time, median per sample |
+|---|---|---|---|---|---|
+| A (CAMPS-PP) | 0 | 13.4 s | 1.05 s | 0.93 s | 0.92 |
+| | 0.01 | 13.9 s | 1.27 s | 1.19 s | 1.04 |
+| | 0.02 | 14.0 s | 1.44 s | 1.66 s | 1.03 (sample 6: 2.4 → 8.6 s) |
+| | 0.04 | 12.3 s | 1.95 s | 2.41 s | 1.35, slower in 22/25 |
+| B (CAMPS) | 0 | 20.6 s | 6.55 s | 7.83 s | 1.17 |
+| | 0.01 | 33.8 s | 19.6 s | 7.69 s | 0.39, faster in 10/10 |
+
+B at p = 0.01 gains from item 8: the layer-end disentangler now acts, and peak bond dimensions
+drop (e.g. 40 → 18, 16 → 2). The A slowdown at p = 0.04 is explained by threading (below), not by
+a code change.
+
+**Local split by item** (laptop, `-t 1`, A p = 0.04, 25 samples, two interleaved passes;
+`replay_prob_tm.jl` on a `git archive` of each commit):
+
+| tree | total, pass 1 / 2 | median per sample / port time |
+|---|---|---|
+| `d6bdfe7` port time | 34.9 / 34.2 s | 1.00 |
+| `813ec36` + items 1–2 | 31.0 / 31.2 s | 0.90 |
+| `90d1162` + item 3 (PP 0.9.2) | 30.3 / 31.6 s | 0.89 |
+| `38e25de` + item 4 (per-term seam) | 26.5 / 27.7 s | 0.82 |
+| `07ebb42` `main` | 27.4 / 27.2 s | 0.86 |
+
+Switch gates and k are identical on every tree. At one thread no step is slower, and `main` is
+about 15% faster than port time. The per-term seam gives about 10% here because the PP sums
+in these runs stay small (49–263 terms, about 10 evaluations per sample at p = 0.04), where
+the MPO route was already cheap; its large gains are at larger sums (local benchmarks below).
+
+**Thread test** (laptop, A p = 0.04, port time vs `main`, two passes; the replay sets BLAS and
+Strided threads equal to the Julia threads):
+
+| threads | port time, total | `main`, total | `main` / port time, median per sample | `main` slower in |
+|---|---|---|---|---|
+| `-t 1` | 34.9 / 34.2 s | 27.4 / 27.2 s | 0.83 / 0.87 | 0 / 0 of 25 |
+| `-t 4` | 35.3 / 33.4 s | 28.3 / 28.6 s | 0.90 / 0.90 | 3 / 4 of 25 |
+| `-t 8` | 57.5 / 49.1 s | 50.5 / 50.2 s | 1.00 / 1.06 | 12 / 15 of 25 |
+
+`main`'s lead shrinks as threads grow and is gone at `-t 8`, consistent with the 1.35× on
+`carlos` at `-t 10`. Both stacks are fastest at `-t 1`: at `-t 8` every run takes 1.5–1.8×
+longer. The `-t 8` passes are noisy, so this supports the threading explanation rather than
+proving it. In practice: one BLAS/Strided thread per process, parallel over samples.
+
+**Local benchmarks** (`bench_new.jl`, laptop, 1 thread, `07ebb42`;
+`output/phase5/bench_new_main.tsv`). Same state and sums as above:
+
+| terms | MPO seam | per-term seam (default) | per-term prototype, prefix | prototype, naive |
+|---|---|---|---|---|
+| 201 | 1.78 s | 0.80 s | 0.75 s | 1.21 s |
+| 538 | 21.0 s | 3.41 s | 3.60 s | 3.80 s |
+| 1161 | 266 s | 7.90 s | 8.39 s | 8.86 s |
+| 3459 | – | 13.1 s | 13.3 s | 26.7 s |
+| 16,318 | – | 45.2 s | 47.6 s | 125 s |
+| 82,321 | – | 154 s | 159 s | 642 s |
+| 350,864 | – | (est. above budget, not run) | (est. 2341 s) | (est. 2805 s) |
+
+The per-term seam matches the prefix prototype in time and agrees with the reference to
+≤ 2.8e-14. It is 2× faster than the MPO route at 201 terms and 34× at 1161, where the MPO
+route stalls. Converter and conjugation times are unchanged from 2026-11-17.
+
+**Where the port speedup comes from** (profile of the old stack, laptop, 1 thread, A p = 0,
+3 samples). In the circuit dynamics, 84% of the time is the old `apply!`, almost all of it one
+line of `apply_pi4_cliff!` (`DisentangleCAMPS/src/Evolve.jl:151` at `pre-port`):
+`Q = one(CliffordOperator, N)[i]` inside the 2N-row loop, which builds 92 full 46-qubit identity
+tableaux per π/4 gate to read one row each. The per-layer ⟨O⟩ (MPO route) takes 11%. Per π/4
+gate the old `apply!` costs 3.08 ms (`apply_pi4_cliff!` 3.04 ms, the tableau inversion
+`inv(Cdag)` only 0.03 ms), i.e. 9.6 s for a 3105-gate sample. The new `pauli_rotation_tableau`
+builds the identity once per gate. That accounts for most of A's 10–15× and part of B's 2.8×.
+The old converter's per-size compilation (above) is minor in these runs: the observable always
+has 47 terms, and replaying the method cache over the old run's PP sum sizes gives no new size
+per sample at p ≤ 0.01 and about one per sample at p = 0.04 (28 distinct sizes in the whole run).
