@@ -13,12 +13,15 @@
 
 if (!exists("maxpanels")) { maxpanels = 16 }
 
-# Title for data index i: pulls the matching "# p = …, μ = …" header line
+# Title for data index i: pulls the matching "# n = …, μ = …" header ("# p = …" in p-based data) line
 # from the file (data index i corresponds to the (i+1)-th such header line),
-# keeping only the "p = …" field.
-blocktitle(f, i) = system(sprintf("grep -a '^# p =' '%s' | sed -n '%dp' | sed 's/^# //; s/,.*//'", f, i + 1))
+# keeping only the "n = …" (or "p = …") field.
+blocktitle(f, i) = system(sprintf("grep -a '^# [pn] =' '%s' | sed -n '%dp' | sed 's/^# //; s/,.*//'", f, i + 1))
 
-nblocks(f) = system(sprintf("grep -ac '^# p =' '%s'", f)) + 0
+nblocks(f) = system(sprintf("grep -ac '^# [pn] =' '%s'", f)) + 0
+
+# Block variable, "n" (count mode) or "p" (p-based data), from the first block header.
+blockvar(f) = system(sprintf("grep -a -m1 '^# [pn] =' '%s' | cut -c3", f))
 
 # Samples per block, read off the "samples=…" field of the run header.
 nsamples(f) = system(sprintf("grep -a -m1 -o 'samples=[0-9]*' '%s' | cut -d= -f2", f)) + 0

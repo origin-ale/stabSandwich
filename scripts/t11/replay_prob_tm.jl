@@ -300,7 +300,7 @@ for p in probs
   pstr = @sprintf("%.3f", p)
   # The doped gates actually run (after any injected defect), for the input check
   save_doped_gates(doped_output, gates,
-    [findall(phases_for(masks[(p, s)]) .!= phases_ref) for s in sample_ids], layer_ends, μ, p)
+    [findall(phases_for(masks[(p, s)]) .!= phases_ref) for s in sample_ids], layer_ends, μ, "p" => p)
 
   if warmup_regen
     inds_wu, mask_wu = domainwallstate(mt.QubitCAMPS, MersenneTwister(rng_seed), N, μ)[2], regen_mask(p, 0)
@@ -331,13 +331,13 @@ for p in probs
       logline(@sprintf("p=%s CAMPS-PP sample %d (%d/%d, %d%%): %.1f s, switch gate %d, k %d",
         pstr, s, j, length(sample_ids), round(Int, 100j / length(sample_ids)), time, s_switch, k_switch))
     end
-    save_full_samples(evs_full[:campspp], μ, p, stack_samples(evs_s))
-    save_full_samples(bd_full[:campspp], μ, p, stack_samples(bds_s))
-    save_full_samples(np_full, μ, p, stack_samples(nps_s))
-    save_full_samples(pw_full, μ, p, stack_samples(pws_s))
-    save_full_samples(pc_full, μ, p, stack_samples(pcs_s))
-    save_per_sample(times_full[:campspp], μ, p, times, gctimes)
-    save_per_sample(switch_output, μ, p, sw_gates, sw_ks, stops)
+    save_full_samples(evs_full[:campspp], μ, "p" => p, stack_samples(evs_s))
+    save_full_samples(bd_full[:campspp], μ, "p" => p, stack_samples(bds_s))
+    save_full_samples(np_full, μ, "p" => p, stack_samples(nps_s))
+    save_full_samples(pw_full, μ, "p" => p, stack_samples(pws_s))
+    save_full_samples(pc_full, μ, "p" => p, stack_samples(pcs_s))
+    save_per_sample(times_full[:campspp], μ, "p" => p, times, gctimes)
+    save_per_sample(switch_output, μ, "p" => p, sw_gates, sw_ks, stops)
   end
 
   if :camps in methods
@@ -356,9 +356,9 @@ for p in probs
       logline(@sprintf("p=%s CAMPS sample %d (%d/%d, %d%%): %.1f s, max bond dim. %d",
         pstr, s, j, length(sample_ids), round(Int, 100j / length(sample_ids)), time, maximum(bds)))
     end
-    save_full_samples(evs_full[:camps], μ, p, stack_samples(evs_s))
-    save_full_samples(bd_full[:camps], μ, p, stack_samples(bds_s))
-    save_per_sample(times_full[:camps], μ, p, times, gctimes)
+    save_full_samples(evs_full[:camps], μ, "p" => p, stack_samples(evs_s))
+    save_full_samples(bd_full[:camps], μ, "p" => p, stack_samples(bds_s))
+    save_per_sample(times_full[:camps], μ, "p" => p, times, gctimes)
   end
 end
 logline("Done; outputs in $outdir")

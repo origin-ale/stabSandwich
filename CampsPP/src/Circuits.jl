@@ -1,40 +1,48 @@
 import PauliPropagation as pp
 using QuantumClifford
 using .DisentangleCAMPS
-using Random: AbstractRNG, default_rng
+using Random: AbstractRNG, default_rng, randperm
 
 # == Doping ===================================================================
 
-""" ```doping_mask(rng, phases, p)```
+""" ```doping_mask_count([rng,] phases, n)```
 
-Generate a random doping mask over the XX-YY-ZZ gate triples of an XXZ circuit: \
-a `BitVector` with one entry per triple, each `true` with probability p. \
-Pass it to `xy_magic`/`z_magic` to select which gates to dope, so that the same \
+Count-mode doping mask over the XX-YY-ZZ gate triples of an XXZ circuit: a \
+```BitVector``` with one entry per triple (T = ```length(phases) ÷ 3```) and exactly n \
+```true``` entries, at n distinct triples drawn uniformly without replacement over the \
+whole circuit. n must be an integer with 0 ≤ n ≤ T, otherwise ```ArgumentError```. \
+The mask depends only on the RNG state (```rng``` defaults to the global RNG). Pass it \
+to ```xy_magic```/```z_magic```; n counts triples, so ```:xy``` dopes 2n gates."""
+function doping_mask_count(rng::AbstractRNG, phases, n)
+  T = length(phases) ÷ 3
+  (n isa Integer && !(n isa Bool)) ||
+    throw(ArgumentError("doping count must be an integer, got $(repr(n))"))
+  0 <= n <= T ||
+    throw(ArgumentError("doping count must lie in 0:$T (number of triples), got $n"))
+  mask = falses(T)
+  mask[randperm(rng, T)[1:n]] .= true
+  return mask
+end
+doping_mask_count(phases, n) = doping_mask_count(default_rng(), phases, n)
+
+""" ```doping_mask([rng,] phases, p)```
+
+Probability-mode doping mask (historical: kept to reproduce p-based runs, e.g. the \
+T11 replay of Phase 0; the scripts use ```doping_mask_count```). A ```BitVector``` \
+with one entry per XX-YY-ZZ triple, entry m ```true``` when the m-th of \
+```rand(rng, T)``` is < p. Pass it to ```xy_magic```/```z_magic```, so that the same \
 mask reproduces the same doping regardless of the RNG state at call time."""
 function doping_mask(rng::AbstractRNG, phases, p)
   return rand(rng, length(phases) ÷ 3) .< p
 end
 doping_mask(phases, p) = doping_mask(default_rng(), phases, p)
 
-""" ```xy_magic([rng,] phases, p; magicphase = -π/8)```
-    ```xy_magic(phases, mask; magicphase = -π/8)```
+""" ```xy_magic(phases, mask; magicphase = -π/8)```
 
-Dope an XX-YY-ZZ circuit (see ```xxz_circuit```) with magic: in each doped triple, \
-replace the XX and YY phases by ```magicphase```. Either draw each triple independently \
-with probability p (one ```rand(rng)``` per triple, in order; ```rng``` defaults to the \
-global RNG), or dope exactly the triples selected by a boolean ```mask``` (see \
-```doping_mask```). Returns a new phase vector; ```phases``` is not modified."""
-function xy_magic(rng::AbstractRNG, phases, p; magicphase = -π/8)
-  newphases = copy(phases)
-  for i = 1:3:length(phases)
-    if rand(rng) < p
-      newphases[i] = magicphase
-      newphases[i+1] = magicphase
-    end
-  end
-  return newphases
-end
-xy_magic(phases, p; kwargs...) = xy_magic(default_rng(), phases, p; kwargs...)
+Dope an XX-YY-ZZ circuit (see ```xxz_circuit```) with magic: in each triple selected \
+by the boolean ```mask``` (see ```doping_mask_count```, ```doping_mask```), replace the \
+XX and YY phases by ```magicphase```. Returns a new phase vector; ```phases``` is not \
+modified."""
 function xy_magic(phases, mask::AbstractVector{Bool}; magicphase = -π/8)
   newphases = copy(phases)
   for k in eachindex(mask)
@@ -46,20 +54,9 @@ function xy_magic(phases, mask::AbstractVector{Bool}; magicphase = -π/8)
   return newphases
 end
 
-""" ```z_magic([rng,] phases, p; magicphase = -π/8)```
-    ```z_magic(phases, mask; magicphase = -π/8)```
+""" ```z_magic(phases, mask; magicphase = -π/8)```
 
 As ```xy_magic```, but replace the ZZ phase of each doped triple by ```magicphase```."""
-function z_magic(rng::AbstractRNG, phases, p; magicphase = -π/8)
-  newphases = copy(phases)
-  for i = 3:3:length(phases)
-    if rand(rng) < p
-      newphases[i] = magicphase
-    end
-  end
-  return newphases
-end
-z_magic(phases, p; kwargs...) = z_magic(default_rng(), phases, p; kwargs...)
 function z_magic(phases, mask::AbstractVector{Bool}; magicphase = -π/8)
   newphases = copy(phases)
   for k in eachindex(mask)

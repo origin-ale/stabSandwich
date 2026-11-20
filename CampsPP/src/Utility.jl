@@ -31,16 +31,23 @@ function quantiles(xs)
   return (q[1], q[2], q[3])
 end
 
-""" ```save_full_samples(output_full, μ, magic_prob, evs)```
+""" ```label_header(label, μ)```
+
+Block header of the ```save_*``` writers: ```label = "n" => n``` gives \
+```# n = <n>, μ = <μ>``` (count mode); the T11 replay passes ```"p" => p```, giving \
+```# p = <p>, μ = <μ>```. In the writers' docstrings, ```# n = …``` stands for either."""
+label_header(label::Pair{<:AbstractString}, μ) = "# $(label.first) = $(label.second), μ = $μ"
+
+""" ```save_full_samples(output_full, μ, label, evs)```
 
 Append every sample's whole trajectory for one parameter point: a \
-```# p = …, μ = …``` header, then for each column of ```evs``` (layers × samples, see \
+```# n = …, μ = …``` header, then for each column of ```evs``` (layers × samples, see \
 ```stack_samples```) a ```# sample s``` line and one ```layer<TAB>value``` line per \
 non-```missing``` entry (layer = row − 1), followed by a blank line; the block ends with \
 a second blank line (gnuplot block separator)."""
-function save_full_samples(output_full, μ, magic_prob, evs)
+function save_full_samples(output_full, μ, label, evs)
   open(output_full, "a") do full_io
-    println(full_io, "# p = $magic_prob, μ = $μ")
+    println(full_io, label_header(label, μ))
     for sample_idx in axes(evs, 2)
       println(full_io, "# sample $sample_idx")
       for layer_idx in axes(evs, 1)
@@ -54,14 +61,14 @@ function save_full_samples(output_full, μ, magic_prob, evs)
   end
 end
 
-""" ```save_per_sample(output, μ, magic_prob, cols...)```
+""" ```save_per_sample(output, μ, label, cols...)```
 
 Append one block per parameter point holding per-sample scalars: a \
-```# p = …, μ = …``` header, then one ```sample cols…``` row per sample, \
+```# n = …, μ = …``` header, then one ```sample cols…``` row per sample, \
 followed by two blank lines (gnuplot block separator)."""
-function save_per_sample(output, μ, magic_prob, cols::AbstractVector...)
+function save_per_sample(output, μ, label, cols::AbstractVector...)
   open(output, "a") do io
-    println(io, "# p = $magic_prob, μ = $μ")
+    println(io, label_header(label, μ))
   end
   save_columns(output, collect(1:maximum(length, cols)), cols...)
   open(output, "a") do io
@@ -69,37 +76,37 @@ function save_per_sample(output, μ, magic_prob, cols::AbstractVector...)
   end
 end
 
-""" ```save_peaks(output, samples, μ, magic_prob)```
+""" ```save_peaks(output, samples, μ, label)```
 
 Append one ```sample peak``` row per sample, where the peak is the maximum \
 over that sample's own evolution. Samples with no data (all ```missing```, \
 e.g. a method that never reached its switch layer) are written as NaN. \
 One block per parameter point, terminated by two blank lines."""
-function save_peaks(output, samples, μ, magic_prob)
+function save_peaks(output, samples, μ, label)
   isempty(samples) && return
   peaks = map(samples) do s
     # NaN sentinel rather than `init` so that integer resources stay integral
     any(!ismissing, s) ? maximum(skipmissing(s)) : NaN
   end
-  save_per_sample(output, μ, magic_prob, peaks)
+  save_per_sample(output, μ, label, peaks)
 end
 
-""" ```save_stats(output, evs, μ, magic_prob)```
+""" ```save_stats(output, evs, μ, label)```
 
 Append the per-layer mean and standard error of ```evs``` (layers × samples, see \
 ```stack_samples```; ```missing``` entries skipped) as three space-separated columns \
-(layer, mean, error), preceded by a ```# p = …, μ = …``` header line \
+(layer, mean, error), preceded by a ```# n = …, μ = …``` header line \
 identifying the parameter point, and followed by two blank lines (gnuplot block \
 separator). Layer = row − 1; rows with no data are left out. The error is the sample \
 standard deviation (n − 1) over √n, NaN for a single sample."""
-function save_stats(output, evs, μ, magic_prob)
+function save_stats(output, evs, μ, label)
   rows = [i for i in axes(evs, 1) if any(!ismissing, view(evs, i, :))]
   ev_means = [mean(skipmissing(evs[i, :])) for i in rows]
   ev_errs = [std(skipmissing(evs[i, :]))/sqrt(count(!ismissing, evs[i, :])) for i in rows]
   layers = rows .- 1
 
   open(output, "a") do io
-    println(io, "# p = $magic_prob, μ = $μ")
+    println(io, label_header(label, μ))
   end
   save_three_columns(layers, ev_means, ev_errs, output)
   open(output, "a") do io
@@ -107,7 +114,7 @@ function save_stats(output, evs, μ, magic_prob)
   end
 end
 
-""" ```save_stats_maxcol(output, samples, μ, magic_prob)```
+""" ```save_stats_maxcol(output, samples, μ, label)```
 
 Like ```save_stats```, but takes the raw per-sample resource vectors \
 ```samples``` and appends, as a fourth column sharing the same layer (cycle) \
@@ -124,7 +131,7 @@ two blank lines (gnuplot block separator). Samples may contain leading \
 rows with no data are skipped and gaps in the max-sample column are written \
 as NaN. Note that column 4 is one sample's whole trajectory, whereas column 10 \
 is the per-layer maximum over all samples."""
-function save_stats_maxcol(output, samples, μ, magic_prob)
+function save_stats_maxcol(output, samples, μ, label)
   isempty(samples) && return
   evs = stack_samples(samples)
   rows = [i for i in axes(evs, 1) if any(!ismissing, view(evs, i, :))]
@@ -143,7 +150,7 @@ function save_stats_maxcol(output, samples, μ, magic_prob)
   maxcol = [coalesce(evs[i, imax], NaN) for i in rows]
 
   open(output, "a") do io
-    println(io, "# p = $magic_prob, μ = $μ, max sample = $imax")
+    println(io, label_header(label, μ), ", max sample = $imax")
   end
   save_columns(output, layers, ev_means, ev_errs, maxcol, counts,
     ev_q1, ev_medians, ev_q3, ev_mins, ev_maxs)
@@ -152,18 +159,18 @@ function save_stats_maxcol(output, samples, μ, magic_prob)
   end
 end
 
-""" ```save_doped_gates(output, gates, doped_inds_samples, layer_ends, μ, magic_prob)```
+""" ```save_doped_gates(output, gates, doped_inds_samples, layer_ends, μ, label)```
 
 Append one block per parameter point listing the doped rotation gates of each \
-sample: a ```# p = …, μ = …``` header, then for each sample a \
-```# sample s: n doped gates``` line followed by one \
+sample: a ```# n = …, μ = …``` header, then for each sample a \
+```# sample s: g doped gates``` line followed by one \
 ```gate-position cycle Pauli-string qubit-indices``` line per doped gate \
 (e.g. ```17 2 XX 3 4```), where the position indexes the gates array and the \
 (1-based) cycle is derived from ```layer_ends```. Samples are separated by a \
 blank line and the block ends with two blank lines (gnuplot block separator)."""
-function save_doped_gates(output, gates, doped_inds_samples, layer_ends, μ, magic_prob)
+function save_doped_gates(output, gates, doped_inds_samples, layer_ends, μ, label)
   open(output, "a") do io
-    println(io, "# p = $magic_prob, μ = $μ")
+    println(io, label_header(label, μ))
     for (s, inds) in enumerate(doped_inds_samples)
       println(io, "# sample $s: $(length(inds)) doped gates")
       for k in inds

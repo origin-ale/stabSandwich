@@ -6,7 +6,6 @@ import PauliPropagation as pp
 
 using Statistics
 using Random: MersenneTwister
-using Printf
 
 @isdefined(ScriptSetup) || include(joinpath(@__DIR__, "scripts", "ScriptSetup.jl"))
 using .ScriptSetup
@@ -14,7 +13,7 @@ using .ScriptSetup
 # == Parameters ===============================================================
 # Override from the command line as key=value (`help` lists them); lists are
 # comma-separated, without spaces, e.g.
-#   julia --project=. Comptime_prob_tm.jl methods=campspp magic_probs=0,0.01 samples=25
+#   julia --project=. Comptime_prob_tm.jl methods=campspp magic_counts=0,10 samples=25
 params = @parameters begin
   # Methods to run, in output-column order.
   # Available: :campspp (CAMPS-PP), :camps (CAMPS), :mps (MPS), :pp (PP)
@@ -24,12 +23,15 @@ params = @parameters begin
   magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
   μ = 0.6
 
-  # Doping probabilities, as an explicit list
-  magic_probs = [0.0, 0.01, 0.02, 0.04]
+  # Numbers of doped XXZ triples per sample, as an explicit list. Each sample dopes
+  # exactly n of the (N-1)·N/2 triples, drawn uniformly without replacement (at N=46,
+  # 1035 triples: n = 10, 20, 40 are about the old p = 0.01, 0.02, 0.04)
+  magic_counts = [0, 10, 20, 40]
 
   samples = 25
-  # Base RNG seed: sample i uses seed rng_seed + i (0 reproduces historical runs;
-  # change to draw an independent set of samples)
+  # Base RNG seed: sample i draws its initial state from seed rng_seed + i (100
+  # reproduces the historical initial states; the count-mode masks are new) and its
+  # mask from hash((rng_seed + i, n)); change to draw an independent set of samples
   rng_seed = 100
 
   ϕ = π/4
@@ -71,11 +73,11 @@ gctime_output = joinpath(outdir, "gctime_prob_tm.txt")
 resources_prefix = joinpath(outdir, "resources_prob_tm_")
 # Mean expectation values; exponent of campspp_thl appended to file names
 evs_prefix = joinpath(outdir, "evs_prob_tm_")
-# Doped rotation gates (Pauli string and qubits) per probability and sample
+# Doped rotation gates (Pauli string and qubits) per doping count and sample
 doped_output = joinpath(outdir, "doped_prob_tm.txt")
 
-# Per-sample initial states (one bitstring per sample, identical for every p
-# and method) and CAMPS-PP switch points (one block per p)
+# Per-sample initial states (one bitstring per sample, identical for every n
+# and method) and CAMPS-PP switch points (one block per n)
 initstates_output = joinpath(outdir, "initstates_prob_tm.txt")
 switch_output = joinpath(outdir, "campspp_switch_prob_tm.txt")
 
@@ -87,8 +89,11 @@ let unknown = setdiff(methods, all_methods)
 end
 isempty(methods) && error("No methods selected to run")
 allunique(methods) || error("Repeated method(s) in $methods")
-isempty(magic_probs) && error("No doping probabilities given")
-all(p -> 0 <= p <= 1, magic_probs) || error("Probabilities must lie in [0, 1]: $magic_probs")
+isempty(magic_counts) && error("No doping counts given")
+let ntriples = length(last(xxz_circuit(ϕ, θ, N/2, N))) ÷ 3  # XXZ triples in the circuit
+  all(n -> n isa Integer && 0 <= n <= ntriples, magic_counts) ||
+    error("Doping counts must be integers in 0:$ntriples (the number of triples): $magic_counts")
+end
 samples >= 1 || error("Need at least 1 sample, got $samples")
 
 param_info = param_header(params; exclude = (:outdir,))
@@ -148,7 +153,7 @@ mismatched_samples(as, bs; atol) = [i for i in eachindex(as, bs)
   if length(as[i]) != length(bs[i]) || !all(isapprox.(as[i], bs[i]; atol = atol))]
 
 # Per-layer bond dimension (:campspp, :camps) and n. of Paulis (:campspp, :pp),
-# averaged over samples; one data block per probability
+# averaged over samples; one data block per doping count
 bd_outputs = Dict(m => resources_prefix * "bd_$m.txt"
   for m in methods if m in (:campspp, :camps))
 np_outputs = Dict(m => resources_prefix * "NP_$m.txt"
@@ -158,16 +163,16 @@ pw_outputs = Dict(m => resources_prefix * "PW_$m.txt"
 pc_outputs = Dict(m => resources_prefix * "PC_$m.txt"
   for m in methods if m in (:campspp, :pp))
 for f in values(bd_outputs)
-  initialize_output(f, "[layer, mean bond dim., std. err., max-sample bond dim., n. of samples, q1, median, q3, min, max; one block per p]", param_info)
+  initialize_output(f, "[layer, mean bond dim., std. err., max-sample bond dim., n. of samples, q1, median, q3, min, max; one block per n]", param_info)
 end
 for f in values(np_outputs)
-  initialize_output(f, "[layer, mean n. of Paulis, std. err., max-sample n. of Paulis, n. of samples, q1, median, q3, min, max; one block per p]", param_info)
+  initialize_output(f, "[layer, mean n. of Paulis, std. err., max-sample n. of Paulis, n. of samples, q1, median, q3, min, max; one block per n]", param_info)
 end
 for f in values(pw_outputs)
-  initialize_output(f, "[layer, mean avg. Pauli weight, std. err., max-sample avg. Pauli weight, n. of samples, q1, median, q3, min, max; one block per p]", param_info)
+  initialize_output(f, "[layer, mean avg. Pauli weight, std. err., max-sample avg. Pauli weight, n. of samples, q1, median, q3, min, max; one block per n]", param_info)
 end
 for f in values(pc_outputs)
-  initialize_output(f, "[layer, mean avg. |Pauli coeff.|, std. err., max-sample avg. |Pauli coeff.|, n. of samples, q1, median, q3, min, max; one block per p]", param_info)
+  initialize_output(f, "[layer, mean avg. |Pauli coeff.|, std. err., max-sample avg. |Pauli coeff.|, n. of samples, q1, median, q3, min, max; one block per n]", param_info)
 end
 
 # Unaveraged per-sample resources: layer-resolved, one block per sample
@@ -184,7 +189,7 @@ for (f, name) in Iterators.flatten((
     ((f, "n. of Paulis") for f in values(np_full_outputs)),
     ((f, "avg. Pauli weight") for f in values(pw_full_outputs)),
     ((f, "avg. |Pauli coeff.|") for f in values(pc_full_outputs))))
-  initialize_output(f, "[layer, $name; one block per sample, one set per p]", param_info)
+  initialize_output(f, "[layer, $name; one block per sample, one set per n]", param_info)
 end
 
 # Peak resource reached by each sample over its own evolution
@@ -201,42 +206,42 @@ for (f, name) in Iterators.flatten((
     ((f, "peak n. of Paulis") for f in values(np_peak_outputs)),
     ((f, "peak avg. Pauli weight") for f in values(pw_peak_outputs)),
     ((f, "peak avg. |Pauli coeff.|") for f in values(pc_peak_outputs))))
-  initialize_output(f, "[sample, $name; one block per p]", param_info)
+  initialize_output(f, "[sample, $name; one block per n]", param_info)
 end
 
 # Unaveraged per-sample wall-clock and GC times
 times_full_outputs = Dict(m => joinpath(outdir, "comptime_full_prob_tm_$m.txt") for m in methods)
 for f in values(times_full_outputs)
-  initialize_output(f, "[sample, time (s), GC time (s); one block per p]", param_info)
+  initialize_output(f, "[sample, time (s), GC time (s); one block per n]", param_info)
 end
 
-# Per-layer mean expectation value, averaged over samples; one block per p
+# Per-layer mean expectation value, averaged over samples; one block per n
 evs_outputs = Dict(m => evs_prefix * "$(m)_$(campspp_thl_exp).txt" for m in methods)
 for f in values(evs_outputs)
-  initialize_output(f, "[layer, mean expectation value, std. err.; one block per p]", param_info)
+  initialize_output(f, "[layer, mean expectation value, std. err.; one block per n]", param_info)
 end
 
 # Unaveraged per-sample expectation values, one block per sample
 evs_full_outputs = Dict(m => evs_prefix * "$(m)_$(campspp_thl_exp)_full.txt"
   for m in methods)
 for f in values(evs_full_outputs)
-  initialize_output(f, "[layer, expectation value; one block per sample, one set per p]", param_info)
+  initialize_output(f, "[layer, expectation value; one block per sample, one set per n]", param_info)
 end
 
 initialize_output(doped_output,
-  "[doped gates: count line, then one gate position + cycle + Pauli string + qubits per gate; one set per sample, one block per p]",
+  "[doped gates: count line, then one gate position + cycle + Pauli string + qubits per gate; one set per sample, one block per n]",
   param_info)
 
 if :campspp in methods
   n_gates = length(first(xxz_circuit(ϕ, θ, N/2, N)))
   initialize_output(switch_output,
-    "[sample, switch gate (last gate applied in CAMPS; PP starts at the next one; $n_gates = never switched), n. of magic qubits k at the switch, PP stop gate ($n_gates = end of circuit); one block per p]",
+    "[sample, switch gate (last gate applied in CAMPS; PP starts at the next one; $n_gates = never switched), n. of magic qubits k at the switch, PP stop gate ($n_gates = end of circuit); one block per n]",
     param_info)
 end
 
 # Initial states are drawn once per sample from seed `rng_seed + i` (index 0 is
 # the warm-up sample) and saved, so a replay can rebuild them from the file
-# instead of from the RNG. They do not depend on p or on the method.
+# instead of from the RNG. They do not depend on n or on the method.
 sample_onebitinds(i) = domainwallstate(MersenneTwister(rng_seed + i), N, μ)[2]
 onebitinds_wu = sample_onebitinds(0)
 onebitinds_samples = [sample_onebitinds(i) for i in 1:samples]
@@ -251,7 +256,7 @@ open(initstates_output, "a") do io
   end
 end
 
-# The doping `mask` is generated once per (sample, probability) in the main loop
+# The doping `mask` is generated once per (sample, doping count) in the main loop
 # and passed in, so the doped gates are identical across methods for a sample.
 function init_camps(N, onebitinds, mask)
   ψ = computationalcamps(N, onebitinds)
@@ -288,30 +293,30 @@ end
 # == Main loop ================================================================
 layer_ends = layerends(N, N ÷ 2, xxz_circuit)
 
-for magic_prob in magic_probs
-  magic_prob_str = @sprintf("%.3f", magic_prob)
+for magic_count in magic_counts
+  dope_label = "n" => magic_count
   evs_campspp = evs_camps = evs_mps = evs_pp = nothing
 
-  # Doping masks are fixed by the sample seed *and* probability, so they are
-  # identical across methods for a given sample yet independent across
-  # probabilities (no monotonic nesting). Index 0 is the warm-up sample.
+  # Doping masks are fixed by the sample seed *and* the count n (exactly n triples,
+  # uniform without replacement), so they are identical across methods for a given
+  # sample yet independent across counts (no nesting). Index 0 is the warm-up sample.
   gates_ref, phases_ref = xxz_circuit(ϕ, θ, N/2, N)
-  sample_mask(i) = doping_mask(MersenneTwister(hash((rng_seed + i, magic_prob))),
-    phases_ref, magic_prob)
+  sample_mask(i) = doping_mask_count(MersenneTwister(hash((rng_seed + i, magic_count))),
+    phases_ref, magic_count)
   masks_samples = [sample_mask(i) for i in 1:samples]
   mask_wu = sample_mask(0)
 
-  # Record the resulting doped gates once per probability
+  # Record the resulting doped gates once per doping count
   doped_inds_samples = map(masks_samples) do mask
     doped_phases = magic_doping(phases_ref, mask; magicphase = magic_phase)
     findall(doped_phases .!= phases_ref)
   end
   save_doped_gates(doped_output, gates_ref, doped_inds_samples, layer_ends, μ,
-    magic_prob)
+    dope_label)
 
   # == CAMPS-PP ===============================================================
   if :campspp in methods
-    prog = ProgressLog("p=$magic_prob_str CAMPS-PP sample", samples; frac = 0)
+    prog = ProgressLog("n=$magic_count CAMPS-PP sample", samples; frac = 0)
 
     ψ_wu, tm_wu, gates, phases = init_camps(N, onebitinds_wu, mask_wu)
     times_curr = Real[]
@@ -349,7 +354,7 @@ for magic_prob in magic_probs
         layer_ends = layer_ends,
         track = true)
       if length(evs) < N/2+1
-        log_message("WARNING: CAMPS-PP sample $i for p=$magic_prob_str stopped early!")
+        log_message("WARNING: CAMPS-PP sample $i for n=$magic_count stopped early!")
       end
       push!(evs_campspp, evs)
       push!(times_curr, time)
@@ -375,27 +380,27 @@ for magic_prob in magic_probs
       timemin_methods, timemax_methods, :campspp, times_curr)
     push_quartiles!(gcq1_methods, gcmed_methods, gcq3_methods,
       gcmin_methods, gcmax_methods, :campspp, gctimes_curr)
-    save_stats_maxcol(bd_outputs[:campspp], bds_samples, μ, magic_prob)
-    save_stats_maxcol(np_outputs[:campspp], nps_samples, μ, magic_prob)
-    save_stats_maxcol(pw_outputs[:campspp], pws_samples, μ, magic_prob)
-    save_stats_maxcol(pc_outputs[:campspp], pcs_samples, μ, magic_prob)
-    save_stats(evs_outputs[:campspp], stack_samples(evs_campspp), μ, magic_prob)
-    save_per_sample(times_full_outputs[:campspp], μ, magic_prob, times_curr, gctimes_curr)
-    save_per_sample(switch_output, μ, magic_prob, switch_gates, switch_ks, stop_gates)
-    save_full_samples(bd_full_outputs[:campspp], μ, magic_prob, stack_samples(bds_samples))
-    save_full_samples(np_full_outputs[:campspp], μ, magic_prob, stack_samples(nps_samples))
-    save_full_samples(pw_full_outputs[:campspp], μ, magic_prob, stack_samples(pws_samples))
-    save_full_samples(pc_full_outputs[:campspp], μ, magic_prob, stack_samples(pcs_samples))
-    save_full_samples(evs_full_outputs[:campspp], μ, magic_prob, stack_samples(evs_campspp))
-    save_peaks(bd_peak_outputs[:campspp], bds_samples, μ, magic_prob)
-    save_peaks(np_peak_outputs[:campspp], nps_samples, μ, magic_prob)
-    save_peaks(pw_peak_outputs[:campspp], pws_samples, μ, magic_prob)
-    save_peaks(pc_peak_outputs[:campspp], pcs_samples, μ, magic_prob)
+    save_stats_maxcol(bd_outputs[:campspp], bds_samples, μ, dope_label)
+    save_stats_maxcol(np_outputs[:campspp], nps_samples, μ, dope_label)
+    save_stats_maxcol(pw_outputs[:campspp], pws_samples, μ, dope_label)
+    save_stats_maxcol(pc_outputs[:campspp], pcs_samples, μ, dope_label)
+    save_stats(evs_outputs[:campspp], stack_samples(evs_campspp), μ, dope_label)
+    save_per_sample(times_full_outputs[:campspp], μ, dope_label, times_curr, gctimes_curr)
+    save_per_sample(switch_output, μ, dope_label, switch_gates, switch_ks, stop_gates)
+    save_full_samples(bd_full_outputs[:campspp], μ, dope_label, stack_samples(bds_samples))
+    save_full_samples(np_full_outputs[:campspp], μ, dope_label, stack_samples(nps_samples))
+    save_full_samples(pw_full_outputs[:campspp], μ, dope_label, stack_samples(pws_samples))
+    save_full_samples(pc_full_outputs[:campspp], μ, dope_label, stack_samples(pcs_samples))
+    save_full_samples(evs_full_outputs[:campspp], μ, dope_label, stack_samples(evs_campspp))
+    save_peaks(bd_peak_outputs[:campspp], bds_samples, μ, dope_label)
+    save_peaks(np_peak_outputs[:campspp], nps_samples, μ, dope_label)
+    save_peaks(pw_peak_outputs[:campspp], pws_samples, μ, dope_label)
+    save_peaks(pc_peak_outputs[:campspp], pcs_samples, μ, dope_label)
   end
 
   # == CAMPS ==================================================================
   if :camps in methods
-    prog = ProgressLog("p=$magic_prob_str CAMPS sample", samples; frac = 0)
+    prog = ProgressLog("n=$magic_count CAMPS sample", samples; frac = 0)
 
     ψ_wu, tm_wu, gates, phases = init_camps(N, onebitinds_wu, mask_wu)
     times_curr = Real[]
@@ -442,17 +447,17 @@ for magic_prob in magic_probs
       timemin_methods, timemax_methods, :camps, times_curr)
     push_quartiles!(gcq1_methods, gcmed_methods, gcq3_methods,
       gcmin_methods, gcmax_methods, :camps, gctimes_curr)
-    save_stats_maxcol(bd_outputs[:camps], bds_samples, μ, magic_prob)
-    save_stats(evs_outputs[:camps], stack_samples(evs_camps), μ, magic_prob)
-    save_per_sample(times_full_outputs[:camps], μ, magic_prob, times_curr, gctimes_curr)
-    save_full_samples(bd_full_outputs[:camps], μ, magic_prob, stack_samples(bds_samples))
-    save_full_samples(evs_full_outputs[:camps], μ, magic_prob, stack_samples(evs_camps))
-    save_peaks(bd_peak_outputs[:camps], bds_samples, μ, magic_prob)
+    save_stats_maxcol(bd_outputs[:camps], bds_samples, μ, dope_label)
+    save_stats(evs_outputs[:camps], stack_samples(evs_camps), μ, dope_label)
+    save_per_sample(times_full_outputs[:camps], μ, dope_label, times_curr, gctimes_curr)
+    save_full_samples(bd_full_outputs[:camps], μ, dope_label, stack_samples(bds_samples))
+    save_full_samples(evs_full_outputs[:camps], μ, dope_label, stack_samples(evs_camps))
+    save_peaks(bd_peak_outputs[:camps], bds_samples, μ, dope_label)
   end
 
   # == MPS ==================================================================
   if :mps in methods
-    prog = ProgressLog("p=$magic_prob_str MPS sample", samples; frac = 0)
+    prog = ProgressLog("n=$magic_count MPS sample", samples; frac = 0)
 
     ψ_wu, tm_wu, gates, phases = init_mps(N, onebitinds_wu, mask_wu)
     times_curr = Real[]
@@ -492,14 +497,14 @@ for magic_prob in magic_probs
       timemin_methods, timemax_methods, :mps, times_curr)
     push_quartiles!(gcq1_methods, gcmed_methods, gcq3_methods,
       gcmin_methods, gcmax_methods, :mps, gctimes_curr)
-    save_stats(evs_outputs[:mps], stack_samples(evs_mps), μ, magic_prob)
-    save_per_sample(times_full_outputs[:mps], μ, magic_prob, times_curr, gctimes_curr)
-    save_full_samples(evs_full_outputs[:mps], μ, magic_prob, stack_samples(evs_mps))
+    save_stats(evs_outputs[:mps], stack_samples(evs_mps), μ, dope_label)
+    save_per_sample(times_full_outputs[:mps], μ, dope_label, times_curr, gctimes_curr)
+    save_full_samples(evs_full_outputs[:mps], μ, dope_label, stack_samples(evs_mps))
   end
 
   # == PP ====================================================================
   if :pp in methods
-    prog = ProgressLog("p=$magic_prob_str PP sample", samples; frac = 0)
+    prog = ProgressLog("n=$magic_count PP sample", samples; frac = 0)
 
     obi_wu, tm_wu, gates, phases = init_pp(N, onebitinds_wu, mask_wu)
     times_curr = Real[]
@@ -531,7 +536,7 @@ for magic_prob in magic_probs
         layer_ends = layer_ends,
         track = true)
       if length(evs) < N/2+1
-        log_message("WARNING: PP sample $i for p=$magic_prob_str stopped early!")
+        log_message("WARNING: PP sample $i for n=$magic_count stopped early!")
       end
       push!(evs_pp, evs)
       push!(times_curr, time)
@@ -551,18 +556,18 @@ for magic_prob in magic_probs
       timemin_methods, timemax_methods, :pp, times_curr)
     push_quartiles!(gcq1_methods, gcmed_methods, gcq3_methods,
       gcmin_methods, gcmax_methods, :pp, gctimes_curr)
-    save_stats_maxcol(np_outputs[:pp], nps_samples, μ, magic_prob)
-    save_stats_maxcol(pw_outputs[:pp], pws_samples, μ, magic_prob)
-    save_stats_maxcol(pc_outputs[:pp], pcs_samples, μ, magic_prob)
-    save_stats(evs_outputs[:pp], stack_samples(evs_pp), μ, magic_prob)
-    save_per_sample(times_full_outputs[:pp], μ, magic_prob, times_curr, gctimes_curr)
-    save_full_samples(np_full_outputs[:pp], μ, magic_prob, stack_samples(nps_samples))
-    save_full_samples(pw_full_outputs[:pp], μ, magic_prob, stack_samples(pws_samples))
-    save_full_samples(pc_full_outputs[:pp], μ, magic_prob, stack_samples(pcs_samples))
-    save_full_samples(evs_full_outputs[:pp], μ, magic_prob, stack_samples(evs_pp))
-    save_peaks(np_peak_outputs[:pp], nps_samples, μ, magic_prob)
-    save_peaks(pw_peak_outputs[:pp], pws_samples, μ, magic_prob)
-    save_peaks(pc_peak_outputs[:pp], pcs_samples, μ, magic_prob)
+    save_stats_maxcol(np_outputs[:pp], nps_samples, μ, dope_label)
+    save_stats_maxcol(pw_outputs[:pp], pws_samples, μ, dope_label)
+    save_stats_maxcol(pc_outputs[:pp], pcs_samples, μ, dope_label)
+    save_stats(evs_outputs[:pp], stack_samples(evs_pp), μ, dope_label)
+    save_per_sample(times_full_outputs[:pp], μ, dope_label, times_curr, gctimes_curr)
+    save_full_samples(np_full_outputs[:pp], μ, dope_label, stack_samples(nps_samples))
+    save_full_samples(pw_full_outputs[:pp], μ, dope_label, stack_samples(pws_samples))
+    save_full_samples(pc_full_outputs[:pp], μ, dope_label, stack_samples(pcs_samples))
+    save_full_samples(evs_full_outputs[:pp], μ, dope_label, stack_samples(evs_pp))
+    save_peaks(np_peak_outputs[:pp], nps_samples, μ, dope_label)
+    save_peaks(pw_peak_outputs[:pp], pws_samples, μ, dope_label)
+    save_peaks(pc_peak_outputs[:pp], pcs_samples, μ, dope_label)
   end
 
   # == Cross-checks (only between methods that were actually run) =============
@@ -572,7 +577,7 @@ for magic_prob in magic_probs
     (isnothing(evs_campspp) || isnothing(evs_other)) && continue
     bad = mismatched_samples(evs_campspp, evs_other; atol = 1e-6)
     isempty(bad) && continue
-    log_message("WARNING: p = $magic_prob_str CAMPS-PP and $name do not match (samples $bad)")
+    log_message("WARNING: n = $magic_count CAMPS-PP and $name do not match (samples $bad)")
     println("-"^32)
     for idx in bad
       println("$(evs_campspp[idx])\n$(evs_other[idx])\n")
@@ -583,17 +588,17 @@ for magic_prob in magic_probs
   # Seven columns per method: mean, std. err., then q1/median/q3/min/max
   # (ordered for gnuplot `with candlesticks`, whiskers at the extrema)
   initialize_output(output,
-    "[p, then per method: mean time (s), std. err., q1, median, q3, min, max]",
+    "[n (doped triples per sample), then per method: mean time (s), std. err., q1, median, q3, min, max]",
     param_info)
-  save_columns(output, magic_probs,
+  save_columns(output, magic_counts,
     (col for m in methods for col in (times_methods[m], stds_methods[m],
       timeq1_methods[m], timemed_methods[m], timeq3_methods[m],
       timemin_methods[m], timemax_methods[m]))...)
 
   initialize_output(gctime_output,
-    "[p, then per method: mean GC time (s), std. err., q1, median, q3, min, max]",
+    "[n (doped triples per sample), then per method: mean GC time (s), std. err., q1, median, q3, min, max]",
     param_info)
-  save_columns(gctime_output, magic_probs,
+  save_columns(gctime_output, magic_counts,
     (col for m in methods for col in (gctimes_methods[m], gcstds_methods[m],
       gcq1_methods[m], gcmed_methods[m], gcq3_methods[m],
       gcmin_methods[m], gcmax_methods[m]))...)

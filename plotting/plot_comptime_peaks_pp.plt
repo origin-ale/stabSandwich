@@ -1,7 +1,7 @@
 # Histograms of the per-sample computation times (one panel per magic probability p).
 # Input: comptime_full_prob_tm_pp.txt
 #        column 1 = sample index, column 2 = wall time (s), column 3 = GC time (s);
-#        one data block per p.
+#        one data block per n (per p in p-based data).
 #
 # The panel grid and the x-ranges follow the data, so runs with more p values plot
 # without edits. If there are more p values than `maxpanels`, the lowest ones are
@@ -20,7 +20,7 @@ set output "output/Peaks_prob_tm_time_pp_hist.png"
 set xlabel "log_{10}(computation time / s)"
 binexpr = "log10($2)"
 w = 0.2
-plottitle = sprintf("46-qubit XXZ circuit — PP computation time (%d samples per p)", nsamples(datafile))
+plottitle = sprintf("46-qubit XXZ circuit — PP computation time (%d samples per %s)", nsamples(datafile), blockvar(datafile))
 load "plotting/hist_panels.plt"
 
 # == GC time as a fraction of the total =================================================
@@ -30,5 +30,5 @@ set output "output/Peaks_prob_tm_gcfrac_pp_hist.png"
 set xlabel "GC time (% of total)"
 binexpr = "100.0 * $3 / $2"
 w = 2.5
-plottitle = sprintf("46-qubit XXZ circuit — PP garbage-collection share (%d samples per p)", nsamples(datafile))
+plottitle = sprintf("46-qubit XXZ circuit — PP garbage-collection share (%d samples per %s)", nsamples(datafile), blockvar(datafile))
 load "plotting/hist_panels.plt"

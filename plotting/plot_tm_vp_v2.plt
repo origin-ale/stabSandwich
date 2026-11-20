@@ -1,4 +1,5 @@
-# Transferred magnetization against time, one image per p value (all μ of that p).
+# Transferred magnetization against time, one image per n value (all μ of that n;
+# p in p-based data).
 #
 # Input: <prefix>_<N>_<Nsamples>.txt as written by TransferredMag_varparams.jl.
 # dir         input directory (default: output/TransferredMag_varparams, where the
@@ -30,11 +31,11 @@ set key font ",16"
 
 datafile = dir."/".prefix."_".N."_".Nsamples.".txt"
 
-# Blocks are written μ-major ("# p = …, μ = …", p varying fastest), so with np
-# distinct p values, image k shows blocks k-1, k-1+np, k-1+2np, … (one p, every μ).
+# Blocks are written μ-major ("# n = …, μ = …", n varying fastest; p in p-based data), so with np
+# distinct n values, image k shows blocks k-1, k-1+np, k-1+2np, … (one n, every μ).
 # Each entry of `blocksets` is that whitespace-separated list of 0-based indices.
-nb_all = system(sprintf("grep -ac '^# p =' '%s'", datafile)) + 0
-np = system(sprintf("grep -a '^# p =' '%s' | sed 's/.*p = //; s/,.*//' | sort -u | wc -l", datafile)) + 0
+nb_all = system(sprintf("grep -ac '^# [pn] =' '%s'", datafile)) + 0
+np = system(sprintf("grep -a '^# [pn] =' '%s' | sed 's/^# [pn] = //; s/,.*//' | sort -u | wc -l", datafile)) + 0
 array blocksets[np]
 do for [k=1:np] {
   blocksets[k] = ""
@@ -44,11 +45,11 @@ do for [k=1:np] {
 # Fit window: points with time >= fitmin; a block needs at least 3 there
 # (2 parameters), or its fit is skipped.
 fitmin = 10
-nfit(i) = system(sprintf("awk 'BEGIN{b=-1} /^# p =/{b++; next} /^#/{next} b==%d && NF>=2 && $1>=%g {c++} END{print c+0}' '%s'", i, fitmin, datafile)) + 0
+nfit(i) = system(sprintf("awk 'BEGIN{b=-1} /^# [pn] =/{b++; next} /^#/{next} b==%d && NF>=2 && $1>=%g {c++} END{print c+0}' '%s'", i, fitmin, datafile)) + 0
 
-# Title for block `index i`: pulls the matching "# p = …, μ = …" header from the
+# Title for block `index i`: pulls the matching "# n = …, μ = …" header ("# p = …" in p-based data) from the
 # file (data index i corresponds to the (i+1)-th header line).
-blocktitle(i) = system(sprintf("grep -a '^# p =' '%s' | sed -n '%dp' | sed 's/^# //'", datafile, i + 1))
+blocktitle(i) = system(sprintf("grep -a '^# [pn] =' '%s' | sed -n '%dp' | sed 's/^# //'", datafile, i + 1))
 
 # Power-law fits a*x**b for each dataset, without printing the fit log
 set fit quiet

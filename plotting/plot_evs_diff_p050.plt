@@ -23,8 +23,8 @@ set xrange [0:*]
 input1 = dir_campspp.'/evs_prob_tm_campspp_'.thl_campspp.'.txt'
 input2 = dir_pp.'/evs_prob_tm_pp_'.thl_pp.'.txt'
 
-# "p = …" of block idx, from the file's "# p = …, μ = …" header lines
-ptitle = system(sprintf("grep -a '^# p =' '%s' | sed -n '%dp' | sed 's/^# //; s/,.*//'", input1, idx + 1))
+# "p = …" of block idx, from the file's "# n = …, μ = …" header ("# p = …" in p-based data) lines
+ptitle = system(sprintf("grep -a '^# [pn] =' '%s' | sed -n '%dp' | sed 's/^# //; s/,.*//'", input1, idx + 1))
 
 # paste joins the two files line by line (identical block structure),
 # so file 2's columns become 4:5:6

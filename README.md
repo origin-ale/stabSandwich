@@ -33,7 +33,7 @@ commit (see `[sources]` in `Project.toml`).
 ## Running a script
 
 ```bash
-julia --project=. -t 4 Comptime_prob_tm.jl methods=campspp,pp magic_probs=0,0.02 samples=10
+julia --project=. -t 4 Comptime_prob_tm.jl methods=campspp,pp magic_counts=0,20 samples=10
 ```
 
 - **Parameters.** Every value in a script's `@parameters` block can be overridden as
@@ -59,8 +59,8 @@ julia --project=. -t 4 Comptime_prob_tm.jl methods=campspp,pp magic_probs=0,0.02
 
 | Script | Computes |
 |---|---|
-| `Comptime_prob_tm.jl` | Transferred magnetization in doped XXZ Floquet circuits (N = 46): computation time, resources (bond dimension, number and weight of Paulis), expectation values and switch points vs doping probability, for CAMPS-PP, CAMPS, MPS and PP. |
-| `TransferredMag_varparams.jl` | CAMPS-PP transferred-magnetization dynamics over a grid of doping probabilities and domain-wall parameters μ. Samples run in parallel threads (`-t`); each sample has its own seed, so results don't depend on the thread count. |
+| `Comptime_prob_tm.jl` | Transferred magnetization in doped XXZ Floquet circuits (N = 46): computation time, resources (bond dimension, number and weight of Paulis), expectation values and switch points vs the number of doped gate triples per sample (exactly n, placed uniformly at random), for CAMPS-PP, CAMPS, MPS and PP. |
+| `TransferredMag_varparams.jl` | CAMPS-PP transferred-magnetization dynamics over a grid of doping counts (exactly n doped gate triples per sample) and domain-wall parameters μ. Samples run in parallel threads (`-t`); each sample has its own seed, so results don't depend on the thread count. |
 | `switch_optimization.jl` | CAMPS-PP computation time on random rotation circuits as a function of the switch point (how many gates are left to PP). |
 | `Comptime_ratios.jl` | Exact CAMPS vs PP computation time on random rotation circuits, vs the aspect ratio t/N at fixed N. |
 | `Comptime_3_squarecirc.jl` | Exact CAMPS, PP and MPS computation time on square (t = N) random rotation circuits, vs N. |

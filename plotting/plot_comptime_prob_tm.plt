@@ -1,8 +1,9 @@
-# Mean computation time (with its standard error) against magic probability,
+# Mean computation time (with its standard error) against the number of doped
+# triples per sample (or the magic probability, in p-based data),
 # CAMPS-PP against PP.
 #
 # Input: comptime_prob_tm.txt as written by Comptime_prob_tm.jl, with seven
-# columns per method (1 p, then per method mean, std.err, q1, median, q3, min,
+# columns per method (1 n or p, then per method mean, std.err, q1, median, q3, min,
 # max), so method j (0-based, in the `methods` order of the run) starts at
 # column 2 + 7*j.
 #
@@ -18,6 +19,8 @@ if (!exists("dir_pp")) { dir_pp = "output/Comptime_prob_tm" }
 if (!exists("j_campspp")) { j_campspp = 0 }
 if (!exists("j_pp")) { j_pp = 1 }
 col(j, q) = 2 + 7*j + q
+# x axis: n (doped triples per sample) for count-mode runs, p for p-based data
+xlab(f) = (system(sprintf("grep -ac 'magic_counts=' '%s'", f)) + 0 > 0) ? "Doped triples per sample" : "Magic probability"
 
 set term png size 850, 600 font ",16"
 set output "output/CompTimes_prob_tm_graph.png"
@@ -27,7 +30,7 @@ set linetype 3 lc rgb "dark-red"
 set title "46-qubit 23-layer XXZ circuit" font ",24"
 set logscale y
 set format y "%1g"
-set xlabel "Magic probability"
+set xlabel xlab(dir_campspp.'/comptime_prob_tm.txt')
 set ylabel "Time (s)"
 
 set xrange [0:*]

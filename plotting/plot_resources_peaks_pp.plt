@@ -1,6 +1,6 @@
 # Histograms of the per-sample peak resource values (one panel per magic probability p).
 # Input: resources_prob_tm_*_peak_pp.txt
-#        column 1 = sample index, column 2 = peak value; one data block per p.
+#        column 1 = sample index, column 2 = peak value; one data block per n (per p in p-based data).
 #
 # The panel grid and the x-ranges follow the data, so runs with more p values plot
 # without edits. If there are more p values than `maxpanels`, the lowest ones are
@@ -18,7 +18,7 @@ set output "output/Peaks_prob_tm_NP_pp_hist.png"
 set xlabel "log_{10}(peak n. of Pauli strings)"
 binexpr = "log10($2)"
 w = 0.25
-plottitle = sprintf("46-qubit XXZ circuit — PP peak Pauli string number (%d samples per p)", nsamples(datafile))
+plottitle = sprintf("46-qubit XXZ circuit — PP peak Pauli string number (%d samples per %s)", nsamples(datafile), blockvar(datafile))
 load "plotting/hist_panels.plt"
 
 # == Mean Pauli weight ==================================================================
@@ -28,7 +28,7 @@ set output "output/Peaks_prob_tm_PW_pp_hist.png"
 set xlabel "Peak avg. Pauli weight"
 binexpr = "$2"
 w = 0.5
-plottitle = sprintf("46-qubit XXZ circuit — PP peak mean Pauli weight (%d samples per p)", nsamples(datafile))
+plottitle = sprintf("46-qubit XXZ circuit — PP peak mean Pauli weight (%d samples per %s)", nsamples(datafile), blockvar(datafile))
 load "plotting/hist_panels.plt"
 
 # == Mean |Pauli coefficient| ===========================================================
@@ -39,5 +39,5 @@ set output "output/Peaks_prob_tm_PC_pp_hist.png"
 set xlabel "Peak avg. |Pauli coeff.|"
 binexpr = "$2"
 w = 1.0 / 47.0
-plottitle = sprintf("46-qubit XXZ circuit — PP peak mean |Pauli coeff.| (%d samples per p)", nsamples(datafile))
+plottitle = sprintf("46-qubit XXZ circuit — PP peak mean |Pauli coeff.| (%d samples per %s)", nsamples(datafile), blockvar(datafile))
 load "plotting/hist_panels.plt"

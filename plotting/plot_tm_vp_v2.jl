@@ -52,9 +52,9 @@ const datafile = joinpath(data_dir, "$(prefix_plot)_$(N_plot)_$(Nsamples_plot).t
 
 # Each blockset is a list of block indices to plot (0-based: index 0 is the first
 # data block); one image is saved per blockset. Blocks are written μ-major
-# ("p = …, μ = …", p varying fastest), so blockset k holds every μ of the k-th p
-# value: k-1, k-1+np, k-1+2np, … with np distinct p values (set in `main`).
-blocksets_for(titles) = (np = length(unique(match(r"p\s*=\s*([^,]+)", t)[1] for t in titles));
+# ("n = …, μ = …", n varying fastest; p in p-based data), so blockset k holds every
+# μ of the k-th n value: k-1, k-1+np, k-1+2np, … with np distinct n values (set in `main`).
+blocksets_for(titles) = (np = length(unique(match(r"^[pn]\s*=\s*([^,]+)", t)[1] for t in titles));
                          [collect(k:np:length(titles)-1) for k in 0:np-1])
 
 # Block indices to omit from the local-exponent plots only (the main graphs
@@ -68,7 +68,7 @@ localexp_exclude_for(blocksets) = Set(first.(blocksets))
 # ----------------------------------------------------------------------------
 # Returns (blocks, titles) where blocks[i] is a (time, mag, err) NamedTuple of
 # vectors for the i-th data block (0-based index i corresponds to blocks[i+1]),
-# and titles[i] is the matching "p = ..." header.
+# and titles[i] is the matching "n = ..." (or "p = ...") header.
 function read_blocks(path)
     blocks = Vector{NamedTuple{(:t, :y, :e), NTuple{3, Vector{Float64}}}}()
     titles = String[]
@@ -84,9 +84,9 @@ function read_blocks(path)
         if isempty(line)
             flush()                       # blank line ends a numeric run
         elseif startswith(line, "#")
-            # a "# p = …, μ = …" block header (not the run header, whose
+            # a "# n = …, μ = …" (or "# p = …") block header (not the run header, whose
             # key=value list can contain e.g. "warn_on_prestop=")
-            if occursin(r"^#\s*p\s*=", line)
+            if occursin(r"^#\s*[pn]\s*=", line)
                 push!(titles, strip(replace(line, r"^#\s*" => "")))
             end
         else
@@ -179,7 +179,7 @@ end
 function main()
     blocks, titles = read_blocks(datafile)
     length(titles) == length(blocks) ||
-        error("$datafile: $(length(blocks)) data blocks but $(length(titles)) \"p = …\" headers")
+        error("$datafile: $(length(blocks)) data blocks but $(length(titles)) \"n = …\" (or \"p = …\") headers")
     blocksets = blocksets_for(titles)
     localexp_exclude = localexp_exclude_for(blocksets)
 

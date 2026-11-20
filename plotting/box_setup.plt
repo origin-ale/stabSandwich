@@ -17,9 +17,9 @@
 if (!exists("maxpanels")) { maxpanels = 16 }
 if (!exists("logx")) { logx = 0 }
 
-blocktitle(f, i) = system(sprintf("grep -a '^# p =' '%s' | sed -n '%dp' | sed 's/^# //; s/,.*//'", f, i + 1))
+blocktitle(f, i) = system(sprintf("grep -a '^# [pn] =' '%s' | sed -n '%dp' | sed 's/^# //; s/,.*//'", f, i + 1))
 
-nblocks(f) = system(sprintf("grep -ac '^# p =' '%s'", f)) + 0
+nblocks(f) = system(sprintf("grep -ac '^# [pn] =' '%s'", f)) + 0
 
 nb = nblocks(datafile)
 

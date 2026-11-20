@@ -51,7 +51,8 @@ git worktree add ../stabSandwich-old 4c49e78
 cd ../stabSandwich-old && julia --project=. -e 'using Pkg; Pkg.instantiate()'
 
 # 1. Old A, then old B (each its own run; wait for the first to finish). `p=` is the old
-#    script's argument; the current Comptime_prob_tm.jl takes `magic_probs=` instead
+#    script's argument; Comptime_prob_tm.jl took `magic_probs=` until post-port item 9, and
+#    now dopes a fixed count (`magic_counts=`), so p-based runs are reproduced by the T11 replay
 scripts/remote/run.sh --no-pull -t 10 Comptime_prob_tm.jl methods=campspp p=0,0.01,0.02,0.04 samples=25
 scripts/remote/run.sh --no-pull -t 10 Comptime_prob_tm.jl methods=camps p=0,0.01 samples=10
 

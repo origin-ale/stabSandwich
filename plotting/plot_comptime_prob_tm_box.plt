@@ -1,8 +1,9 @@
-# Box plots of the per-sample computation time against magic probability.
+# Box plots of the per-sample computation time against the number of doped
+# triples per sample (or the magic probability, in p-based data).
 #
 # Input: comptime_prob_tm.txt (and gctime_prob_tm.txt) as written by
 # Comptime_prob_tm.jl, with seven columns per method:
-#   1 p, then per method  mean  std.err  q1  median  q3  min  max
+#   1 n or p, then per method  mean  std.err  q1  median  q3  min  max
 # so method j (0-based, in the `methods` order of the run) starts at column
 # 2 + 7*j. The box spans the quartiles, the whiskers the extrema over samples.
 #
@@ -20,13 +21,15 @@ if (!exists("dir_campspp")) { dir_campspp = "output/Comptime_prob_tm" }
 if (!exists("dir_pp")) { dir_pp = "output/Comptime_prob_tm" }
 if (!exists("j_campspp")) { j_campspp = 0 }
 if (!exists("j_pp")) { j_pp = 1 }
+# x axis: n (doped triples per sample) for count-mode runs, p for p-based data
+xlab(f) = (system(sprintf("grep -ac 'magic_counts=' '%s'", f)) + 0 > 0) ? "Doped triples per sample" : "Magic probability"
 
 set term png size 850, 600 font ",16"
 
 set title "46-qubit 23-layer XXZ circuit" font ",24"
 set logscale y
 set format y "%1g"
-set xlabel "Magic probability"
+set xlabel xlab(dir_campspp.'/comptime_prob_tm.txt')
 set ylabel "Time (s)"
 
 set xrange [*:*]
@@ -39,15 +42,21 @@ set style fill solid 0.25 border lc rgb "black"
 col(j, q) = 2 + 7*j + q
 Q1 = 2; MED = 3; Q3 = 4; MIN = 5; MAX = 6; MEAN = 0
 
-# The p spacing is 0.005, so boxes must be far narrower than that; `dx` also
-# offsets the two methods sideways so their boxes sit side by side instead of
-# on top of each other.
-bw = 0.0012
-set boxwidth bw absolute
-dx = 0.0009
-
 campspp = dir_campspp.'/comptime_prob_tm.txt'
 pp = dir_pp.'/comptime_prob_tm.txt'
+
+# The p spacing is 0.005, so boxes must be far narrower than that; `dx` also
+# offsets the two methods sideways so their boxes sit side by side instead of
+# on top of each other. For count-mode runs both scale with the smallest gap
+# between n values (the same fractions: 0.24 and 0.18 of it).
+bw = 0.0012
+dx = 0.0009
+if (system(sprintf("grep -ac 'magic_counts=' '%s'", campspp)) + 0 > 0) {
+  xstep = system(sprintf("awk '!/^#/ && NF {x[k++]=$1} END {m=0; for (i=1;i<k;i++) {d=x[i]-x[i-1]; if (d>0 && (m==0 || d<m)) m=d}; print (m>0 ? m : 1)}' '%s'", campspp)) + 0
+  bw = 0.24*xstep
+  dx = 0.18*xstep
+}
+set boxwidth bw absolute
 
 # == Wall-clock time ====================================================================
 set output "output/CompTimes_prob_tm_box.png"

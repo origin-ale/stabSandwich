@@ -1,5 +1,5 @@
 # Box plots of the per-cycle CAMPS-PP resource distributions over samples, one
-# panel per magic probability.
+# panel per doping count n (or magic probability p, in p-based data).
 #
 # Input: resources_prob_tm_*_campspp.txt as written by
 # save_stats_maxcol. This is the distribution behind

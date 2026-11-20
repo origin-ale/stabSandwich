@@ -7,19 +7,19 @@ set term png size 850, 600 font ",16"
 set xlabel "Cycle" font ",16"
 set key font ",16" outside right
 
-# Title for data index i: pulls the matching "# p = …, μ = …" header line
+# Title for data index i: pulls the matching "# n = …, μ = …" header ("# p = …" in p-based data) line
 # from the file (data index i corresponds to the (i+1)-th such header line),
-# keeping only the "p = …" field.
-blocktitle(datafile, i) = system(sprintf("grep -a '^# p =' '%s' | sed -n '%dp' | sed 's/^# //; s/,.*//'", datafile, i + 1))
+# keeping only the "n = …" (or "p = …") field.
+blocktitle(datafile, i) = system(sprintf("grep -a '^# [pn] =' '%s' | sed -n '%dp' | sed 's/^# //; s/,.*//'", datafile, i + 1))
 
-nblocks(datafile) = system(sprintf("grep -ac '^# p =' '%s'", datafile)) + 0
+nblocks(datafile) = system(sprintf("grep -ac '^# [pn] =' '%s'", datafile)) + 0
 
 # Count of in-range rows in block `blk` (0-indexed) with a non-zero error bar;
 # single-sample cycles have err = 0 and would blow up a weighted (yerrors) fit,
 # so they're excluded from weighting and must be counted separately, since
 # gnuplot's stats aborts outright (rather than reporting zero) when every row
 # in a NaN-filtered column is invalid.
-nzcount(datafile, blk, lo, hi) = system(sprintf("awk 'BEGIN{b=-1} /^# p =/{b++} b==%d && $1>=%d && $1<=%d && $3>0 {c++} END{print c+0}' '%s'", blk, lo, hi, datafile)) + 0
+nzcount(datafile, blk, lo, hi) = system(sprintf("awk 'BEGIN{b=-1} /^# [pn] =/{b++} b==%d && $1>=%d && $1<=%d && $3>0 {c++} END{print c+0}' '%s'", blk, lo, hi, datafile)) + 0
 
 set fit quiet nolog errorvariables
 
@@ -42,7 +42,7 @@ set yrange [.9:10]
 set xrange [1:25]
 nb = nblocks(datafile)
 
-# Power-law fit w(c) = a·c^γ per p block, over the plotted cycle range only
+# Power-law fit w(c) = a·c^γ per n (or p) block, over the plotted cycle range only
 # (cycle 0 is excluded: it is off-scale on the log axis).
 fitmin = 7
 fitmax = 25

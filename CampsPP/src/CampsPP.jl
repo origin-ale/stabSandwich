@@ -34,6 +34,7 @@ export save_stats_maxcol
 export save_doped_gates
 
 include("Circuits.jl")
+export doping_mask_count
 export doping_mask
 export xy_magic
 export z_magic
