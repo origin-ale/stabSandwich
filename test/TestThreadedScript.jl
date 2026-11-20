@@ -10,6 +10,13 @@
 #     rounding (plan, item 2). Since 2026-11-20 (plan, item 10) BLAS/Strided threads follow
 #     `blas_threads`, default 1 at every -t, which these runs don't set. The files were
 #     byte-identical when this was written (2026-11-19).
+#   - the recorded initial states (`_states.txt`) and doped triples (`_doped.txt`) at -t 2
+#     and -t 4 are byte-identical to those at -t 1 (post-port item 9, review follow-up 6):
+#     §2 keys each sample's mask stream on (n, μ index, sample), so a sample's mask can't
+#     depend on which thread ran it or when. The interior n = 5 makes masks differ between
+#     samples (n = 0 and n = T dope none and all). A single mask stream per (n, μ) shared by
+#     the samples under a lock gives the masks in draw order, and at -t 2 the second chunk
+#     of `@threads` (sample 3) draws before sample 2, which waits for sample 1's dynamics.
 # Sensitivity (2026-11-19): with the pre-fix `_apply_on_sites!` patched in memory into a
 # process that then includes the script, the reproducer at -t 2 exited 1 in 4 of 4 runs
 # ("rotation needs a Hermitian Pauli string").
@@ -20,8 +27,12 @@
 using Test
 
 const ROOT = dirname(@__DIR__)
-const SCRIPT = joinpath(ROOT, "TransferredMag_varparams.jl")
-const REPRO_ARGS = ["N=8", "Nsamples=3", "μs=0.6", "magic_counts=0,28"]   # T = 7·4 = 28: none and all, as the old p = 0, 1
+# STABSANDWICH_SCRIPT_DIR (default: the repository root) points the runs at another copy of
+# the script; used for scratch mutants, not by the suite.
+const SCRIPT = joinpath(get(ENV, "STABSANDWICH_SCRIPT_DIR", ROOT), "TransferredMag_varparams.jl")
+# T = 7·4 = 28: none and all, as the old p = 0, 1, and the interior n = 5 (review follow-up 6)
+const REPRO_ARGS = ["N=8", "Nsamples=3", "μs=0.6", "magic_counts=0,5,28"]
+const SUFFIXES = ("", "_full", "_states", "_doped")
 const SCRIPT_ATOL = 1e-12
 
 """
@@ -74,16 +85,25 @@ if get(ENV, "STABSANDWICH_SLOW", "") != ""
       @test occursin("Using $n threads.", out)
       @test !occursin("WARNING", out)
       outputs[n] = Dict(suffix => read(joinpath(outdir, "TMDxy_8_3$suffix.txt"), String)
-                        for suffix in ("", "_full") if isfile(joinpath(outdir, "TMDxy_8_3$suffix.txt")))
+                        for suffix in SUFFIXES if isfile(joinpath(outdir, "TMDxy_8_3$suffix.txt")))
     end
-    # Structure of the -t 1 reference: 2 (n, μ) pairs × t+1 = 5 cycles, 3 samples in _full
+    # Structure of the -t 1 reference: 3 (n, μ) pairs × t+1 = 5 cycles, 3 samples in _full;
+    # one line per sample and pair in _states and _doped
     ref = outputs[1]
-    @test ndatalines(get(ref, "_full", "")) == 2 * 3 * 5
-    @test ndatalines(get(ref, "", "")) == 2 * 5
+    @test ndatalines(get(ref, "_full", "")) == 3 * 3 * 5
+    @test ndatalines(get(ref, "", "")) == 3 * 5
+    @test ndatalines(get(ref, "_states", "")) == 3 * 3
+    @test ndatalines(get(ref, "_doped", "")) == 3 * 3
+    # The n = 5 masks differ between samples at -t 1, so a permutation would show
+    doped5 = split(split(get(ref, "_doped", ""), "# n = 5, μ = 0.6\n")[end], "\n")[1:3]
+    @test allunique([split(l)[2:end] for l in doped5]) && all(length(split(l)) == 6 for l in doped5)
     for n in (2, 4), suffix in ("", "_full")
       same, maxdiff = compare_outputs(get(outputs[n], suffix, ""), get(ref, suffix, "-"))
       @test same
       same || @info "-t $n vs -t 1, TMDxy_8_3$suffix.txt" maxdiff
+    end
+    for n in (2, 4), suffix in ("_states", "_doped")
+      @test haskey(outputs[n], suffix) && outputs[n][suffix] == get(ref, suffix, "-")
     end
   end
 end

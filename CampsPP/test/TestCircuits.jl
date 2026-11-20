@@ -197,6 +197,54 @@
       @test_throws ArgumentError doping_mask_count(Xoshiro(1), phases, 2.5)
       @test_throws ArgumentError doping_mask_count(Xoshiro(1), phases, typemax(Int))
       @test count(doping_mask_count(Xoshiro(1), phases, 8)) == 8   # the bound itself is valid
+      # §2: n must be a Julia `Integer`; floats with an integral value are refused (review
+      # follow-up 3; mutant: accept any n with isinteger(n)). 3//1 is integral too.
+      @test_throws ArgumentError doping_mask_count(Xoshiro(1), phases, 3.0)
+      @test_throws ArgumentError doping_mask_count(Xoshiro(1), phases, 8.0)
+      @test_throws ArgumentError doping_mask_count(Xoshiro(1), phases, 3//1)
+    end
+
+    @testset "doping_mask_count: any Integer type, same mask as Int" begin
+      # §2: n is any Julia `Integer` (not a `Bool`), and the mask depends only on the RNG
+      # state, so a non-Int n gives the mask of the equal Int (review follow-up 1; mutant:
+      # only `Int` accepted).
+      _, phases = xxz_circuit(π/4, π/4, 23, 46)        # T = 1035
+      ok = true
+      for n in (0, 1, 41, 1035), conv in (Int32, UInt, BigInt), seed in 1:3
+        for mk in (Xoshiro, MersenneTwister)
+          m = doping_mask_count(mk(seed), phases, conv(n))
+          ok &= count(m) == n && m == doping_mask_count(mk(seed), phases, n)
+        end
+      end
+      @test ok
+      @test_throws ArgumentError doping_mask_count(Xoshiro(1), phases, UInt(1036))
+      @test_throws ArgumentError doping_mask_count(Xoshiro(1), phases, big(-1))
+    end
+
+    @testset "doping_mask_count: advances rng; the 2-argument form uses the global RNG" begin
+      # §2: the call draws from `rng` itself and leaves it advanced, so successive calls on
+      # one rng give independent masks (review follow-up 2; mutant: draw from copy(rng)).
+      # Two independent 41-subsets of 1035 are equal with probability 1/binomial(1035, 41),
+      # below 1e-70, so "differ" is not luck.
+      _, phases = xxz_circuit(π/4, π/4, 23, 46)
+      n = 41
+      for mk in (Xoshiro, MersenneTwister)
+        r = mk(4); r0 = copy(r)
+        a = doping_mask_count(r, phases, n)
+        @test r != r0                                  # the state moved
+        b = doping_mask_count(r, phases, n)
+        @test a != b                                   # a fresh mask, not the first again
+        @test a == doping_mask_count(mk(4), phases, n) # the first call is the seeded mask
+      end
+      # Docstring: `doping_mask_count(phases, n)` draws from the global RNG (mutant: a fixed
+      # Xoshiro(0)). After the same seed it equals the 3-argument call on default_rng(),
+      # successive calls differ, and another seed gives another mask.
+      Random.seed!(11); a = doping_mask_count(phases, n)
+      Random.seed!(11); b = doping_mask_count(Random.default_rng(), phases, n)
+      @test count(a) == n && a == b
+      Random.seed!(11); c1 = doping_mask_count(phases, n); c2 = doping_mask_count(phases, n)
+      @test c1 == a && c1 != c2
+      Random.seed!(12); @test doping_mask_count(phases, n) != a
     end
 
     @testset "doping_mask_count: depends only on the RNG state" begin
