@@ -12,6 +12,11 @@
 # expected strings can be checked by hand. The numerical checks with inexact values
 # (mean and error on generic data) compare against hand formulas instead.
 #
+# Block labels (post-port item 9, CONVENTIONS.md §2 "Output labels"): the writers take a
+# label pair. Count mode, `"n" => n`, gives `# n = <n>, μ = <μ>` with n an integer (the
+# scripts); `"p" => p` gives `# p = <p>, μ = <μ>` (the T11 replay of the Phase 0 runs). The
+# per-writer testsets below use the p form; "count-mode labels" pins the n form.
+#
 # Change a layout only on purpose: update the expected lines here and the plot scripts that
 # read the file together.
 #
@@ -140,7 +145,7 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
       # As written: an Int-and-Float stack prints floats in every column
       path = file("promoted.txt")
       initialize_output(path, "obs", ["N" => "46"])
-      save_full_samples(path, 0.6, 0.01, stack_samples([[1, 2], [0.5]]))
+      save_full_samples(path, 0.6, "p" => 0.01, stack_samples([[1, 2], [0.5]]))
       @test matches_golden(path, [HEADER; "# p = 0.01, μ = 0.6";
         "# sample 1"; "0\t1.0"; "1\t2.0"; ""; "# sample 2"; "0\t0.5"; ""; ""])
     end
@@ -151,8 +156,8 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
       s1 = [1.0, 0.5, 0.25]
       s2 = [0.75, -0.5]                                  # stopped early
       s3 = Union{Missing, Float64}[missing, 3.0, 4.0]    # starts mid-circuit
-      save_full_samples(path, 0.6, 0.01, stack_samples([s1, s2, s3]))
-      save_full_samples(path, 0.6, 0.02, stack_samples([[2.0]]))
+      save_full_samples(path, 0.6, "p" => 0.01, stack_samples([s1, s2, s3]))
+      save_full_samples(path, 0.6, "p" => 0.02, stack_samples([[2.0]]))
       @test matches_golden(path, [HEADER;
         "# p = 0.01, μ = 0.6";
         "# sample 1"; "0\t1.0"; "1\t0.5"; "2\t0.25"; "";
@@ -167,8 +172,8 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
     @testset "save_per_sample" begin
       path = file("persample.txt")
       initialize_output(path, "obs", ["N" => "46"])
-      save_per_sample(path, 0.6, 0.0, [1.5, 2.25], [0.0, 0.125])       # times, GC times
-      save_per_sample(path, 0.6, 0.01, [3105, 1200], [0, 12], [3105, 3105])  # switch file
+      save_per_sample(path, 0.6, "p" => 0.0, [1.5, 2.25], [0.0, 0.125])       # times, GC times
+      save_per_sample(path, 0.6, "p" => 0.01, [3105, 1200], [0, 12], [3105, 3105])  # switch file
       @test matches_golden(path, [HEADER;
         "# p = 0.0, μ = 0.6"; "1 1.5 0.0"; "2 2.25 0.125"; ""; "";
         "# p = 0.01, μ = 0.6"; "1 3105 0 3105"; "2 1200 12 3105"; ""; ""])
@@ -180,10 +185,10 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
       samples = [Union{Missing, Int}[1, 4, 2],
                  Union{Missing, Int}[missing, missing],   # never reached its switch
                  Union{Missing, Int}[missing, 7, 3]]
-      save_peaks(path, samples, 0.6, 0.01)
-      save_peaks(path, [[1, 2], [5]], 0.6, 0.02)          # integers stay integral
+      save_peaks(path, samples, 0.6, "p" => 0.01)
+      save_peaks(path, [[1, 2], [5]], 0.6, "p" => 0.02)          # integers stay integral
       before = read(path, String)
-      save_peaks(path, Vector{Int}[], 0.6, 0.04)          # no samples: nothing written
+      save_peaks(path, Vector{Int}[], 0.6, "p" => 0.04)          # no samples: nothing written
       @test read(path, String) == before
       @test matches_golden(path, [HEADER;
         "# p = 0.01, μ = 0.6"; "1 4"; "2 NaN"; "3 7"; ""; "";
@@ -196,8 +201,8 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
       # layer 0: no data (row skipped); layers 1–2: two samples; layer 3: one sample.
       s1 = Union{Missing, Float64}[missing, 1.0, 2.0, 4.0]
       s2 = Union{Missing, Float64}[missing, 3.0, 4.0]
-      save_stats(path, stack_samples([s1, s2]), 0.6, 0.02)
-      save_stats(path, stack_samples([[0.5, 0.5]]), 0.6, 0.04)
+      save_stats(path, stack_samples([s1, s2]), 0.6, "p" => 0.02)
+      save_stats(path, stack_samples([[0.5, 0.5]]), 0.6, "p" => 0.04)
       # mean, then std/√n with the n−1 std: [1,3] → 2.0, √2/√2 = 1.0; single sample → NaN
       @test matches_golden(path, [HEADER;
         "# p = 0.02, μ = 0.6"; "1 2.0 1.0"; "2 3.0 1.0"; "3 4.0 NaN"; ""; "";
@@ -205,7 +210,7 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
 
       # Generic values, against the hand formulas: [0, 1, 5] → mean 2, s² = (4+1+9)/2 = 7.
       path = file("stats_generic.txt")
-      save_stats(path, stack_samples([[0.0, 0.1], [1.0, 0.2], [5.0, 0.4]]), 0.6, 0.0)
+      save_stats(path, stack_samples([[0.0, 0.1], [1.0, 0.2], [5.0, 0.4]]), 0.6, "p" => 0.0)
       f = fields(path)
       @test parse(Float64, f[1][2]) == 2.0
       @test isapprox(parse(Float64, f[1][3]), sqrt(7 / 3); rtol = 1e-14)
@@ -225,7 +230,7 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
                  Union{Missing, Int}[missing, missing, 5, 9, 2],
                  Union{Missing, Int}[missing, 6],
                  Union{Missing, Int}[missing, 0]]
-      save_stats_maxcol(path, samples, 0.6, 0.04)
+      save_stats_maxcol(path, samples, 0.6, "p" => 0.04)
       # layer 1: [0,0,6,0] → mean 1.5, s = 3, err 3/2; quartiles 0.0 0.0 1.5
       # layer 2: [1,5] → mean 3.0, err √8/√2 = 2.0; layer 3: [1,9] → 5.0, 4.0; layer 4: [2]
       @test matches_golden(path, [HEADER;
@@ -239,13 +244,13 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
 
       # Ties for the peak go to the first sample; Float resources; empty input writes nothing.
       path = file("maxcol_tie.txt")
-      save_stats_maxcol(path, [[1.0, 2.0], [2.0, 1.0]], 0.6, 0.0)
+      save_stats_maxcol(path, [[1.0, 2.0], [2.0, 1.0]], 0.6, "p" => 0.0)
       @test matches_golden(path, ["# p = 0.0, μ = 0.6, max sample = 1";
         "0 1.5 0.5 1.0 2 1.25 1.5 1.75 1.0 2.0";
         "1 1.5 0.5 2.0 2 1.25 1.5 1.75 1.0 2.0";
         ""; ""])
       before = read(path, String)
-      save_stats_maxcol(path, Vector{Float64}[], 0.6, 0.01)
+      save_stats_maxcol(path, Vector{Float64}[], 0.6, "p" => 0.01)
       @test read(path, String) == before
     end
 
@@ -256,13 +261,52 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
                pp.PauliRotation([:Z, :Z], [1, 2]), pp.PauliRotation([:X, :X], [2, 3]),
                pp.PauliRotation([:Z], [3]),        pp.PauliRotation([:Z, :Z], [2, 3])]
       layer_ends = [3, 6]
-      save_doped_gates(path, gates, [[2, 3, 4], Int[], [5, 6]], layer_ends, 0.6, 0.01)
+      save_doped_gates(path, gates, [[2, 3, 4], Int[], [5, 6]], layer_ends, 0.6, "p" => 0.01)
       # cycle is 1-based; a gate at a layer end belongs to that cycle (3 → 1, 6 → 2)
       @test matches_golden(path, [HEADER;
         "# p = 0.01, μ = 0.6";
         "# sample 1: 3 doped gates"; "2 1 YY 1 2"; "3 1 ZZ 1 2"; "4 2 XX 2 3"; "";
         "# sample 2: 0 doped gates"; "";
         "# sample 3: 2 doped gates"; "5 2 Z 3"; "6 2 ZZ 2 3"; "";
+        ""])
+    end
+
+    @testset "count-mode labels (item 9)" begin
+      # The same data as the p-form testsets above, with "n" => n labels: only the block
+      # header line changes, to `# n = <integer>, μ = <μ>`.
+      path = file("full_n.txt")
+      save_full_samples(path, 0.6, "n" => 10, stack_samples([[1.0, 0.5], [0.75]]))
+      save_full_samples(path, 0.3, "n" => 0, stack_samples([[2.0]]))
+      @test matches_golden(path, ["# n = 10, μ = 0.6";
+        "# sample 1"; "0\t1.0"; "1\t0.5"; ""; "# sample 2"; "0\t0.75"; ""; "";
+        "# n = 0, μ = 0.3"; "# sample 1"; "0\t2.0"; ""; ""])
+
+      path = file("persample_n.txt")
+      save_per_sample(path, 0.6, "n" => 1035, [3105, 1200], [0, 12], [3105, 3105])
+      @test matches_golden(path, ["# n = 1035, μ = 0.6"; "1 3105 0 3105"; "2 1200 12 3105"; ""; ""])
+
+      path = file("peaks_n.txt")
+      save_peaks(path, [[1, 2], [5]], 0.6, "n" => 40)
+      @test matches_golden(path, ["# n = 40, μ = 0.6"; "1 2"; "2 5"; ""; ""])
+
+      path = file("stats_n.txt")
+      save_stats(path, stack_samples([[0.5, 0.5]]), 0.6, "n" => 20)
+      @test matches_golden(path, ["# n = 20, μ = 0.6"; "0 0.5 NaN"; "1 0.5 NaN"; ""; ""])
+
+      path = file("maxcol_n.txt")
+      save_stats_maxcol(path, [[1.0, 2.0], [2.0, 1.0]], 0.6, "n" => 3)
+      @test matches_golden(path, ["# n = 3, μ = 0.6, max sample = 1";
+        "0 1.5 0.5 1.0 2 1.25 1.5 1.75 1.0 2.0";
+        "1 1.5 0.5 2.0 2 1.25 1.5 1.75 1.0 2.0";
+        ""; ""])
+
+      path = file("doped_n.txt")
+      gates = [pp.PauliRotation([:X, :X], [1, 2]), pp.PauliRotation([:Y, :Y], [1, 2]),
+               pp.PauliRotation([:Z, :Z], [1, 2])]
+      save_doped_gates(path, gates, [[1, 2], Int[]], [3], 0.6, "n" => 1)
+      @test matches_golden(path, ["# n = 1, μ = 0.6";
+        "# sample 1: 2 doped gates"; "1 1 XX 1 2"; "2 1 YY 1 2"; "";
+        "# sample 2: 0 doped gates"; "";
         ""])
     end
 

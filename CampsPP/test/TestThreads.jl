@@ -77,7 +77,7 @@ end
 function threads_sample(seed; N = 8, t = 4, p = 0.5)
   rng = MersenneTwister(seed)
   gates, phases = xxz_circuit(π/4, π/4, t, N)
-  phases = xy_magic(rng, phases, p; magicphase = 3π/16)
+  phases = xy_magic(phases, doping_mask(rng, phases, p); magicphase = 3π/16)
   ψ, ones = domainwallstate(rng, N, 0.6)
   return gates, phases, ψ, ones, transferredmagnetization(N, ones), layerends(N, t, xxz_circuit)
 end
@@ -238,7 +238,7 @@ stress(bond_case, "BondSearchDisentangler"; trials = 5)
 function sample(seed; N = 8, t = 4, p = 0.5)
   rng = MersenneTwister(seed)
   gates, phases = xxz_circuit(π/4, π/4, t, N)
-  phases = xy_magic(rng, phases, p; magicphase = 3π/16)
+  phases = xy_magic(phases, doping_mask(rng, phases, p); magicphase = 3π/16)
   ψ, ones = domainwallstate(rng, N, 0.6)
   return gates, phases, ψ, ones, transferredmagnetization(N, ones), layerends(N, t, xxz_circuit)
 end

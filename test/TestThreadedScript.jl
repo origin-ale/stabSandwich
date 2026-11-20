@@ -21,7 +21,7 @@ using Test
 
 const ROOT = dirname(@__DIR__)
 const SCRIPT = joinpath(ROOT, "TransferredMag_varparams.jl")
-const REPRO_ARGS = ["N=8", "Nsamples=3", "μs=0.6", "magic_probs=0,1"]
+const REPRO_ARGS = ["N=8", "Nsamples=3", "μs=0.6", "magic_counts=0,28"]   # T = 7·4 = 28: none and all, as the old p = 0, 1
 const SCRIPT_ATOL = 1e-12
 
 """
@@ -76,7 +76,7 @@ if get(ENV, "STABSANDWICH_SLOW", "") != ""
       outputs[n] = Dict(suffix => read(joinpath(outdir, "TMDxy_8_3$suffix.txt"), String)
                         for suffix in ("", "_full") if isfile(joinpath(outdir, "TMDxy_8_3$suffix.txt")))
     end
-    # Structure of the -t 1 reference: 2 (p, μ) pairs × t+1 = 5 cycles, 3 samples in _full
+    # Structure of the -t 1 reference: 2 (n, μ) pairs × t+1 = 5 cycles, 3 samples in _full
     ref = outputs[1]
     @test ndatalines(get(ref, "_full", "")) == 2 * 3 * 5
     @test ndatalines(get(ref, "", "")) == 2 * 5
