@@ -118,7 +118,7 @@ function src_reconstruction(T, N, ones, gates, phases, thl, rec, crit, strat; ma
     if i in rec
       before = frame_dagger(ψ)
       nsweeps = layer_end_disentangle!(ψ, crit, strat, max_iter)
-      push!(out, (frame = frame_dagger(ψ), bd = bonddim(ψ),
+      push!(out, (frame = frame_dagger(ψ), bd = bonddim(ψ), lds = linkdims(mt.get_mps(ψ)),
                   changed = frame_dagger(ψ) != before, nsweeps))
     end
   end
@@ -261,15 +261,26 @@ end
       # layer-end disentangler, and the bond dimension at every record point.
       plain = computationalcamps(T, N, ones)
       plain_bds = [bonddim(plain)]
+      plain_lds = Vector{Int}[]                   # every bond, at each record point
       for (i, (g, ϕ)) in enumerate(zip(gates, phases))
         apply!(plain, PauliOperator(getpauli(g, N)), ϕ, thl_camps)
-        i in rec && push!(plain_bds, bonddim(plain))
+        if i in rec
+          push!(plain_bds, bonddim(plain))
+          push!(plain_lds, linkdims(mt.get_mps(plain)))
+        end
       end
       push!(frame_changed[(T, crit, strat)], frame_dagger(ψ) != frame_dagger(plain))
       # [item 8] In the doped configuration, the layer-end bond dimensions with :chi3 are at
-      # most those of the run without the disentangler (plan item 8, "Dynamics").
+      # most those of the run without the disentangler (plan item 8, "Dynamics"), bond by
+      # bond at every record point (the per-bond dimensions are those of `recon`, which
+      # matches campssrc above), and strictly lower on some bond at some record point, so
+      # the check sees a reduction. (On this circuit: bond 2 at the first layer end, 2 vs 4.
+      # The maximum alone, `bds`, is non-strict and could not tell.)
       if crit == :chi3 && startswith(cfg.name, "doped")
-        DISENT_ITEM8 ? (@test all(bds .<= plain_bds)) : item8_pending()
+        @test all(bds .<= plain_bds)
+        @test length(plain_lds) == length(recon)
+        @test all(all(r.lds .<= p) for (r, p) in zip(recon, plain_lds))
+        @test any(any(r.lds .< p) for (r, p) in zip(recon, plain_lds))
       end
     end
 
@@ -295,12 +306,8 @@ end
       # strategies. This replaces the old no-op guard `!any(frame_changed[(T, :chi3, …)])`.
       # Tested directly in DisentangleCAMPS/TestDisentangleQubitCAMPS.jl.
       @test startswith(first(small_configs()).name, "doped")
-      if DISENT_ITEM8
-        @test frame_changed[(T, :chi3, :snake)][1]
-        @test frame_changed[(T, :chi3, :brickwork)][1]
-      else
-        item8_pending()
-      end
+      @test frame_changed[(T, :chi3, :snake)][1]
+      @test frame_changed[(T, :chi3, :brickwork)][1]
     end
   end
 
