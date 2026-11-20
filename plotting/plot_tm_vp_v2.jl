@@ -7,7 +7,16 @@
 # fit, plot (data with y error bars on log-log axes, plus the fits and the
 # reference lines 2t and t^(2/3)) and print the final parameters.
 #
-# Run from the project root with:  julia --project=. plotting/plot_tm_vp_v2.jl
+# Run from the project root with:  julia --project=. plotting/plot_tm_vp_v2.jl [key=value ...]
+#
+#   dir=…        input directory (default: output/TransferredMag_varparams, where
+#                TransferredMag_varparams.jl writes; old data: output/old/TMD, or
+#                output/carlos_tmd{12,46}{xy,z})
+#   N=…          system size in the file name (default 12)
+#   Nsamples=…   number of samples in the file name (default 100)
+#   mode=xy|z    doping channel (default xy)
+#
+# e.g. julia --project=. plotting/plot_tm_vp_v2.jl dir=output/carlos_tmd12xy
 
 using Plots
 using LaTeXStrings
@@ -17,33 +26,42 @@ using LsqFit
 # ----------------------------------------------------------------------------
 # Configuration (mirrors the variables at the top of the .plt file)
 # ----------------------------------------------------------------------------
-const N_plot        = "12"
-const Nsamples_plot = "100"
+const cli = let d = Dict{String, String}()
+    for a in ARGS
+        kv = split(a, "="; limit = 2)
+        (length(kv) == 2 && kv[1] in ("dir", "N", "Nsamples", "mode")) ||
+            error("unknown argument `$a`; expected dir=…, N=…, Nsamples=… or mode=xy|z")
+        d[kv[1]] = kv[2]
+    end
+    d
+end
+const data_dir      = get(cli, "dir", joinpath("output", "TransferredMag_varparams"))
+const N_plot        = get(cli, "N", "12")
+const Nsamples_plot = get(cli, "Nsamples", "100")
 
 # Doping channel: :z dopes ZZ, :xy dopes XX,YY. Controls the file prefix and
 # the second line of the annotation.
-const doping_mode = :xy
+const doping_mode = Symbol(get(cli, "mode", "xy"))
 const doping_suffix, doping_label =
     doping_mode == :z  ? ("z",  "Doping with π/3 on ZZ")       :
     doping_mode == :xy ? ("xy", "Doping with 3π/16 on XX,YY")  :
     error("unknown doping_mode $doping_mode")
 const prefix_plot = "TMD" * doping_suffix
 
-# Each entry is a list of block indices to plot (0-based: index 0 is the first
-# data block). One image is saved per entry.
-const blocksets = [
-    [0, 2, 4, 6],
-    [1, 3, 5, 7],
-    # [0,1,2,3]
-]
+const datafile = joinpath(data_dir, "$(prefix_plot)_$(N_plot)_$(Nsamples_plot).txt")
+
+# Each blockset is a list of block indices to plot (0-based: index 0 is the first
+# data block); one image is saved per blockset. Blocks are written μ-major
+# ("p = …, μ = …", p varying fastest), so blockset k holds every μ of the k-th p
+# value: k-1, k-1+np, k-1+2np, … with np distinct p values (set in `main`).
+blocksets_for(titles) = (np = length(unique(match(r"p\s*=\s*([^,]+)", t)[1] for t in titles));
+                         [collect(k:np:length(titles)-1) for k in 0:np-1])
 
 # Block indices to omit from the local-exponent plots only (the main graphs
-# still show every block). Set here to the lowest mu of each p (the first,
-# i.e. lowest-mu, entry of each blockset), whose noisy exponent clutters the
-# plot. Set to an empty `Set{Int}()` to show every dataset.
-const localexp_exclude = Set(first.(blocksets))
-
-const datafile = joinpath("output", "carlos_tmd$(N_plot)$(doping_suffix)","$(prefix_plot)_$(N_plot)_$(Nsamples_plot).txt")
+# still show every block): the lowest μ of each p (the first entry of each
+# blockset), whose noisy exponent clutters the plot. Return an empty `Set{Int}()`
+# to show every dataset.
+localexp_exclude_for(blocksets) = Set(first.(blocksets))
 
 # ----------------------------------------------------------------------------
 # Data parsing
@@ -66,7 +84,9 @@ function read_blocks(path)
         if isempty(line)
             flush()                       # blank line ends a numeric run
         elseif startswith(line, "#")
-            if occursin(r"p\s*=", line)   # a "# ... p = ..." header
+            # a "# p = …, μ = …" block header (not the run header, whose
+            # key=value list can contain e.g. "warn_on_prestop=")
+            if occursin(r"^#\s*p\s*=", line)
                 push!(titles, strip(replace(line, r"^#\s*" => "")))
             end
         else
@@ -158,6 +178,10 @@ end
 
 function main()
     blocks, titles = read_blocks(datafile)
+    length(titles) == length(blocks) ||
+        error("$datafile: $(length(blocks)) data blocks but $(length(titles)) \"p = …\" headers")
+    blocksets = blocksets_for(titles)
+    localexp_exclude = localexp_exclude_for(blocksets)
 
     # All curves across every graph (blocksets cover each index exactly once).
     curve_idx = sort(unique(reduce(vcat, blocksets)))

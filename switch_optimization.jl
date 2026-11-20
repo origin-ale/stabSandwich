@@ -32,19 +32,24 @@ params = @parameters begin
   N = 20
   M = 12          # circuit depth t = N + M
   maxc = 12       # switch points c = M - maxc, …, M (gates left for PP)
+  # Explicit switch points, comma-separated (e.g. switchpoints=0,1,2 for the old square
+  # runs, M = 0); replaces the range above when given, so c > M is possible
+  switchpoints = Int[]
   Nsamples = 50
   outdir = "output/switch_optimization"
 end
 
 t = N+M
-switchpoints = collect((M-maxc):M)
+isempty(switchpoints) && (switchpoints = collect((M-maxc):M))
+all(c -> 0 <= c <= t, switchpoints) ||
+  error("Switch points must lie in 0:$t (gates left for PP, out of t = N + M), got $switchpoints")
 observable = pp.PauliString(N, [:Z], [1])
 obs_string = "Z₁"
 
 mkpath(outdir)
 out_full = joinpath(outdir, "M$(M)_switch_optimization_full_$(N).txt")
 out_avgs = joinpath(outdir, "M$(M)_switch_optimization_avgs_$(N).txt")
-param_info = [param_header(params; exclude = (:outdir,));
+param_info = [param_header(params; exclude = (:outdir, :switchpoints));
   "t" => string(t);
   "switchpoints" => join(switchpoints, ",");
   "obs" => obs_string]

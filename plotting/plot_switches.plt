@@ -1,10 +1,19 @@
+# CAMPS-PP computation time against the switch point c, one curve per depth M.
+#
+# Input: M<M>_switch_optimization_avgs_<N>.txt as written by switch_optimization.jl.
+# dir  input directory (default: output/switch_optimization, where the script writes)
+# N    system size (default "20")
+# Ms   the M values to plot, space-separated (default "6 9 12 15 18")
+# Old data: gnuplot -e "dir='output/old/carlos_switch'" plotting/plot_switches.plt
+if (!exists("dir")) { dir = "output/switch_optimization" }
+if (!exists("N")) { N = "20" }
+if (!exists("Ms")) { Ms = "6 9 12 15 18" }
+
 set term png size 850, 600 font ",16"
-N = "100"
-M = "12"
 
 set output "output/varM_switch_optimization_graph_total.png"
 
-set title "CAMPS-PP computation times, 20×(20+M) circuit" font ",24"
+set title "CAMPS-PP computation times, ".N."×(".N."+M) circuit" font ",24"
 set logscale y
 set format y "%.1f"
 set xlabel "c"
@@ -14,10 +23,6 @@ set xrange [*:14.5]
 set yrange [*:30]
 set key bottom
 
-plot 'output/carlos_switch/M6_switch_optimization_avgs_20.txt' using 1:2:3 with yerrorlines title "M=6",\
-'output/carlos_switch/M9_switch_optimization_avgs_20.txt' using 1:2:3 with yerrorlines title "M=9",\
-'output/carlos_switch/M12_switch_optimization_avgs_20.txt' using 1:2:3 with yerrorlines title "M=12",\
-'output/carlos_switch/M15_switch_optimization_avgs_20.txt' using 1:2:3 with yerrorlines title "M=15",\
-'output/carlos_switch/M18_switch_optimization_avgs_20.txt' using 1:2:3 with yerrorlines title "M=18"
-# 'output/carlos_switch/deep_switch_optimization_avgs_50.txt' using 1:2:3 with yerrorlines title "N=50, carlos_switch at t=62-c",\
-# 'output/carlos_switch/deep_switch_optimization_avgs_100.txt' using 1:2:3 with yerrorlines title "N=100, carlos_switch at t=112-c"
+plot for [M in Ms] dir.'/M'.M.'_switch_optimization_avgs_'.N.'.txt' using 1:2:3 with yerrorlines title "M=".M
+# Old deep runs (N = 50 and 100, switch at t = 62-c and 112-c):
+#   output/old/carlos_switch/deep_switch_optimization_avgs_{50,100}.txt

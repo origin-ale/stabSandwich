@@ -1,5 +1,13 @@
+# Mean computation times against t/N, exact CAMPS against exact PP.
+#
+# Input: comptimes_ratios_<N>_avgs.txt as written by Comptime_ratios.jl.
+# dir  input directory (default: output/Comptime_ratios, where the script writes)
+# N    system size in the file name (default "40")
+# Old data: gnuplot -e "dir='output/old/carlos_ratios'" plotting/plot_ratios_times.plt
+if (!exists("dir")) { dir = "output/Comptime_ratios" }
+if (!exists("N")) { N = "40" }
+
 set term png size 850, 600 font ",16"
-N = "40"
 
 set output "output/CompTimes_ratios_".N."_graph.png"
 
@@ -12,5 +20,6 @@ set ylabel "Time (s)"
 
 set key bottom
 
-plot 'output/carlos_ratios/comptimes_ratios_'.N.'_avgs.txt' using 1:2:3 with yerrorlines title "Exact CAMPS",\
-'output/carlos_ratios/comptimes_ratios_'.N.'_avgs.txt' using 1:4:5 with yerrorlines title "Exact PP"
+avgs = dir.'/comptimes_ratios_'.N.'_avgs.txt'
+plot avgs using 1:2:3 with yerrorlines title "Exact CAMPS",\
+     avgs using 1:4:5 with yerrorlines title "Exact PP"

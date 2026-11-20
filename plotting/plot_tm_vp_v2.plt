@@ -1,6 +1,17 @@
-N="46"
-Nsamples="50"
-prefix="TMDxy"
+# Transferred magnetization against time, one image per p value (all μ of that p).
+#
+# Input: <prefix>_<N>_<Nsamples>.txt as written by TransferredMag_varparams.jl.
+# dir         input directory (default: output/TransferredMag_varparams, where the
+#             script writes)
+# N, Nsamples, prefix  as in the file name (default "46", "50", "TMDxy")
+# plot_fit    1 = overlay the power-law fits, 0 = only print them (default 0)
+# Old data: gnuplot -e "dir='output/old/TMD'; N='12'; Nsamples='100'" plotting/plot_tm_vp_v2.plt
+# (the 12- and 46-qubit runs are also in output/carlos_tmd{12,46}{xy,z}).
+if (!exists("dir")) { dir = "output/TransferredMag_varparams" }
+if (!exists("N")) { N = "46" }
+if (!exists("Nsamples")) { Nsamples = "50" }
+if (!exists("prefix")) { prefix = "TMDxy" }
+if (!exists("plot_fit")) { plot_fit = 0 }
 
 set term png size 850, 600
 
@@ -17,23 +28,27 @@ set xlabel "Time" font ",16"
 set ylabel "Transferred magnetization" font ",16"
 set key font ",16"
 
-datafile = "output/TransferredMag_varparams/".prefix."_".N."_".Nsamples.".txt"
+datafile = dir."/".prefix."_".N."_".Nsamples.".txt"
 
-# Each entry is a whitespace-separated list of block indices to plot (0-based:
-# index 0 is the first data block). One image is saved per entry.
-array blocksets[3]
-blocksets[1] = "0 3 6 9"
-blocksets[2] = "1 4 7 10"
-blocksets[3] = "2 5 8 11"
-# blocksets[4] = "3 7 11"
+# Blocks are written μ-major ("# p = …, μ = …", p varying fastest), so with np
+# distinct p values, image k shows blocks k-1, k-1+np, k-1+2np, … (one p, every μ).
+# Each entry of `blocksets` is that whitespace-separated list of 0-based indices.
+nb_all = system(sprintf("grep -ac '^# p =' '%s'", datafile)) + 0
+np = system(sprintf("grep -a '^# p =' '%s' | sed 's/.*p = //; s/,.*//' | sort -u | wc -l", datafile)) + 0
+array blocksets[np]
+do for [k=1:np] {
+  blocksets[k] = ""
+  do for [i=k-1:nb_all-1:np] { blocksets[k] = blocksets[k].sprintf(" %d", i) }
+}
 
-# Power-law fit a*x**b for each block: 1 = overlay the fit lines, 0 = only
-# print the fitted parameters to the terminal.
-plot_fit = 0
+# Fit window: points with time >= fitmin; a block needs at least 3 there
+# (2 parameters), or its fit is skipped.
+fitmin = 10
+nfit(i) = system(sprintf("awk 'BEGIN{b=-1} /^# p =/{b++; next} /^#/{next} b==%d && NF>=2 && $1>=%g {c++} END{print c+0}' '%s'", i, fitmin, datafile)) + 0
 
-# Title for block `index i`: pulls the matching "# μ = …, p = …" header from the
+# Title for block `index i`: pulls the matching "# p = …, μ = …" header from the
 # file (data index i corresponds to the (i+1)-th header line).
-blocktitle(i) = system(sprintf("grep -a '^# .*p =' '%s' | sed -n '%dp' | sed 's/^# //'", datafile, i + 1))
+blocktitle(i) = system(sprintf("grep -a '^# p =' '%s' | sed -n '%dp' | sed 's/^# //'", datafile, i + 1))
 
 # Power-law fits a*x**b for each dataset, without printing the fit log
 set fit quiet
@@ -53,11 +68,16 @@ do for [k=1:|blocksets|] {
   array B[nb]
   do for [j=1:nb] {
     i = int(word(blocks, j))
-    a = 1; b = 0.66
-    fit [10:*] a*x**b datafile index i using 1:2 via a, b
-    A[j] = a; B[j] = b
-    print sprintf("%s:  a = %.4g +/- %.2g,  b = %.4g +/- %.2g", \
-                  blocktitle(i), a, a_err, b, b_err)
+    if (nfit(i) >= 3) {
+      a = 1; b = 0.66
+      fit [fitmin:*] a*x**b datafile index i using 1:2 via a, b
+      A[j] = a; B[j] = b
+      print sprintf("%s:  a = %.4g +/- %.2g,  b = %.4g +/- %.2g", \
+                    blocktitle(i), a, a_err, b, b_err)
+    } else {
+      A[j] = NaN; B[j] = NaN
+      print sprintf("%s:  fit skipped (fewer than 3 points at time >= %g)", blocktitle(i), fitmin)
+    }
   }
 
   if (plot_fit) {

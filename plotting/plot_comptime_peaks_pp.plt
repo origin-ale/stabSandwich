@@ -1,5 +1,5 @@
 # Histograms of the per-sample computation times (one panel per magic probability p).
-# Input: output/carlos_varseed_pp/comptime_full_prob_tm_pp.txt
+# Input: comptime_full_prob_tm_pp.txt
 #        column 1 = sample index, column 2 = wall time (s), column 3 = GC time (s);
 #        one data block per p.
 #
@@ -7,8 +7,11 @@
 # without edits. If there are more p values than `maxpanels`, the lowest ones are
 # dropped — raise it here, or override with `gnuplot -e "maxpanels=N"`.
 if (!exists("maxpanels")) { maxpanels = 16 }
+# Input directory `dir` (default: output/Comptime_prob_tm, where Comptime_prob_tm.jl
+# writes). Old data: gnuplot -e "dir='output/old/carlos_varseed_pp'" plotting/plot_comptime_peaks_pp.plt
+if (!exists("dir")) { dir = "output/Comptime_prob_tm" }
 
-datafile = "output/carlos_varseed_pp/comptime_full_prob_tm_pp.txt"
+datafile = dir."/comptime_full_prob_tm_pp.txt"
 load "plotting/hist_setup.plt"
 
 # == Total wall time ====================================================================

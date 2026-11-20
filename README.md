@@ -14,7 +14,7 @@ Built on [MagicTensors.jl](https://github.com/MagicTensors/MagicTensors.jl),
 | `CampsPP/` | The package: CAMPS evolution and disentangling (submodule `DisentangleCAMPS`), the PauliPropagation ↔ MagicTensors bridge, circuit builders, the `*_circuit_dynamics` drivers, output writers and plain-text progress logging. Self-contained, with its own `Project.toml`/`Manifest.toml`, so it can be shared on its own. |
 | `*.jl` (root) | Simulation scripts, see below. |
 | `scripts/ScriptSetup.jl` | Shared script setup: `@parameters` (command-line overrides), `param_header`, `setup_threads`. |
-| `plotting/` | gnuplot (and one Julia) plot scripts. Most read fetched run folders under `output/`, e.g. `output/carlos_varseed64/`. |
+| `plotting/` | gnuplot (and one Julia) plot scripts, run from the repo root. Each reads the folder its script writes, `output/<Script>/` (where `fetch.sh` also installs remote runs); the old data under `output/old/carlos_*` are plotted with `gnuplot -e "dir='output/old/…'" plotting/<file>.plt`, as each file's header says. |
 | `scripts/remote/` | Running scripts on the remote machine and fetching the results (`run.sh`, `fetch.sh`; see its README). |
 | `test/` | `runtests.jl` (runs the CampsPP suite) and `CONVENTIONS.md` (the conventions the tests pin). |
 | `output/` | All results (not tracked by git). |

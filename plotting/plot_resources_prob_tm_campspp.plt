@@ -1,3 +1,7 @@
+# Input directory `dir` (default: output/Comptime_prob_tm, where Comptime_prob_tm.jl
+# writes). Old data: gnuplot -e "dir='output/old/carlos_indep'" plotting/plot_resources_prob_tm_campspp.plt
+if (!exists("dir")) { dir = "output/Comptime_prob_tm" }
+
 set term png size 850, 600 font ",16"
 
 set xlabel "Cycle" font ",16"
@@ -21,7 +25,7 @@ set fit quiet nolog errorvariables
 
 # == Number of Pauli strings ============================================================
 set output "output/Resources_prob_tm_NP_campspp_graph.png"
-datafile = "output/carlos_indep/resources_prob_tm_NP_campspp.txt"
+datafile = dir."/resources_prob_tm_NP_campspp.txt"
 set title "46-qubit XXZ circuit — CAMPS-PP Pauli string number" font ",20"
 set ylabel "N. of Pauli strings" font ",16"
 set logscale y
@@ -30,7 +34,7 @@ plot for [i=0:nb-1] datafile index i using 1:2:3 with yerrorlines lc i+1 title b
 
 # == Mean Pauli weight ==================================================================
 set output "output/Resources_prob_tm_PW_campspp_graph.png"
-datafile = "output/carlos_indep/resources_prob_tm_PW_campspp.txt"
+datafile = dir."/resources_prob_tm_PW_campspp.txt"
 set title "46-qubit XXZ circuit — CAMPS-PP mean Pauli weight" font ",20"
 set ylabel "Mean avg. Pauli weight" font ",16"
 set logscale xy
@@ -51,9 +55,16 @@ do for [i=1:nb] {
     # Mark them NaN so both the curve and its key entry drop out below. Also
     # require >= 3 non-zero-error points, since those are all the weighted
     # fit can use.
-    stats [fitmin:fitmax] datafile index i-1 using 1:2 nooutput
+    # The count comes first: on a block with no rows in the window (any short
+    # run, e.g. small N) `stats` fails and leaves STATS_* undefined.
     nz = nzcount(datafile, i-1, fitmin, fitmax)
-    if (STATS_records >= 3 && STATS_max_y > STATS_min_y && nz >= 3) {
+    skipfit = 1
+    if (nz >= 3) {
+        undefine STATS_*
+        stats [fitmin:fitmax] datafile index i-1 using 1:2 nooutput
+        skipfit = !(exists("STATS_records") && STATS_records >= 3 && STATS_max_y > STATS_min_y)
+    }
+    if (!skipfit) {
         a = 1.0
         gamma = 0.5
         fit [fitmin:fitmax] f(x) datafile index i-1 using 1:2:($3 > 0 ? $3 : NaN) yerrors via a, gamma
@@ -80,7 +91,7 @@ plot for [i=0:nb-1] datafile index i using 1:2:3 with yerrorlines lc i+1 title f
 
 # == Mean |Pauli coefficient| ===========================================================
 set output "output/Resources_prob_tm_PC_campspp_graph.png"
-datafile = "output/carlos_indep/resources_prob_tm_PC_campspp.txt"
+datafile = dir."/resources_prob_tm_PC_campspp.txt"
 set title "46-qubit XXZ circuit — CAMPS-PP mean Pauli coeff." font ",20"
 set ylabel "Mean avg. |Pauli coeff.|" font ",16"
 unset xrange
