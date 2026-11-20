@@ -1,10 +1,11 @@
-# Histograms of the per-sample computation times (one panel per magic probability p).
+# Histograms of the per-sample computation times (one panel per doping count n,
+# or per magic probability p in p-based data).
 # Input: comptime_full_prob_tm_pp.txt
 #        column 1 = sample index, column 2 = wall time (s), column 3 = GC time (s);
 #        one data block per n (per p in p-based data).
 #
-# The panel grid and the x-ranges follow the data, so runs with more p values plot
-# without edits. If there are more p values than `maxpanels`, the lowest ones are
+# The panel grid and the x-ranges follow the data, so runs with more n (or p) values
+# plot without edits. If there are more of them than `maxpanels`, the lowest ones are
 # dropped — raise it here, or override with `gnuplot -e "maxpanels=N"`.
 if (!exists("maxpanels")) { maxpanels = 16 }
 # Input directory `dir` (default: output/Comptime_prob_tm, where Comptime_prob_tm.jl

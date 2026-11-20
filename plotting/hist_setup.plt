@@ -7,7 +7,7 @@
 # Defines the helpers bin()/blocktitle(), and the variables `nb` (number of data
 # blocks in the file), `i0` (index of the first block to plot) and `rows`/`cols`
 # (the multiplot grid). Sizes the terminal to match that grid, so the script
-# adapts to however many p values the run produced.
+# adapts to however many n (or p) values the run produced.
 #
 # NOTE: `first` is a reserved coordinate keyword in gnuplot, hence the name `i0`.
 
@@ -31,9 +31,10 @@ bin(x, w) = w * (floor(x / w) + 0.5)
 
 nb = nblocks(datafile)
 
-# More p values than the panel budget: drop the lowest ones. Those are the least
-# informative — at small p every sample piles into a single bin — and the blocks
-# are ordered by increasing p, so dropping a prefix keeps the interesting tail.
+# More n (or p) values than the panel budget: drop the lowest ones. Those are the
+# least informative — at small n or p every sample piles into a single bin — and the
+# blocks are ordered by increasing n (the scripts refuse counts that are not strictly
+# increasing) or p, so dropping a prefix keeps the interesting tail.
 i0 = (nb > maxpanels) ? nb - maxpanels : 0
 npanels = nb - i0
 cols = ceil(sqrt(npanels))
@@ -50,6 +51,6 @@ set ylabel font ",13"
 set ylabel "N. of samples"
 
 # Common count axis: every block holds the same number of samples, so a shared
-# y-range is what makes the panels comparable across p.
+# y-range is what makes the panels comparable across n (or p).
 nsmp = nsamples(datafile)
 set yrange [0:nsmp]

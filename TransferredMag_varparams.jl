@@ -16,8 +16,9 @@ params = @parameters begin
   ϕ = π/4
   θ = π/4
   μs = [0.3, 0.6, 1., 10.]
-  # Numbers of doped XXZ triples per sample, out of (N-1)·t; each sample dopes exactly
-  # n triples, drawn uniformly without replacement (default: none, and all of them)
+  # Numbers of doped XXZ triples per sample, out of (N-1)·t, strictly increasing; each
+  # sample dopes exactly n triples, drawn uniformly without replacement (default: none,
+  # and all of them)
   magic_counts = [0, (N - 1) * t]
   Nsamples = 100
   dope_phase = 3π/16         # doping angle, on XX-YY (`xy_magic`)
@@ -38,6 +39,9 @@ ntriples = length(last(xxz_circuit(ϕ, θ, t, N))) ÷ 3
 isempty(magic_counts) && error("No doping counts given")
 all(n -> n isa Integer && 0 <= n <= ntriples, magic_counts) ||
   error("Doping counts must be integers in 0:$ntriples (the number of triples): $magic_counts")
+# Blocks are written in this order and the plots assume increasing n
+issorted(magic_counts; lt = <=) ||
+  error("Doping counts must be strictly increasing: $magic_counts")
 # (n, μ index) pairs, n fastest
 param_pairs = vec([(magic_count, j) for magic_count in magic_counts, j in eachindex(μs)])
 

@@ -10,8 +10,10 @@ using Random: AbstractRNG, default_rng, randperm
 Count-mode doping mask over the XX-YY-ZZ gate triples of an XXZ circuit: a \
 ```BitVector``` with one entry per triple (T = ```length(phases) ÷ 3```) and exactly n \
 ```true``` entries, at n distinct triples drawn uniformly without replacement over the \
-whole circuit. n must be an integer with 0 ≤ n ≤ T, otherwise ```ArgumentError```. \
-The mask depends only on the RNG state (```rng``` defaults to the global RNG). Pass it \
+whole circuit. n must be an ```Integer``` (not a ```Bool```; ```3.0``` is refused too) \
+with 0 ≤ n ≤ T, otherwise ```ArgumentError```. The mask depends only on the RNG state; \
+the call draws from ```rng``` itself and advances it, so successive calls give \
+independent masks (```rng``` defaults to the global RNG). Pass it \
 to ```xy_magic```/```z_magic```; n counts triples, so ```:xy``` dopes 2n gates."""
 function doping_mask_count(rng::AbstractRNG, phases, n)
   T = length(phases) ÷ 3

@@ -23,9 +23,10 @@ params = @parameters begin
   magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
   μ = 0.6
 
-  # Numbers of doped XXZ triples per sample, as an explicit list. Each sample dopes
-  # exactly n of the (N-1)·N/2 triples, drawn uniformly without replacement (at N=46,
-  # 1035 triples: n = 10, 20, 40 are about the old p = 0.01, 0.02, 0.04)
+  # Numbers of doped XXZ triples per sample, as an explicit, strictly increasing list.
+  # Each sample dopes exactly n of the (N-1)·N/2 triples, drawn uniformly without
+  # replacement (at N=46, 1035 triples: n = 10, 20, 40 are about the old p = 0.01,
+  # 0.02, 0.04)
   magic_counts = [0, 10, 20, 40]
 
   samples = 25
@@ -93,6 +94,9 @@ isempty(magic_counts) && error("No doping counts given")
 let ntriples = length(last(xxz_circuit(ϕ, θ, N/2, N))) ÷ 3  # XXZ triples in the circuit
   all(n -> n isa Integer && 0 <= n <= ntriples, magic_counts) ||
     error("Doping counts must be integers in 0:$ntriples (the number of triples): $magic_counts")
+  # Blocks are written in this order and the plots assume increasing n
+  issorted(magic_counts; lt = <=) ||
+    error("Doping counts must be strictly increasing: $magic_counts")
 end
 samples >= 1 || error("Need at least 1 sample, got $samples")
 

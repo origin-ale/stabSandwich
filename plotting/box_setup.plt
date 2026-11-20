@@ -10,7 +10,7 @@
 #
 # Mirrors hist_setup.plt: defines blocktitle()/nblocks(), the variables `nb`,
 # `i0` and `rows`/`cols`, and sizes the terminal to match that grid, so the
-# script adapts to however many p values the run produced.
+# script adapts to however many n (or p) values the run produced.
 #
 # NOTE: `first` is a reserved coordinate keyword in gnuplot, hence the name `i0`.
 
@@ -23,7 +23,7 @@ nblocks(f) = system(sprintf("grep -ac '^# [pn] =' '%s'", f)) + 0
 
 nb = nblocks(datafile)
 
-# More p values than the panel budget: drop the lowest ones, as hist_setup does.
+# More n (or p) values than the panel budget: drop the lowest ones, as hist_setup does.
 i0 = (nb > maxpanels) ? nb - maxpanels : 0
 npanels = nb - i0
 cols = ceil(sqrt(npanels))
