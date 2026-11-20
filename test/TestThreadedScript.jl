@@ -5,9 +5,11 @@
 #   - every run exits 0 and logs the thread count it was given;
 #   - the per-sample (`_full.txt`) and averaged (`.txt`) outputs at -t 2 and -t 4 equal those
 #     at -t 1 (README: each sample has its own seed, so results don't depend on the thread
-#     count). Comment lines must match exactly, numbers to 1e-12: the script sets BLAS threads
-#     to the Julia thread count, so the runs may differ in BLAS rounding (plan, item 2). The
-#     files were byte-identical when this was written (2026-11-19).
+#     count). Comment lines must match exactly, numbers to 1e-12. The tolerance dates from when
+#     the script set BLAS threads to the Julia thread count, so runs could differ in BLAS
+#     rounding (plan, item 2). Since 2026-11-20 (plan, item 10) BLAS/Strided threads follow
+#     `blas_threads`, default 1 at every -t, which these runs don't set. The files were
+#     byte-identical when this was written (2026-11-19).
 # Sensitivity (2026-11-19): with the pre-fix `_apply_on_sites!` patched in memory into a
 # process that then includes the script, the reproducer at -t 2 exited 1 in 4 of 4 runs
 # ("rotation needs a Hermitian Pauli string").

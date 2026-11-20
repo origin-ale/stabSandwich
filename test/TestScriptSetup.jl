@@ -337,8 +337,9 @@ end
   end
 
   @testset "setup_threads" begin
-    # As the scripts call it: n = 1 or n = Threads.nthreads() (Strided caps its count at
-    # nthreads, so a larger n is not tested). runtests.jl runs this file with `-t 2`.
+    # The scripts call it with 1 or with their `blas_threads` parameter (default 1). Tested at
+    # n = 1 and n = Threads.nthreads() (Strided caps its count at nthreads, so a larger n is
+    # not tested). runtests.jl runs this file with `-t 2`.
     blas0, strided0 = BLAS.get_num_threads(), Strided.get_num_threads()
     try
       for n in (1, Threads.nthreads(), 1)       # back to 1: each call sets the count

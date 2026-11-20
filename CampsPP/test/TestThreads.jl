@@ -157,7 +157,8 @@ const THREADS_CHILD = raw"""
 using CampsPP, CampsPP.DisentangleCAMPS, QuantumClifford, Random
 using LinearAlgebra: BLAS
 const DC = CampsPP.DisentangleCAMPS
-BLAS.set_num_threads(Threads.nthreads())      # as TransferredMag_varparams.jl (setup_threads)
+BLAS.set_num_threads(Threads.nthreads())      # as TransferredMag_varparams.jl did before
+                                              # blas_threads (default 1, plan item 10)
 report("threads", (Threads.nthreads(), BLAS.get_num_threads()))
 
 "Every image in the tableau has a real sign (phase +1 or −1), i.e. is Hermitian."
