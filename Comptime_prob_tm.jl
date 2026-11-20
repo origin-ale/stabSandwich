@@ -17,7 +17,7 @@ using .ScriptSetup
 params = @parameters begin
   # Methods to run, in output-column order.
   # Available: :campspp (CAMPS-PP), :camps (CAMPS), :mps (MPS), :pp (PP)
-  methods = [:campspp]
+  methods = [:campspp, :pp]
 
   N = 46 # Fixed system size
   magic_mode = :xy # Dope on XX-YY with 3π/16 or on ZZ with π/3
@@ -27,7 +27,7 @@ params = @parameters begin
   # Each sample dopes exactly n of the (N-1)·N/2 triples, drawn uniformly without
   # replacement (at N=46, 1035 triples: n = 10, 20, 40 are about the old p = 0.01,
   # 0.02, 0.04)
-  magic_counts = [0, 10, 20, 40]
+  magic_counts = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45]
 
   samples = 25
   # Base RNG seed: sample i draws its initial state from seed rng_seed + i (100
@@ -41,7 +41,7 @@ params = @parameters begin
   # CAMPS-PP (sandwich, ie. s-)
   campspp_χ = 64 # s-CAMPS bond dimension that triggers s-PP
   campspp_thl = 1e-10 # Threshold for truncation during s-PP
-  campspp_Pmax = 10_000_000 # Maximum number of Paulis for s-PP
+  campspp_Pmax = 1_000_000_000 # Maximum number of Paulis for s-PP
 
   # CAMPS
   camps_thl = 1e-12 # CAMPS SVD truncation threshold
@@ -53,7 +53,7 @@ params = @parameters begin
 
   # Pauli propagation
   pp_thl = 1e-10 # Threshold for truncation during PP
-  pp_Pmax = 10_000_000 # Maximum number of Paulis for PP
+  pp_Pmax = 1_000_000_000 # Maximum number of Paulis for PP
 
   # BLAS and Strided threads. Samples run one after another, so this is the only
   # parallelism; at these sizes 1 is fastest (plan item 7's thread test: -t 8 was
