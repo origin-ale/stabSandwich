@@ -7,15 +7,19 @@
 # plot without edits. If there are more of them than `maxpanels`, the lowest ones are
 # dropped — raise it here, or override with `gnuplot -e "maxpanels=N"`.
 if (!exists("maxpanels")) { maxpanels = 16 }
-# Input directory `dir` (default: output/Comptime_prob_tm, where Comptime_prob_tm.jl
-# writes). Old data: gnuplot -e "dir='output/old/carlos_varseed_pp'" plotting/plot_resources_peaks_pp.plt
-if (!exists("dir")) { dir = "output/Comptime_prob_tm" }
+# Input directory `dir` (default: the newest fetched run's copy of output/Comptime_prob_tm;
+# run=<id> picks another, see run.plt). Plots go to output/plots/<run id>.
+# Old data: gnuplot -e "dir='output/old/carlos_varseed_pp'" plotting/plot_resources_peaks_pp.plt
+datadir = "output/Comptime_prob_tm"
+load "plotting/run.plt"
+if (!exists("dir")) { dir = rundir }
+plotdir = plot_dir(dir)
 
 # == Number of Pauli strings ============================================================
 # Peaks span ~47 → ~7e5, so histogram the base-10 logarithm.
 datafile = dir."/resources_prob_tm_NP_peak_pp.txt"
 load "plotting/hist_setup.plt"
-set output "output/Peaks_prob_tm_NP_pp_hist.png"
+set output plotdir."/Peaks_prob_tm_NP_pp_hist.png"
 set xlabel "log_{10}(peak n. of Pauli strings)"
 binexpr = "log10($2)"
 w = 0.25
@@ -25,7 +29,7 @@ load "plotting/hist_panels.plt"
 # == Mean Pauli weight ==================================================================
 datafile = dir."/resources_prob_tm_PW_peak_pp.txt"
 load "plotting/hist_setup.plt"
-set output "output/Peaks_prob_tm_PW_pp_hist.png"
+set output plotdir."/Peaks_prob_tm_PW_pp_hist.png"
 set xlabel "Peak avg. Pauli weight"
 binexpr = "$2"
 w = 0.5
@@ -36,7 +40,7 @@ load "plotting/hist_panels.plt"
 # Values are multiples of 1/47; bin on that natural spacing.
 datafile = dir."/resources_prob_tm_PC_peak_pp.txt"
 load "plotting/hist_setup.plt"
-set output "output/Peaks_prob_tm_PC_pp_hist.png"
+set output plotdir."/Peaks_prob_tm_PC_pp_hist.png"
 set xlabel "Peak avg. |Pauli coeff.|"
 binexpr = "$2"
 w = 1.0 / 47.0

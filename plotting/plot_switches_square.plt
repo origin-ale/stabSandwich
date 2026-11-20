@@ -5,15 +5,19 @@
 # with M=0 and an explicit switch-point list, e.g.
 #   julia --project=. switch_optimization.jl N=20 M=0 switchpoints=0,1,2,3,4,5,6,7,8,9,10,11,12 outdir=output/switch_optimization_square
 # (a folder of their own, so that extract_minima.sh does not mix them into the M scan)
-# dir  input directory (default: output/switch_optimization_square)
+# dir  input directory (default: the newest fetched run's copy of output/switch_optimization_square;
+#      run=<id> picks another, see run.plt). Plots go to output/plots/<run id>.
 # Ns   the N values to plot, space-separated (default "20 50 80 100")
 # Old data: gnuplot -e "dir='output/old/carlos_switch_square'" plotting/plot_switches_square.plt
-if (!exists("dir")) { dir = "output/switch_optimization_square" }
+datadir = "output/switch_optimization_square"
+load "plotting/run.plt"
+if (!exists("dir")) { dir = rundir }
+plotdir = plot_dir(dir)
 if (!exists("Ns")) { Ns = "20 50 80 100" }
 
 set term png size 850, 600 font ",16"
 
-set output "output/square_switch_optimization_graph_total.png"
+set output plotdir."/square_switch_optimization_graph_total.png"
 
 set title "CAMPS-PP computation times, NxN circuit, switch at N-c" font ",24"
 set logscale y

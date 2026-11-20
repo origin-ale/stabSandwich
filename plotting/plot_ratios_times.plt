@@ -1,15 +1,19 @@
 # Mean computation times against t/N, exact CAMPS against exact PP.
 #
 # Input: comptimes_ratios_<N>_avgs.txt as written by Comptime_ratios.jl.
-# dir  input directory (default: output/Comptime_ratios, where the script writes)
+# dir  input directory (default: the newest fetched run's copy of output/Comptime_ratios;
+#      run=<id> picks another, see run.plt). Plots go to output/plots/<run id>.
 # N    system size in the file name (default "40")
 # Old data: gnuplot -e "dir='output/old/carlos_ratios'" plotting/plot_ratios_times.plt
-if (!exists("dir")) { dir = "output/Comptime_ratios" }
+datadir = "output/Comptime_ratios"
+load "plotting/run.plt"
+if (!exists("dir")) { dir = rundir }
+plotdir = plot_dir(dir)
 if (!exists("N")) { N = "40" }
 
 set term png size 850, 600 font ",16"
 
-set output "output/CompTimes_ratios_".N."_graph.png"
+set output plotdir."/CompTimes_ratios_".N."_graph.png"
 
 set title "Computation times, N=".N." t-rotation circuit" font ",24"
 set xrange [0.65:1.25]

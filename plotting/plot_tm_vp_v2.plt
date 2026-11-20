@@ -2,13 +2,16 @@
 # p in p-based data).
 #
 # Input: <prefix>_<N>_<Nsamples>.txt as written by TransferredMag_varparams.jl.
-# dir         input directory (default: output/TransferredMag_varparams, where the
-#             script writes)
+# dir         input directory (default: the newest fetched run's copy of output/TransferredMag_varparams;
+#             run=<id> picks another, see run.plt). Plots go to output/plots/<run id>.
 # N, Nsamples, prefix  as in the file name (default "46", "50", "TMDxy")
 # plot_fit    1 = overlay the power-law fits, 0 = only print them (default 0)
 # Old data: gnuplot -e "dir='output/old/TMD'; N='12'; Nsamples='100'" plotting/plot_tm_vp_v2.plt
 # (the 12- and 46-qubit runs are also in output/carlos_tmd{12,46}{xy,z}).
-if (!exists("dir")) { dir = "output/TransferredMag_varparams" }
+datadir = "output/TransferredMag_varparams"
+load "plotting/run.plt"
+if (!exists("dir")) { dir = rundir }
+plotdir = plot_dir(dir)
 if (!exists("N")) { N = "46" }
 if (!exists("Nsamples")) { Nsamples = "50" }
 if (!exists("prefix")) { prefix = "TMDxy" }
@@ -59,7 +62,7 @@ set fit errorvariables
 # Produce one image per block set.
 do for [k=1:|blocksets|] {
   blocks = blocksets[k]
-  outfile = "output/".prefix."_".N."_".Nsamples."_graph_".k.".png"
+  outfile = plotdir."/".prefix."_".N."_".Nsamples."_graph_".k.".png"
   set output outfile
 
   # `fit` can't run inside a `plot for`, so fit every block first and stash the

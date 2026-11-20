@@ -11,14 +11,19 @@
 # the mean and its standard error.
 #
 # dir_campspp, dir_pp  directories holding each method's files
-#                      (default: output/Comptime_prob_tm for both, i.e. one run
-#                      with methods=campspp,pp)
+#                      (default for both: the newest fetched run's copy of
+#                      output/Comptime_prob_tm, i.e. one run with methods=campspp,pp;
+#                      run=<id> picks another, see run.plt)
+# Plots go to output/plots/<run id> (<id1>+<id2> for dirs from two runs).
 # j_campspp, j_pp      each method's 0-based position in its file's `methods`
 #                      (default 0 and 1)
 # Old data (one method per run):
 #   gnuplot -e "dir_campspp='output/old/carlos_indep'; dir_pp='output/old/carlos_indep_pp'; j_pp=0" plotting/plot_comptime_prob_tm_box.plt
-if (!exists("dir_campspp")) { dir_campspp = "output/Comptime_prob_tm" }
-if (!exists("dir_pp")) { dir_pp = "output/Comptime_prob_tm" }
+datadir = "output/Comptime_prob_tm"
+load "plotting/run.plt"
+if (!exists("dir_campspp")) { dir_campspp = rundir }
+if (!exists("dir_pp")) { dir_pp = rundir }
+plotdir = plot_dir(dir_campspp." ".dir_pp)
 if (!exists("j_campspp")) { j_campspp = 0 }
 if (!exists("j_pp")) { j_pp = 1 }
 # x axis: n (doped triples per sample) for count-mode runs, p for p-based data
@@ -59,7 +64,7 @@ if (system(sprintf("grep -ac 'magic_counts=' '%s'", campspp)) + 0 > 0) {
 set boxwidth bw absolute
 
 # == Wall-clock time ====================================================================
-set output "output/CompTimes_prob_tm_box.png"
+set output plotdir."/CompTimes_prob_tm_box.png"
 
 plot campspp using ($1-dx):col(j_campspp,Q1):col(j_campspp,MIN):col(j_campspp,MAX):col(j_campspp,Q3) \
        with candlesticks whiskerbars 0.5 lc rgb "#4269d0" \
@@ -77,7 +82,7 @@ plot campspp using ($1-dx):col(j_campspp,Q1):col(j_campspp,MIN):col(j_campspp,MA
        lc rgb "#9c7016" title "PP mean"
 
 # == GC time ============================================================================
-set output "output/GCTimes_prob_tm_box.png"
+set output plotdir."/GCTimes_prob_tm_box.png"
 set ylabel "GC time (s)"
 
 campspp_gc = dir_campspp.'/gctime_prob_tm.txt'

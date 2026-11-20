@@ -8,14 +8,19 @@
 # column 2 + 7*j.
 #
 # dir_campspp, dir_pp  directories holding each method's comptime_prob_tm.txt
-#                      (default: output/Comptime_prob_tm for both, i.e. one run
-#                      with methods=campspp,pp)
+#                      (default for both: the newest fetched run's copy of
+#                      output/Comptime_prob_tm, i.e. one run with methods=campspp,pp;
+#                      run=<id> picks another, see run.plt)
+# Plots go to output/plots/<run id> (<id1>+<id2> for dirs from two runs).
 # j_campspp, j_pp      each method's 0-based position in its file's `methods`
 #                      (default 0 and 1)
 # Old data (one method per run):
 #   gnuplot -e "dir_campspp='output/old/carlos_varseed64'; dir_pp='output/old/carlos_varseed_pp'; j_pp=0" plotting/plot_comptime_prob_tm.plt
-if (!exists("dir_campspp")) { dir_campspp = "output/Comptime_prob_tm" }
-if (!exists("dir_pp")) { dir_pp = "output/Comptime_prob_tm" }
+datadir = "output/Comptime_prob_tm"
+load "plotting/run.plt"
+if (!exists("dir_campspp")) { dir_campspp = rundir }
+if (!exists("dir_pp")) { dir_pp = rundir }
+plotdir = plot_dir(dir_campspp." ".dir_pp)
 if (!exists("j_campspp")) { j_campspp = 0 }
 if (!exists("j_pp")) { j_pp = 1 }
 col(j, q) = 2 + 7*j + q
@@ -23,7 +28,7 @@ col(j, q) = 2 + 7*j + q
 xlab(f) = (system(sprintf("grep -ac 'magic_counts=' '%s'", f)) + 0 > 0) ? "Doped triples per sample" : "Magic probability"
 
 set term png size 850, 600 font ",16"
-set output "output/CompTimes_prob_tm_graph.png"
+set output plotdir."/CompTimes_prob_tm_graph.png"
 
 set linetype 3 lc rgb "dark-red"
 
@@ -34,7 +39,9 @@ set xlabel xlab(dir_campspp.'/comptime_prob_tm.txt')
 set ylabel "Time (s)"
 
 set xrange [0:*]
-set yrange [0:1000]
+# Lower end autoscaled: a 0 on a log axis is silently replaced by 0.1, which
+# hid PP's sub-0.1 s times at low n.
+set yrange [*:1000]
 
 set key top left
 

@@ -1,17 +1,21 @@
 # CAMPS-PP computation time against the switch point c, one curve per depth M.
 #
 # Input: M<M>_switch_optimization_avgs_<N>.txt as written by switch_optimization.jl.
-# dir  input directory (default: output/switch_optimization, where the script writes)
+# dir  input directory (default: the newest fetched run's copy of output/switch_optimization;
+#      run=<id> picks another, see run.plt). Plots go to output/plots/<run id>.
 # N    system size (default "20")
 # Ms   the M values to plot, space-separated (default "6 9 12 15 18")
 # Old data: gnuplot -e "dir='output/old/carlos_switch'" plotting/plot_switches.plt
-if (!exists("dir")) { dir = "output/switch_optimization" }
+datadir = "output/switch_optimization"
+load "plotting/run.plt"
+if (!exists("dir")) { dir = rundir }
+plotdir = plot_dir(dir)
 if (!exists("N")) { N = "20" }
 if (!exists("Ms")) { Ms = "6 9 12 15 18" }
 
 set term png size 850, 600 font ",16"
 
-set output "output/varM_switch_optimization_graph_total.png"
+set output plotdir."/varM_switch_optimization_graph_total.png"
 
 set title "CAMPS-PP computation times, ".N."×(".N."+M) circuit" font ",24"
 set logscale y

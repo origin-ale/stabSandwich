@@ -1,6 +1,10 @@
-# Input directory `dir` (default: output/Comptime_prob_tm, where Comptime_prob_tm.jl
-# writes). Old data: gnuplot -e "dir='output/old/carlos_indep_pp'" plotting/plot_resources_prob_tm_pp.plt
-if (!exists("dir")) { dir = "output/Comptime_prob_tm" }
+# Input directory `dir` (default: the newest fetched run's copy of output/Comptime_prob_tm;
+# run=<id> picks another, see run.plt). Plots go to output/plots/<run id>.
+# Old data: gnuplot -e "dir='output/old/carlos_indep_pp'" plotting/plot_resources_prob_tm_pp.plt
+datadir = "output/Comptime_prob_tm"
+load "plotting/run.plt"
+if (!exists("dir")) { dir = rundir }
+plotdir = plot_dir(dir)
 
 set term png size 850, 600 font ",16"
 
@@ -24,7 +28,7 @@ nzcount(datafile, blk, lo, hi) = system(sprintf("awk 'BEGIN{b=-1} /^# [pn] =/{b+
 set fit quiet nolog errorvariables
 
 # == Number of Pauli strings ============================================================
-set output "output/Resources_prob_tm_NP_pp_graph.png"
+set output plotdir."/Resources_prob_tm_NP_pp_graph.png"
 datafile = dir."/resources_prob_tm_NP_pp.txt"
 set title "46-qubit XXZ circuit — PP Pauli string number" font ",20"
 set ylabel "N. of Pauli strings" font ",16"
@@ -33,7 +37,7 @@ nb = nblocks(datafile)
 plot for [i=0:nb-1] datafile index i using 1:2:3 with yerrorlines lc i+1 title blocktitle(datafile, i)
 
 # == Mean Pauli weight ==================================================================
-set output "output/Resources_prob_tm_PW_pp_graph.png"
+set output plotdir."/Resources_prob_tm_PW_pp_graph.png"
 datafile = dir."/resources_prob_tm_PW_pp.txt"
 set title "46-qubit XXZ circuit — PP mean Pauli weight" font ",20"
 set ylabel "Mean avg. Pauli weight" font ",16"
@@ -90,7 +94,7 @@ plot for [i=0:nb-1] datafile index i using 1:2:3 with yerrorlines lc i+1 title f
          with lines dt 2 lw 2 lc rgb "gray" notitle
 
 # == Mean |Pauli coefficient| ===========================================================
-set output "output/Resources_prob_tm_PC_pp_graph.png"
+set output plotdir."/Resources_prob_tm_PC_pp_graph.png"
 datafile = dir."/resources_prob_tm_PC_pp.txt"
 set title "46-qubit XXZ circuit — PP mean Pauli coeff." font ",20"
 set ylabel "Mean avg. |Pauli coeff.|" font ",16"

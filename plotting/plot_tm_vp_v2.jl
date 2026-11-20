@@ -9,14 +9,17 @@
 #
 # Run from the project root with:  julia --project=. plotting/plot_tm_vp_v2.jl [key=value ...]
 #
-#   dir=…        input directory (default: output/TransferredMag_varparams, where
-#                TransferredMag_varparams.jl writes; old data: output/old/TMD, or
-#                output/carlos_tmd{12,46}{xy,z})
+#   dir=…        input directory (default: the newest fetched run's copy of
+#                output/TransferredMag_varparams, see run_dirs.sh; old data:
+#                output/old/TMD, or output/carlos_tmd{12,46}{xy,z})
+#   run=…        fetched run to plot, by run id (default: the newest; ignored with dir=)
 #   N=…          system size in the file name (default 12)
 #   Nsamples=…   number of samples in the file name (default 100)
 #   mode=xy|z    doping channel (default xy)
 #
 # e.g. julia --project=. plotting/plot_tm_vp_v2.jl dir=output/carlos_tmd12xy
+#
+# Plots go to output/plots/<run id> (for a dir outside output/runs, the dir's own name).
 
 using Plots
 using LaTeXStrings
@@ -29,13 +32,17 @@ using LsqFit
 const cli = let d = Dict{String, String}()
     for a in ARGS
         kv = split(a, "="; limit = 2)
-        (length(kv) == 2 && kv[1] in ("dir", "N", "Nsamples", "mode")) ||
-            error("unknown argument `$a`; expected dir=…, N=…, Nsamples=… or mode=xy|z")
+        (length(kv) == 2 && kv[1] in ("dir", "run", "N", "Nsamples", "mode")) ||
+            error("unknown argument `$a`; expected dir=…, run=…, N=…, Nsamples=… or mode=xy|z")
         d[kv[1]] = kv[2]
     end
     d
 end
-const data_dir      = get(cli, "dir", joinpath("output", "TransferredMag_varparams"))
+# Input and plot folders, chosen by plotting/run_dirs.sh like the gnuplot scripts
+const data_dir      = get(cli, "dir") do
+    readchomp(`plotting/run_dirs.sh data output/TransferredMag_varparams $(haskey(cli, "run") ? [cli["run"]] : String[])`)
+end
+const plot_dir      = readchomp(`plotting/run_dirs.sh plotdir $data_dir`)
 const N_plot        = get(cli, "N", "12")
 const Nsamples_plot = get(cli, "Nsamples", "100")
 
@@ -256,7 +263,7 @@ function main()
         ay = logfrac(ymin, ymax, 0.15)
         annotate!(plt, ax, ay, text(annotation, 16, :left))
 
-        outfile = joinpath("output", "$(prefix_plot)_$(N_plot)_$(Nsamples_plot)_graph_$(k).png")
+        outfile = joinpath(plot_dir, "$(prefix_plot)_$(N_plot)_$(Nsamples_plot)_graph_$(k).png")
         savefig(plt, outfile)
         println("Plotted ", outfile)
 
@@ -284,7 +291,7 @@ function main()
         annotate!(eplt, xlims(eplt)[1]+.1, ylims(eplt)[1],
                   text(annotation, 16, :left, :bottom))
 
-        eoutfile = joinpath("output", "$(prefix_plot)_$(N_plot)_$(Nsamples_plot)_localexp_$(k).png")
+        eoutfile = joinpath(plot_dir, "$(prefix_plot)_$(N_plot)_$(Nsamples_plot)_localexp_$(k).png")
         savefig(eplt, eoutfile)
         println("Plotted ", eoutfile)
     end
