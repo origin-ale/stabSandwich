@@ -15,17 +15,25 @@
 #                      output/Comptime_prob_tm, i.e. one run with methods=campspp,pp;
 #                      run=<id> picks another, see run.plt)
 # Plots go to output/plots/<run id> (<id1>+<id2> for dirs from two runs).
-# j_campspp, j_pp      each method's 0-based position in its file's `methods`
-#                      (default 0 and 1)
+# j_campspp, j_pp      each method's 0-based position in its file's `methods`;
+#                      -1 leaves the method out (default: read from the file's
+#                      methods= header, -1 if the run didn't include the method,
+#                      0 for old files without the header, one method per file)
 # Old data (one method per run):
-#   gnuplot -e "dir_campspp='output/old/carlos_indep'; dir_pp='output/old/carlos_indep_pp'; j_pp=0" plotting/plot_comptime_prob_tm_box.plt
+#   gnuplot -e "dir_campspp='output/old/carlos_indep'; dir_pp='output/old/carlos_indep_pp'" plotting/plot_comptime_prob_tm_box.plt
 datadir = "output/Comptime_prob_tm"
 load "plotting/run.plt"
 if (!exists("dir_campspp")) { dir_campspp = rundir }
 if (!exists("dir_pp")) { dir_pp = rundir }
+if (!exists("j_campspp")) { j_campspp = method_pos(dir_campspp.'/comptime_prob_tm.txt', 'campspp') }
+if (!exists("j_pp")) { j_pp = method_pos(dir_pp.'/comptime_prob_tm.txt', 'pp') }
+# The methods to plot (a method the run didn't include is left out)
+mlist = (j_campspp >= 0 ? "campspp " : "").(j_pp >= 0 ? "pp" : "")
+if (words(mlist) == 0) {
+  print "plot_comptime_prob_tm_box.plt: neither campspp nor pp in the run's methods"
+  exit status 1
+}
 plotdir = plot_dir(dir_campspp." ".dir_pp)
-if (!exists("j_campspp")) { j_campspp = 0 }
-if (!exists("j_pp")) { j_pp = 1 }
 # x axis: n (doped triples per sample) for count-mode runs, p for p-based data
 xlab(f) = (system(sprintf("grep -ac 'magic_counts=' '%s'", f)) + 0 > 0) ? "Doped triples per sample" : "Magic probability"
 
@@ -34,7 +42,6 @@ set term png size 850, 600 font ",16"
 set title "46-qubit 23-layer XXZ circuit" font ",24"
 set logscale y
 set format y "%1g"
-set xlabel xlab(dir_campspp.'/comptime_prob_tm.txt')
 set ylabel "Time (s)"
 
 set xrange [*:*]
@@ -47,8 +54,15 @@ set style fill solid 0.25 border lc rgb "black"
 col(j, q) = 2 + 7*j + q
 Q1 = 2; MED = 3; Q3 = 4; MIN = 5; MAX = 6; MEAN = 0
 
-campspp = dir_campspp.'/comptime_prob_tm.txt'
-pp = dir_pp.'/comptime_prob_tm.txt'
+# Per-method helpers: file `f` ("comptime" or "gctime") of method m, its column
+# offset, colours and label.
+fileof(m, f) = ((m eq "campspp") ? dir_campspp : dir_pp).'/'.f.'_prob_tm.txt'
+jof(m) = (m eq "campspp") ? j_campspp : j_pp
+boxc(m) = (m eq "campspp") ? "#4269d0" : "#efb118"
+darkc(m) = (m eq "campspp") ? "#1b3a8c" : "#9c7016"
+label(m) = (m eq "campspp") ? "CAMPS-PP" : "PP"
+first_file = fileof(word(mlist, 1), "comptime")
+set xlabel xlab(first_file)
 
 # The p spacing is 0.005, so boxes must be far narrower than that; `dx` also
 # offsets the two methods sideways so their boxes sit side by side instead of
@@ -56,45 +70,57 @@ pp = dir_pp.'/comptime_prob_tm.txt'
 # between n values (the same fractions: 0.24 and 0.18 of it).
 bw = 0.0012
 dx = 0.0009
-if (system(sprintf("grep -ac 'magic_counts=' '%s'", campspp)) + 0 > 0) {
-  xstep = system(sprintf("awk '!/^#/ && NF {x[k++]=$1} END {m=0; for (i=1;i<k;i++) {d=x[i]-x[i-1]; if (d>0 && (m==0 || d<m)) m=d}; print (m>0 ? m : 1)}' '%s'", campspp)) + 0
+if (system(sprintf("grep -ac 'magic_counts=' '%s'", first_file)) + 0 > 0) {
+  xstep = system(sprintf("awk '!/^#/ && NF {x[k++]=$1} END {m=0; for (i=1;i<k;i++) {d=x[i]-x[i-1]; if (d>0 && (m==0 || d<m)) m=d}; print (m>0 ? m : 1)}' '%s'", first_file)) + 0
   bw = 0.24*xstep
   dx = 0.18*xstep
 }
 set boxwidth bw absolute
+# Sideways offset of method m: none when it is the only one plotted. A lone
+# method's end boxes then sit on the autoscaled x edges, cut in half, so pad
+# the range by a box width (the offset pair already clears them).
+off(m) = (words(mlist) < 2) ? 0 : ((m eq "campspp") ? -dx : dx)
+if (words(mlist) < 2) { set autoscale xfix; set offsets bw, bw, 0, 0 }
 
 # == Wall-clock time ====================================================================
 set output plotdir."/CompTimes_prob_tm_box.png"
 
-plot campspp using ($1-dx):col(j_campspp,Q1):col(j_campspp,MIN):col(j_campspp,MAX):col(j_campspp,Q3) \
-       with candlesticks whiskerbars 0.5 lc rgb "#4269d0" \
-       title "CAMPS-PP, thl 10^{-10}", \
-     campspp using ($1-dx):col(j_campspp,MED):col(j_campspp,MED):col(j_campspp,MED):col(j_campspp,MED) \
-       with candlesticks lw 3 lc rgb "#1b3a8c" notitle, \
-     campspp using ($1-dx):col(j_campspp,MEAN) with linespoints pt 7 ps 0.8 \
-       lc rgb "#1b3a8c" title "CAMPS-PP mean", \
-     pp using ($1+dx):col(j_pp,Q1):col(j_pp,MIN):col(j_pp,MAX):col(j_pp,Q3) \
-       with candlesticks whiskerbars 0.5 lc rgb "#efb118" \
-       title "PP, thl 10^{-10}", \
-     pp using ($1+dx):col(j_pp,MED):col(j_pp,MED):col(j_pp,MED):col(j_pp,MED) \
-       with candlesticks lw 3 lc rgb "#9c7016" notitle, \
-     pp using ($1+dx):col(j_pp,MEAN) with linespoints pt 7 ps 0.8 \
-       lc rgb "#9c7016" title "PP mean"
+plot for [m in mlist] fileof(m, "comptime") \
+       using ($1+off(m)):col(jof(m),Q1):col(jof(m),MIN):col(jof(m),MAX):col(jof(m),Q3) \
+       with candlesticks whiskerbars 0.5 lc rgb boxc(m) title label(m).", thl 10^{-10}", \
+     for [m in mlist] fileof(m, "comptime") \
+       using ($1+off(m)):col(jof(m),MED):col(jof(m),MED):col(jof(m),MED):col(jof(m),MED) \
+       with candlesticks lw 3 lc rgb darkc(m) notitle, \
+     for [m in mlist] fileof(m, "comptime") using ($1+off(m)):col(jof(m),MEAN) \
+       with linespoints pt 7 ps 0.8 lc rgb darkc(m) title label(m)." mean"
 
 # == GC time ============================================================================
-set output plotdir."/GCTimes_prob_tm_box.png"
-set ylabel "GC time (s)"
+# PP's GC time is 0 in most samples, which a log axis can't show: such boxes
+# are drawn clipped at the bottom, and autoscaling ignores them. If no plotted
+# box has a positive minimum (e.g. a PP-only run), autoscaling has nothing to
+# go on, so take the range from the positive values; if there are none, skip.
+# posrange(m) = "<any box with min > 0> <smallest positive> <largest>" over
+# method m's q1 … max columns.
+posrange(m) = system(sprintf("awk -v a=%d -v b=%d -v mn=%d '!/^#/ && NF { if ($mn > 0) ok = 1; for (i = a; i <= b; i++) if ($i > 0) { if (lo == \"\" || $i < lo) lo = $i; if ($i > hi) hi = $i } } END { print ok + 0, lo + 0, hi + 0 }' '%s'", col(jof(m),Q1), col(jof(m),MAX), col(jof(m),MIN), fileof(m, "gctime")))
+gc_ok = 0; gc_lo = 0; gc_hi = 0
+do for [m in mlist] {
+  r = posrange(m)
+  if (word(r, 1) + 0) { gc_ok = 1 }
+  if (word(r, 2) + 0 > 0 && (gc_lo == 0 || word(r, 2) + 0 < gc_lo)) { gc_lo = word(r, 2) + 0 }
+  if (word(r, 3) + 0 > gc_hi) { gc_hi = word(r, 3) + 0 }
+}
 
-campspp_gc = dir_campspp.'/gctime_prob_tm.txt'
-pp_gc = dir_pp.'/gctime_prob_tm.txt'
+if (gc_hi == 0) {
+  print "plot_comptime_prob_tm_box.plt: every GC time is 0, nothing to show on a log axis; GC plot skipped"
+} else {
+  if (!gc_ok) { set yrange [gc_lo/2 : gc_hi*2] }
+  set output plotdir."/GCTimes_prob_tm_box.png"
+  set ylabel "GC time (s)"
 
-plot campspp_gc using ($1-dx):col(j_campspp,Q1):col(j_campspp,MIN):col(j_campspp,MAX):col(j_campspp,Q3) \
-       with candlesticks whiskerbars 0.5 lc rgb "#4269d0" \
-       title "CAMPS-PP, thl 10^{-10}", \
-     campspp_gc using ($1-dx):col(j_campspp,MED):col(j_campspp,MED):col(j_campspp,MED):col(j_campspp,MED) \
-       with candlesticks lw 3 lc rgb "#1b3a8c" notitle, \
-     pp_gc using ($1+dx):col(j_pp,Q1):col(j_pp,MIN):col(j_pp,MAX):col(j_pp,Q3) \
-       with candlesticks whiskerbars 0.5 lc rgb "#efb118" \
-       title "PP, thl 10^{-10}", \
-     pp_gc using ($1+dx):col(j_pp,MED):col(j_pp,MED):col(j_pp,MED):col(j_pp,MED) \
-       with candlesticks lw 3 lc rgb "#9c7016" notitle
+  plot for [m in mlist] fileof(m, "gctime") \
+         using ($1+off(m)):col(jof(m),Q1):col(jof(m),MIN):col(jof(m),MAX):col(jof(m),Q3) \
+         with candlesticks whiskerbars 0.5 lc rgb boxc(m) title label(m).", thl 10^{-10}", \
+       for [m in mlist] fileof(m, "gctime") \
+         using ($1+off(m)):col(jof(m),MED):col(jof(m),MED):col(jof(m),MED):col(jof(m),MED) \
+         with candlesticks lw 3 lc rgb darkc(m) notitle
+}

@@ -5,11 +5,12 @@
 #   plotting/plot_prob_tm_all.sh            # the newest fetched Comptime_prob_tm run
 #   plotting/plot_prob_tm_all.sh RUN-ID     # a given one
 #
-# Plots go to output/plots/RUN-ID/. The run's own settings are passed on:
-# each method's position in its `methods` (j_campspp, j_pp) and the threshold
-# suffix of the evs_prob_tm_<method>_<suffix>.txt files. Scripts for a method
-# the run didn't include are skipped. A script that fails doesn't stop the
-# others; the exit status is non-zero if any failed.
+# Plots go to output/plots/RUN-ID/. The threshold suffix of the run's
+# evs_prob_tm_<method>_<suffix>.txt files is passed on; the computation-time
+# scripts find each method's column from the run's `methods` themselves and
+# plot whichever of CAMPS-PP and PP the run has. Scripts for a method the run
+# didn't include are skipped. A script that fails doesn't stop the others; the
+# exit status is non-zero if any failed.
 set -uo pipefail
 
 die() { echo "plot_prob_tm_all.sh: $*" >&2; exit 1; }
@@ -31,11 +32,10 @@ dir="output/runs/$id/files/$sub"
 [ -d "$dir" ] || die "run $id has no $sub (no $dir)"
 echo "Run: $id"
 
-# Method positions, from the "# methods=… " header of comptime_prob_tm.txt
+# The run's methods, from the "# methods=… " header of comptime_prob_tm.txt
 methods=$(head -1 "$dir/comptime_prob_tm.txt" 2>/dev/null | grep -o 'methods=[^ ]*' | cut -d= -f2)
 [ -n "$methods" ] || die "no methods= header in $dir/comptime_prob_tm.txt"
-pos() { echo "$methods" | tr ',' '\n' | grep -nx "$1" | cut -d: -f1; }
-jc=$(pos campspp); jp=$(pos pp)
+has() { case ",$methods," in *",$1,"*) return 0 ;; esac; return 1; }
 echo "Methods: $methods"
 
 # Threshold suffix of the evs files (one per method expected)
@@ -46,34 +46,42 @@ thl() {
 }
 
 ran=(); skipped=(); failed=()
-plot() {   # plot NAME NEEDS [gnuplot -e assignments]
-  local name=$1 needs=$2 extra=${3:-}
-  local m
-  for m in $needs; do
-    case ",$methods," in *",$m,"*) ;; *) skipped+=("$name (no $m)"); return ;; esac
-  done
-  echo "--- $name"
-  if gnuplot -e "run='$id'; $extra" "plotting/$name.plt"; then ran+=("$name"); else failed+=("$name"); fi
+plot() {   # plot NAME [gnuplot -e assignments]
+  echo "--- $1"
+  if gnuplot -e "run='$id'; ${2:-}" "plotting/$1.plt"; then ran+=("$1"); else failed+=("$1"); fi
 }
 
-plot boxplot_resources_prob_tm_campspp campspp
-plot plot_resources_prob_tm_campspp    campspp
-plot boxplot_resources_prob_tm_pp      pp
-plot plot_resources_prob_tm_pp         pp
-plot plot_resources_peaks_pp           pp
-plot plot_comptime_peaks_pp            pp
-if [ -n "$jc" ] && [ -n "$jp" ]; then
-  both="j_campspp=$((jc - 1)); j_pp=$((jp - 1))"
-  plot plot_comptime_prob_tm     "campspp pp" "$both"
-  plot plot_comptime_prob_tm_box "campspp pp" "$both"
+if has campspp; then
+  plot boxplot_resources_prob_tm_campspp
+  plot plot_resources_prob_tm_campspp
+else
+  skipped+=("boxplot_resources_prob_tm_campspp, plot_resources_prob_tm_campspp (no campspp)")
+fi
+if has pp; then
+  plot boxplot_resources_prob_tm_pp
+  plot plot_resources_prob_tm_pp
+  plot plot_resources_peaks_pp
+  plot plot_comptime_peaks_pp
+else
+  skipped+=("boxplot_resources_prob_tm_pp, plot_resources_prob_tm_pp, plot_resources_peaks_pp, plot_comptime_peaks_pp (no pp)")
+fi
+# Computation time: whichever of the two methods the run has
+if has campspp || has pp; then
+  plot plot_comptime_prob_tm
+  plot plot_comptime_prob_tm_box
+else
+  skipped+=("plot_comptime_prob_tm, plot_comptime_prob_tm_box (neither campspp nor pp)")
+fi
+# Expectation values: a comparison, so both
+if has campspp && has pp; then
   tc=$(thl campspp); tp=$(thl pp)
   if [ -n "$tc" ] && [ -n "$tp" ]; then
-    plot plot_evs_diff_p050 "campspp pp" "thl_campspp='$tc'; thl_pp='$tp'"
+    plot plot_evs_diff_p050 "thl_campspp='$tc'; thl_pp='$tp'"
   else
     skipped+=("plot_evs_diff_p050 (not exactly one evs_prob_tm_{campspp,pp}_<thl>.txt each)")
   fi
 else
-  skipped+=("plot_comptime_prob_tm, plot_comptime_prob_tm_box, plot_evs_diff_p050 (need both campspp and pp)")
+  skipped+=("plot_evs_diff_p050 (compares campspp with pp, needs both)")
 fi
 
 echo

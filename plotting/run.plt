@@ -19,5 +19,9 @@ if (exists("run")) {
 } else {
   rundir = system(sprintf("plotting/run_dirs.sh data '%s'", datadir))
 }
+#   method_pos(f, m)  method m's 0-based position in the methods= header of
+#                file f, -1 if the run didn't include it, 0 for a file without
+#                the header (old data, one method per file)
 if (strlen(rundir) == 0) { exit status 1 }
 plot_dir(d) = system("plotting/run_dirs.sh plotdir ".d)
+method_pos(f, m) = system(sprintf("plotting/run_dirs.sh method '%s' '%s'", f, m)) + 0

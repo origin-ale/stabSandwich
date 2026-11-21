@@ -14,6 +14,10 @@
 #       DIR(s): <id> is the run id for a DIR under output/runs/<id>/, otherwise
 #       the DIR's own name (output/old/carlos_varseed -> carlos_varseed). DIRs
 #       from different runs give "<id1>+<id2>".
+#   run_dirs.sh method FILE METHOD
+#       Prints METHOD's 0-based position in the "methods=…" list of FILE's
+#       first (header) line (methods=a,b or Julia's methods=[:a, :b]), -1 if
+#       the list doesn't include it. A FILE without the list gives 0.
 set -u
 die() { echo "run_dirs.sh: $*" >&2; exit 1; }
 norm() { local d=${1#./}; echo "${d%/}"; }
@@ -50,5 +54,13 @@ plotdir)
   echo "plots -> $out" >&2
   echo "$out"
   ;;
-*) die "usage: run_dirs.sh data DATADIR [RUN] | plotdir DIR..." ;;
+method)
+  [ $# -eq 3 ] || die "usage: run_dirs.sh method FILE METHOD"
+  [ -f "$2" ] || die "no $2"
+  # methods=campspp,pp, or Julia's methods=[:campspp, :pp] in older files
+  ms=$(head -1 "$2" | grep -oE 'methods=(\[[^]]*\]|[^ ]*)' | cut -d= -f2 | tr -d '[]: ')
+  [ -n "$ms" ] || { echo 0; exit 0; }
+  echo "$ms" | tr ',' '\n' | awk -v m="$3" '$0 == m { p = NR - 1 } END { print (p == "" ? -1 : p) }'
+  ;;
+*) die "usage: run_dirs.sh data DATADIR [RUN] | plotdir DIR... | method FILE METHOD" ;;
 esac
