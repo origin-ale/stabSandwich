@@ -36,8 +36,9 @@
 # TransferredMag_varparams.jl, which runs one sample per Julia thread, a larger -t.
 # The julia binary is $JULIA if set, else `julia` on PATH.
 #
-# Stop a run with `kill <worker pid>` (shown by --status); the run is recorded
-# as killed and the lock is released.
+# Stop a run with `kill <worker pid>` (shown by --status); Julia gets SIGTERM,
+# then SIGKILL if it is still running 10 s later. The run is recorded as killed
+# and the lock is released.
 #
 # Runs are attributed by modification time, which is sound only because the
 # lock keeps runs from overlapping. Don't write into output/ by hand during a run.
@@ -83,11 +84,22 @@ if [ "${1:-}" = "__worker" ]; then
   rundir=$2; threads=$3; shift 3
   cd "$repo" || exit 1
   record="$rundir/record.txt"
-  jpid=""; status=""
+  jpid=""; status=""; reaper=""
+  grace=10   # seconds Julia gets to exit on SIGTERM before it gets SIGKILL
 
+  # Julia can hang after SIGTERM (it prints its backtrace, then never exits, e.g.
+  # with several threads busy), so a timer sends SIGKILL after $grace seconds.
+  # The subshell does not inherit the EXIT trap, so it never touches the lock.
   on_signal() {
     status="killed"
-    [ -n "$jpid" ] && kill -TERM "$jpid" 2>/dev/null
+    [ -n "$jpid" ] || return 0
+    kill -TERM "$jpid" 2>/dev/null
+    [ -n "$reaper" ] && return 0
+    ( sleep "$grace"
+      kill -0 "$jpid" 2>/dev/null || exit 0
+      echo "julia still running $grace s after SIGTERM; sent SIGKILL" >>"$record"
+      kill -KILL "$jpid" 2>/dev/null ) &
+    reaper=$!
   }
   trap on_signal TERM INT
   trap 'rm -rf "$lock"' EXIT
@@ -103,6 +115,8 @@ if [ "${1:-}" = "__worker" ]; then
   wait "$jpid"; code=$?
   # A trapped signal interrupts `wait`; wait again for Julia to actually exit.
   while kill -0 "$jpid" 2>/dev/null; do wait "$jpid"; code=$?; done
+  # Julia is reaped: stop the timer before its pid check could hit a reused pid.
+  [ -z "$reaper" ] || kill "$reaper" 2>/dev/null
   [ -n "$status" ] || { [ "$code" -eq 0 ] && status="done" || status="failed"; }
 
   (cd "$repo" && find output -path output/runs -prune -o -type f ! -name .DS_Store \

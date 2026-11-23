@@ -70,9 +70,10 @@ file and exits non-zero. Use `-f` to replace it.
   and installs nothing if the transfer is truncated or any checksum fails.
   Re-running it is safe.
 
-To stop a run, `kill` the worker pid that `run.sh --status` shows. Julia is
-stopped and the run is recorded as `killed`; its partial outputs are still
-listed and fetchable.
+To stop a run, `kill` the worker pid that `run.sh --status` shows. Julia gets
+SIGTERM, and SIGKILL if it hasn't exited 10 s later (Julia can hang after
+SIGTERM). The run is recorded as `killed` and the lock is released; its partial
+outputs are still listed and fetchable.
 
 Don't write into `output/` on the target by hand during a run: anything
 modified in that window is attributed to the run.
