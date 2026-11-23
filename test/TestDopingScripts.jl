@@ -20,6 +20,12 @@
 #     a method runs its samples at the counts n ≤ its cap only, and at the others has NaN
 #     in its seven columns of comptime_prob_tm.txt and gctime_prob_tm.txt, no block in its
 #     per-n files and no sample run; a cap below every count is refused before any output.
+#   - Comptime_prob_tm.jl's timing summaries leave out the samples that stopped early on
+#     Pmax (CAMPS-PP, PP): each method's seven columns of comptime_prob_tm.txt and
+#     gctime_prob_tm.txt are the mean, std. err. (over the kept count), quartiles and extrema
+#     of the per-sample times of its full-trajectory samples, all NaN if none is; CAMPS and
+#     MPS keep every sample; the per-sample timing files still list every sample; a warning
+#     names exactly each stopped sample.
 # The spec fixes the Comptime_prob_tm.jl seeds exactly; for TransferredMag_varparams.jl it
 # fixes only what each stream depends on, so those checks are relational. Each relational
 # check asserts that the signature of the wrong seeding (e.g. "nested for every sample")
@@ -27,7 +33,7 @@
 # independent draws show the signature everywhere, so none of them passes by luck.
 #
 #   julia --project=. -t 2 test/TestDopingScripts.jl   (also run by test/runtests.jl)
-# About 4 min: four script runs of 30–60 s (mostly compilation) and seven refused runs of 5 s.
+# About 7 min: five script runs of 30–110 s (mostly compilation) and seven refused runs of 5 s.
 #
 # STABSANDWICH_SCRIPT_DIR (default: the repository root) points the runs at another copy of
 # the scripts; used for the scratch mutants of item 9, not by the suite.
@@ -36,6 +42,7 @@ using Test
 using CampsPP
 using CampsPP.DisentangleCAMPS
 using Random: MersenneTwister
+using Statistics: mean, std, quantile
 
 const ROOT = dirname(@__DIR__)
 const SCRIPT_DIR = get(ENV, "STABSANDWICH_SCRIPT_DIR", ROOT)
@@ -398,6 +405,129 @@ function check_nmax(dir, stdout_)
   return r
 end
 
+# -- Comptime_prob_tm.jl, samples stopped on Pmax -------------------------------------------
+# One run at N = 8 with 6 samples, counts 0, 3, 6, T, all four methods, every truncation
+# threshold 0 except CAMPS' (as in CT_ARGS), so which samples stop is deterministic:
+#   campspp: χ = 2 makes it switch to PP at a sample-dependent gate, and Pmax = 2000 then
+#            stops some samples: none at n = 0 (no doping, never switches), some at n = 3
+#            and 6, all at n = T (2026-11-23: 0, 1, 1, 6 stopped);
+#   pp:      Pmax = 2000 stops every sample at every n (at pp_thl = 0 the Pauli count does
+#            not depend on the state or mask: 9929 terms after layer 2 of 4);
+#   camps:   capped at n = 3, so it runs at a count where CAMPS-PP has both kinds of sample
+#            (a block that took CAMPS-PP's kept flags would show there) and stays short;
+#   mps:     every n.
+# Which samples stopped is read from what ran (an ⟨O⟩ trajectory short of N/2 + 1 points),
+# not pinned, and the scenario's coverage is checked so the summary checks are not vacuous.
+const PMAX_SAMPLES = 6
+const PMAX_COUNTS = [0, 3, 6, CT_T]
+const PMAX_CAPS = Dict("campspp" => CT_T, "camps" => 3, "mps" => CT_T, "pp" => CT_T)
+const PMAX_ARGS = ["N=$CT_N", "samples=$PMAX_SAMPLES", "methods=$(join(CT_METHODS, ','))",
+                   "magic_counts=$(join(PMAX_COUNTS, ','))", "camps_nmax=3",
+                   "camps_thl=1e-11", "mps_thl=0", "pp_thl=0", "campspp_thl=0",
+                   "campspp_χ=2", "campspp_Pmax=2000", "pp_Pmax=2000"]
+const PMAX_PROGRESS = Dict("CAMPS-PP" => "campspp", "PP" => "pp")
+
+"""
+Per-sample times of a `comptime_full_prob_tm_<method>.txt` file: `Dict(n => rows)`, each row
+`[sample, time, GC time]`.
+"""
+sample_times(path) = Dict(n => [parse.(Float64, split(l)) for l in lines]
+                          for (n, _, lines) in label_blocks(path))
+
+"""
+The seven summary columns of `xs` (§ Comptime_prob_tm.jl output): mean, std. err. (std over
+√length(xs)), q1, median, q3, min, max; all NaN if `xs` is empty.
+"""
+time_summary(xs) = isempty(xs) ? fill(NaN, 7) :
+  [mean(xs), std(xs) / sqrt(length(xs)), quantile(xs, [0.25, 0.5, 0.75])...,
+   minimum(xs), maximum(xs)]
+
+"Elementwise equal up to rounding (values are written at full precision), NaN = NaN."
+same_summary(a, b) = length(a) == length(b) &&
+  all(isnan(x) ? isnan(y) : isapprox(x, y; rtol = 1e-12) for (x, y) in zip(a, b))
+
+"""
+Checks on a Comptime_prob_tm.jl output directory and stdout from the run with PMAX_ARGS;
+returns a Dict of named Bools.
+"""
+function check_pmax(dir, stdout_)
+  S, counts = PMAX_SAMPLES, PMAX_COUNTS
+  runs = Dict(m => filter(<=(PMAX_CAPS[m]), counts) for m in CT_METHODS)
+  r = Dict{String, Bool}()
+
+  # What stopped, from what ran: a sample whose ⟨O⟩ trajectory misses the final layer
+  stopped = Dict{Tuple{String, Int}, Vector{Int}}()
+  times = Dict{String, Dict{Int, Vector{Vector{Float64}}}}()
+  for m in CT_METHODS
+    evs = sample_evs(joinpath(dir, "evs_prob_tm_$(m)_exact_full.txt"))
+    times[m] = sample_times(joinpath(dir, "comptime_full_prob_tm_$m.txt"))
+    r["$m: ⟨O⟩ of every sample at each n it ran"] =
+      sort(collect(keys(evs))) == runs[m] && all(length(evs[n]) == S for n in runs[m])
+    # Per-sample timing files are unchanged: every sample, the stopped ones included
+    r["$m: per-sample times list every sample at each n it ran"] =
+      sort(collect(keys(times[m]))) == runs[m] &&
+      all([row[1] for row in times[m][n]] == 1:S && all(length.(times[m][n]) .== 3)
+          for n in runs[m])
+    r["$m: ⟨O⟩ of every sample at each n it ran"] &&
+      r["$m: per-sample times list every sample at each n it ran"] || return r
+    for n in runs[m]
+      stopped[(m, n)] = [s for s in 1:S if length(evs[n][s]) < CT_LAYERS + 1]
+    end
+  end
+  nstopped(m) = [length(stopped[(m, n)]) for n in runs[m]]
+
+  # Scenario coverage: CAMPS-PP has an n with no sample stopped, one with some stopped and
+  # at least 2 kept (so the std. err. is finite and its √(kept count) differs from √S), and
+  # one with all stopped; PP stops everywhere; CAMPS and MPS never stop
+  r["scenario: campspp has n with none, some (≥ 2 kept) and all stopped"] =
+    0 in nstopped("campspp") && any(1 <= k <= S - 2 for k in nstopped("campspp")) &&
+    S in nstopped("campspp")
+  r["scenario: pp stops every sample at every n"] = all(==(S), nstopped("pp"))
+  r["scenario: camps and mps never stop"] = all(==(0), [nstopped("camps"); nstopped("mps")])
+
+  # The summaries: per method, the seven columns at each n are the summary of the per-sample
+  # times (column 2) or GC times (column 3) of the samples that did not stop; NaN where the
+  # method did not run or every sample stopped
+  for (f, col) in (("comptime_prob_tm.txt", 2), ("gctime_prob_tm.txt", 3))
+    rows = [parse.(Float64, split(l)) for l in readlines(joinpath(dir, f))
+            if !isempty(l) && !startswith(l, '#')]
+    shape_ok = [row[1] for row in rows] == counts &&
+               all(length(row) == 1 + 7 * length(CT_METHODS) for row in rows)
+    r["$f: one row per n, 1 + 7·4 fields"] = shape_ok
+    shape_ok || continue
+    for (k, m) in enumerate(CT_METHODS)
+      cols = 1 + 7 * (k - 1) .+ (1:7)
+      r["$f, $m: summary over the samples that did not stop"] = all(
+        same_summary(row[cols], n in runs[m] ?
+          time_summary([times[m][n][s][col] for s in setdiff(1:S, stopped[(m, n)])]) :
+          fill(NaN, 7))
+        for (n, row) in zip(counts, rows))
+    end
+  end
+
+  # Negative check: at each CAMPS-PP count with both kinds of sample, the summary over every
+  # sample differs from the one over the kept samples in its mean and std. err. (and the
+  # kept samples' std over √S differs from it over √(kept count)), so the check above tells
+  # the exclusion apart from no exclusion
+  mixed = [n for n in counts if 1 <= length(stopped[("campspp", n)]) <= S - 2]
+  r["negative: kept-only summary differs from all-sample one (mean, std. err.)"] = all(begin
+      ts = [row[2] for row in times["campspp"][n]]
+      kept = ts[setdiff(1:S, stopped[("campspp", n)])]
+      all_, kept_ = time_summary(ts), time_summary(kept)
+      !isapprox(all_[1], kept_[1]; rtol = 1e-6) && !isapprox(all_[2], kept_[2]; rtol = 1e-6) &&
+        !isapprox(std(kept) / sqrt(S), kept_[2]; rtol = 1e-6)
+    end for n in mixed)
+
+  # A warning names exactly each stopped sample (stdout)
+  warned = Dict{Tuple{String, Int}, Vector{Int}}()
+  for mt in eachmatch(r"WARNING: (CAMPS-PP|PP) sample (\d+) for n=(\d+) stopped early \(excluded from the timing statistics\)!", stdout_)
+    push!(get!(warned, (PMAX_PROGRESS[mt[1]], parse(Int, mt[3])), Int[]), parse(Int, mt[2]))
+  end
+  r["stdout: a warning names exactly each stopped sample"] =
+    Dict(k => sort(v) for (k, v) in warned) == filter(kv -> !isempty(kv[2]), stopped)
+  return r
+end
+
 # -- TransferredMag_varparams.jl -----------------------------------------------------------
 # N = 8, t = N ÷ 2 = 4 layers: T = 28 triples. 20 samples, so that the relational checks
 # below have negligible false-failure probabilities (bounds at each check).
@@ -563,6 +693,14 @@ end
       @test code == 0
       code == 0 ? test_checks(check_nmax(out, stdout_)) :
                   @info "Comptime_prob_tm.jl (caps) failed" stdout_ err
+    end
+
+    @testset "Comptime_prob_tm.jl, samples stopped on Pmax" begin
+      out = joinpath(dir, "ctpmax")
+      code, stdout_, err = run_script("Comptime_prob_tm.jl", PMAX_ARGS..., "outdir=$out")
+      @test code == 0
+      code == 0 ? test_checks(check_pmax(out, stdout_)) :
+                  @info "Comptime_prob_tm.jl (Pmax) failed" stdout_ err
     end
 
     # A cap below the first count (camps would never run) is refused before any output;
