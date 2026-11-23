@@ -16,6 +16,10 @@
 #     each, n = T included.
 #   - Both scripts refuse n = T + 1 and count lists that are not strictly increasing, before
 #     writing any output.
+#   - Comptime_prob_tm.jl's per-method caps (campspp_nmax, camps_nmax, mps_nmax, pp_nmax):
+#     a method runs its samples at the counts n ≤ its cap only, and at the others has NaN
+#     in its seven columns of comptime_prob_tm.txt and gctime_prob_tm.txt, no block in its
+#     per-n files and no sample run; a cap below every count is refused before any output.
 # The spec fixes the Comptime_prob_tm.jl seeds exactly; for TransferredMag_varparams.jl it
 # fixes only what each stream depends on, so those checks are relational. Each relational
 # check asserts that the signature of the wrong seeding (e.g. "nested for every sample")
@@ -23,7 +27,7 @@
 # independent draws show the signature everywhere, so none of them passes by luck.
 #
 #   julia --project=. -t 2 test/TestDopingScripts.jl   (also run by test/runtests.jl)
-# About 3 min: three script runs of 30–60 s (mostly compilation) and six refused runs of 5 s.
+# About 4 min: four script runs of 30–60 s (mostly compilation) and seven refused runs of 5 s.
 #
 # STABSANDWICH_SCRIPT_DIR (default: the repository root) points the runs at another copy of
 # the scripts; used for the scratch mutants of item 9, not by the suite.
@@ -206,6 +210,16 @@ const CT_MAGIC = Dict(:xy => 3π/16, :z => π/3)
 # exact-regime tolerance is kept for it too, not loosened.
 const CT_ATOL = 1e-10
 
+# §2: sample s's mask at count n is doping_mask_count(MersenneTwister(hash((rng_seed + s, n))), …),
+# its initial state from seed rng_seed + s, the same for every n (s = 0: the warm-up sample)
+ct_spec_mask(n, s) = findall(doping_mask_count(MersenneTwister(hash((CT_SEED + s, n))),
+                                               last(xxz_circuit(π/4, π/4, CT_LAYERS, CT_N)), n))
+ct_spec_ones(s) = domainwallstate(MersenneTwister(CT_SEED + s), CT_N, CT_μ)[2]
+"Dense ⟨O⟩ of sample `s` at count `n` in magic mode `mode`, at the script defaults."
+ct_dense(n, s, mode) = dense_tm(CT_N, CT_LAYERS, ct_spec_ones(s),
+  spec_phases(CT_N, CT_LAYERS, ct_spec_mask(n, s), mode; ϕ_xy = π/4, ϕ_z = π/4,
+              magicphase = CT_MAGIC[mode]))
+
 """
 Spec checks on a Comptime_prob_tm.jl output directory run with `counts`, `methods` and
 magic mode `mode`; returns a Dict of named Bools.
@@ -219,10 +233,7 @@ function check_comptime(dir; counts, methods, mode)
     occursin("magic_counts=$(join(counts, ','))", header) &&
     occursin("ϕ=$(π/4) θ=$(π/4)", header) && occursin("magic_mode=$mode", header)
 
-  # §2: sample i's mask is doping_mask_count(MersenneTwister(hash((rng_seed + i, n))), …)
-  _, phases = xxz_circuit(π/4, π/4, t, N)
-  spec_mask(n, s) = findall(doping_mask_count(MersenneTwister(hash((CT_SEED + s, n))), phases, n))
-  spec_ones(s) = domainwallstate(MersenneTwister(CT_SEED + s), N, CT_μ)[2]
+  spec_mask, spec_ones = ct_spec_mask, ct_spec_ones
 
   doped = doped_gates(joinpath(dir, "doped_prob_tm.txt"))
   r["doped file parses"] = doped !== nothing && sort(collect(keys(doped))) == counts &&
@@ -263,9 +274,7 @@ function check_comptime(dir; counts, methods, mode)
   # What ran, not only what was recorded (review follow-ups 4 and 5): each method's ⟨O⟩ of
   # sample s at count n equals the dense ⟨O⟩ on the spec's state and mask for (s, n). This is
   # also "the same mask for every method", block by block.
-  dense = Dict((n, s) => dense_tm(N, t, spec_ones(s),
-                 spec_phases(N, t, spec_mask(n, s), mode; ϕ_xy = π/4, ϕ_z = π/4,
-                             magicphase = CT_MAGIC[mode]))
+  dense = Dict((n, s) => ct_dense(n, s, mode)
                for n in counts, s in 0:CT_SAMPLES)          # s = 0: the warm-up sample
   for m in methods
     evs = sample_evs(joinpath(dir, "evs_prob_tm_$(m)_10_full.txt"))
@@ -299,6 +308,92 @@ function check_comptime(dir; counts, methods, mode)
             if !isempty(strip(l)) && !startswith(l, '#')]
     r["campspp never switched (exact regime)"] =
       length(rows) == length(counts) * CT_SAMPLES && all(f[2] == string(3T) for f in rows)
+  end
+  return r
+end
+
+# -- Comptime_prob_tm.jl, per-method caps --------------------------------------------------
+# One run at the CT_ARGS settings (exact regime) with counts 0, 3, 10, T, and a different
+# run set per method, so a cap read from another method's parameter, or compared with < for
+# ≤, shows up:
+#   campspp: its default, the largest count (of the magic_counts override, not of the
+#            script's own list) → every n;
+#   camps:   10, a count (n = cap runs) → 0, 3, 10;
+#   mps:     0, the first count → 0 only;
+#   pp:      5, between counts → 0, 3.
+const NMAX_COUNTS = [0, 3, 10, CT_T]
+const NMAX_CAPS = Dict("camps" => 10, "mps" => 0, "pp" => 5)    # campspp: the default
+const NMAX_PROGRESS = Dict("CAMPS-PP" => "campspp", "CAMPS" => "camps", "MPS" => "mps",
+                           "PP" => "pp")
+
+"""
+Checks on a Comptime_prob_tm.jl output directory and stdout from the run with NMAX_COUNTS
+and NMAX_CAPS; returns a Dict of named Bools.
+"""
+function check_nmax(dir, stdout_)
+  counts = NMAX_COUNTS
+  caps = merge(Dict("campspp" => maximum(counts)), NMAX_CAPS)
+  runs = Dict(m => filter(<=(caps[m]), counts) for m in CT_METHODS)
+  r = Dict{String, Bool}()
+
+  header = readline(joinpath(dir, "comptime_prob_tm.txt"))
+  r["header lists each cap (campspp: the largest count)"] =
+    all(occursin(Regex("\\b$(m)_nmax=$(caps[m])\\b"), header) for m in CT_METHODS)
+
+  # Seven columns per method, in `methods` order after the n column: all finite where the
+  # method ran, all NaN where it did not
+  for f in ("comptime_prob_tm.txt", "gctime_prob_tm.txt")
+    rows = [parse.(Float64, split(l)) for l in readlines(joinpath(dir, f))
+            if !isempty(l) && !startswith(l, '#')]
+    shape_ok = [row[1] for row in rows] == counts &&
+               all(length(row) == 1 + 7 * length(CT_METHODS) for row in rows)
+    r["$f: one row per n, 1 + 7·4 fields"] = shape_ok
+    shape_ok || continue
+    for (k, m) in enumerate(CT_METHODS)
+      cols = 1 + 7 * (k - 1) .+ (1:7)
+      r["$f, $m: finite at n ≤ $(caps[m]), NaN above"] = all(
+        n in runs[m] ? all(isfinite, row[cols]) : all(isnan, row[cols])
+        for (n, row) in zip(counts, rows))
+    end
+  end
+
+  # Every labelled file of method m (name has `_<m>_` or `_<m>.`, plus CAMPS-PP's switch
+  # file) has blocks at exactly the counts it ran; the doped gates are still written for
+  # every n
+  files = filter(f -> endswith(f, ".txt") && !endswith(f, "_log.txt"), readdir(dir))
+  for m in CT_METHODS
+    mfiles = filter(f -> occursin(Regex("_$(m)[_.]"), f) ||
+                         (m == "campspp" && f == "campspp_switch_prob_tm.txt"), files)
+    r["$m: per-n files found"] = length(mfiles) >= 3    # MPS: times, evs, evs full
+    r["$m: blocks exactly at n ≤ $(caps[m])"] = all(
+      unique(b[1] for b in label_blocks(joinpath(dir, f))) == runs[m] for f in mfiles)
+  end
+  doped = doped_gates(joinpath(dir, "doped_prob_tm.txt"))
+  r["doped gates written for every n"] = doped !== nothing && sort(collect(keys(doped))) == counts
+
+  # What ran is still right (skipping a method does not shift the others' masks or states):
+  # per-sample ⟨O⟩ = dense at each count the method ran
+  for m in CT_METHODS
+    evs = sample_evs(joinpath(dir, "evs_prob_tm_$(m)_10_full.txt"))
+    r["$m: ⟨O⟩ = dense at each n it ran"] = sort(collect(keys(evs))) == runs[m] && all(
+      length(evs[n]) == CT_SAMPLES &&
+      all(maxabsdiff(evs[n][s], ct_dense(n, s, :xy)) <= CT_ATOL for s in 1:CT_SAMPLES)
+      for n in runs[m])
+  end
+
+  # The work itself is skipped, not only its output: the progress log (frac = 0, one line
+  # per sample, on stdout) lists samples 1…samples of m at exactly the counts it ran, and
+  # each skip is logged
+  ran = Dict(m => Dict{Int, Vector{Int}}() for m in CT_METHODS)
+  for mt in eachmatch(r"\] n=(\d+) (CAMPS-PP|CAMPS|MPS|PP) sample (\d+)/", stdout_)
+    push!(get!(ran[NMAX_PROGRESS[mt[2]]], parse(Int, mt[1]), Int[]), parse(Int, mt[3]))
+  end
+  for m in CT_METHODS
+    r["$m: samples run at exactly n ≤ $(caps[m])"] = sort(collect(keys(ran[m]))) == runs[m] &&
+      all(ran[m][n] == 1:CT_SAMPLES for n in runs[m])
+    r["$m: skip logged at each n > $(caps[m])"] = all(
+      occursin("n=$n: skipping $m (above $(m)_nmax = $(caps[m]))", stdout_)
+      for n in setdiff(counts, runs[m]))
   end
   return r
 end
@@ -427,13 +522,13 @@ end
 
 """
 Run `script` with `args`, expecting a refusal before any work (§2 Output labels): a nonzero
-exit, an error that names the doping counts, and no output file in `outdir` (the directory
-itself may exist).
+exit, an error matching `pattern` (default: one that names the doping counts), and no
+output file in `outdir` (the directory itself may exist).
 """
-function test_refused(script, outdir, args...)
+function test_refused(script, outdir, args...; pattern = r"[Dd]oping counts")
   code, out, err = run_script(script, args..., "outdir=$outdir")
   files = isdir(outdir) ? readdir(outdir) : String[]
-  ok = code != 0 && occursin(r"[Dd]oping counts", err) && isempty(files)
+  ok = code != 0 && occursin(pattern, err) && isempty(files)
   ok || @info "expected a refusal before any output" script args code files err
   @test ok
 end
@@ -458,6 +553,24 @@ end
       @test code == 0
       code == 0 ? test_checks(check_comptime(out; counts, methods = ["campspp"], mode = :z)) :
                   @info "Comptime_prob_tm.jl (z) failed" stdout_ err
+    end
+
+    @testset "Comptime_prob_tm.jl, per-method caps" begin
+      out = joinpath(dir, "ctnmax")
+      code, stdout_, err = run_script("Comptime_prob_tm.jl", CT_ARGS...,
+        "magic_counts=$(join(NMAX_COUNTS, ','))", ("$(m)_nmax=$c" for (m, c) in NMAX_CAPS)...,
+        "outdir=$out")
+      @test code == 0
+      code == 0 ? test_checks(check_nmax(out, stdout_)) :
+                  @info "Comptime_prob_tm.jl (caps) failed" stdout_ err
+    end
+
+    # A cap below the first count (camps would never run) is refused before any output;
+    # campspp's cap (its default) is fine, so the error is camps'
+    @testset "refused cap: camps_nmax below every count" begin
+      test_refused("Comptime_prob_tm.jl", joinpath(dir, "bad_nmax"), "N=8", "samples=1",
+        "methods=campspp,camps", "magic_counts=3,28", "camps_nmax=2";
+        pattern = r"camps_nmax = 2 is below every doping count")
     end
 
     @testset "TransferredMag_varparams.jl" begin
