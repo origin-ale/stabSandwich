@@ -157,8 +157,8 @@ gcq3_methods = Dict(m => Real[] for m in methods)
 gcmin_methods = Dict(m => Real[] for m in methods)
 gcmax_methods = Dict(m => Real[] for m in methods)
 
-# Every per-n summary column above; a method skipped at some n gets NaN in each,
-# so the columns of comptime_prob_tm.txt and gctime_prob_tm.txt stay aligned
+# Every per-n summary column above; a method skipped at some n (or whose samples
+# all stopped on Pmax) gets NaN in each, so the columns of comptime_prob_tm.txt and gctime_prob_tm.txt stay aligned
 summary_columns = (times_methods, stds_methods, gctimes_methods, gcstds_methods,
   timeq1_methods, timemed_methods, timeq3_methods, timemin_methods, timemax_methods,
   gcq1_methods, gcmed_methods, gcq3_methods, gcmin_methods, gcmax_methods)
@@ -172,6 +172,27 @@ function push_quartiles!(q1s, meds, q3s, mins, maxs, m, vals)
   push!(q3s[m], q3)
   push!(mins[m], minimum(vals))
   push!(maxs[m], maximum(vals))
+end
+
+""" Push the timing summary of method `m` at one n onto every column of
+`summary_columns`: mean, standard error, quartiles and extrema of the wall-clock
+`times` and GC `gctimes`, over the samples `i` with `kept[i]` true only (samples
+that stopped early on Pmax are cut short, so they would bias the timings down).
+If no sample is kept, every column gets NaN. """
+function push_time_stats!(m, times, gctimes, kept)
+  ts, gcs = times[kept], gctimes[kept]
+  if isempty(ts)
+    foreach(d -> push!(d[m], NaN), summary_columns)
+    return
+  end
+  push!(times_methods[m], mean(ts))
+  push!(stds_methods[m], std(ts) / sqrt(length(ts)))
+  push!(gctimes_methods[m], mean(gcs))
+  push!(gcstds_methods[m], std(gcs) / sqrt(length(gcs)))
+  push_quartiles!(timeq1_methods, timemed_methods, timeq3_methods,
+    timemin_methods, timemax_methods, m, ts)
+  push_quartiles!(gcq1_methods, gcmed_methods, gcq3_methods,
+    gcmin_methods, gcmax_methods, m, gcs)
 end
 
 """ Indices of the samples whose ⟨O⟩ trajectories in `as` and `bs` differ by \
@@ -363,6 +384,7 @@ for magic_count in magic_counts
     switch_gates = Int[]
     switch_ks = Int[]
     stop_gates = Int[]
+    kept = Bool[]
     _ = @timed campspp_circuit_dynamics(
       ψ_wu,
       campspp_χ,
@@ -387,9 +409,11 @@ for magic_count in magic_counts
         campspp_log,
         layer_ends = layer_ends,
         track = true)
-      if length(evs) < N/2+1
-        log_message("WARNING: CAMPS-PP sample $i for n=$magic_count stopped early!")
+      stopped = length(evs) < N/2+1
+      if stopped
+        log_message("WARNING: CAMPS-PP sample $i for n=$magic_count stopped early (excluded from the timing statistics)!")
       end
+      push!(kept, !stopped)
       push!(evs_campspp, evs)
       push!(times_curr, time)
       push!(gctimes_curr, gctime)
@@ -404,16 +428,7 @@ for magic_count in magic_counts
       push!(pcs_samples, [fill(missing, length(bds) - 1); pcs])
       log_progress!(prog, i)
     end
-    time_campspp = mean(times_curr)
-    std_campspp = std(times_curr) / sqrt(samples)
-    push!(times_methods[:campspp], time_campspp)
-    push!(stds_methods[:campspp], std_campspp)
-    push!(gctimes_methods[:campspp], mean(gctimes_curr))
-    push!(gcstds_methods[:campspp], std(gctimes_curr) / sqrt(samples))
-    push_quartiles!(timeq1_methods, timemed_methods, timeq3_methods,
-      timemin_methods, timemax_methods, :campspp, times_curr)
-    push_quartiles!(gcq1_methods, gcmed_methods, gcq3_methods,
-      gcmin_methods, gcmax_methods, :campspp, gctimes_curr)
+    push_time_stats!(:campspp, times_curr, gctimes_curr, kept)
     save_stats_maxcol(bd_outputs[:campspp], bds_samples, μ, dope_label)
     save_stats_maxcol(np_outputs[:campspp], nps_samples, μ, dope_label)
     save_stats_maxcol(pw_outputs[:campspp], pws_samples, μ, dope_label)
@@ -471,16 +486,8 @@ for magic_count in magic_counts
       push!(bds_samples, bds)
       log_progress!(prog, i)
     end
-    time_camps = mean(times_curr)
-    std_camps = std(times_curr) / sqrt(samples)
-    push!(times_methods[:camps], time_camps)
-    push!(stds_methods[:camps], std_camps)
-    push!(gctimes_methods[:camps], mean(gctimes_curr))
-    push!(gcstds_methods[:camps], std(gctimes_curr) / sqrt(samples))
-    push_quartiles!(timeq1_methods, timemed_methods, timeq3_methods,
-      timemin_methods, timemax_methods, :camps, times_curr)
-    push_quartiles!(gcq1_methods, gcmed_methods, gcq3_methods,
-      gcmin_methods, gcmax_methods, :camps, gctimes_curr)
+    # CAMPS has no Pmax: every sample runs the whole circuit
+    push_time_stats!(:camps, times_curr, gctimes_curr, trues(length(times_curr)))
     save_stats_maxcol(bd_outputs[:camps], bds_samples, μ, dope_label)
     save_stats(evs_outputs[:camps], stack_samples(evs_camps), μ, dope_label)
     save_per_sample(times_full_outputs[:camps], μ, dope_label, times_curr, gctimes_curr)
@@ -521,16 +528,8 @@ for magic_count in magic_counts
       push!(gctimes_curr, gctime)
       log_progress!(prog, i)
     end
-    time_mps = mean(times_curr)
-    std_mps = std(times_curr) / sqrt(samples)
-    push!(times_methods[:mps], time_mps)
-    push!(stds_methods[:mps], std_mps)
-    push!(gctimes_methods[:mps], mean(gctimes_curr))
-    push!(gcstds_methods[:mps], std(gctimes_curr) / sqrt(samples))
-    push_quartiles!(timeq1_methods, timemed_methods, timeq3_methods,
-      timemin_methods, timemax_methods, :mps, times_curr)
-    push_quartiles!(gcq1_methods, gcmed_methods, gcq3_methods,
-      gcmin_methods, gcmax_methods, :mps, gctimes_curr)
+    # MPS has no Pmax: every sample runs the whole circuit
+    push_time_stats!(:mps, times_curr, gctimes_curr, trues(length(times_curr)))
     save_stats(evs_outputs[:mps], stack_samples(evs_mps), μ, dope_label)
     save_per_sample(times_full_outputs[:mps], μ, dope_label, times_curr, gctimes_curr)
     save_full_samples(evs_full_outputs[:mps], μ, dope_label, stack_samples(evs_mps))
@@ -547,6 +546,7 @@ for magic_count in magic_counts
     pws_samples = Vector{Float64}[]
     pcs_samples = Vector{Float64}[]
     evs_pp = Vector{Real}[]
+    kept = Bool[]
     _ = @timed pauliprop_circuit_dynamics(
       obi_wu,
       gates,
@@ -569,9 +569,11 @@ for magic_count in magic_counts
         pp_log;
         layer_ends = layer_ends,
         track = true)
-      if length(evs) < N/2+1
-        log_message("WARNING: PP sample $i for n=$magic_count stopped early!")
+      stopped = length(evs) < N/2+1
+      if stopped
+        log_message("WARNING: PP sample $i for n=$magic_count stopped early (excluded from the timing statistics)!")
       end
+      push!(kept, !stopped)
       push!(evs_pp, evs)
       push!(times_curr, time)
       push!(gctimes_curr, gctime)
@@ -580,16 +582,7 @@ for magic_count in magic_counts
       push!(pcs_samples, pcs)
       log_progress!(prog, i)
     end
-    time_pp = mean(times_curr)
-    std_pp = std(times_curr) / sqrt(samples)
-    push!(times_methods[:pp], time_pp)
-    push!(stds_methods[:pp], std_pp)
-    push!(gctimes_methods[:pp], mean(gctimes_curr))
-    push!(gcstds_methods[:pp], std(gctimes_curr) / sqrt(samples))
-    push_quartiles!(timeq1_methods, timemed_methods, timeq3_methods,
-      timemin_methods, timemax_methods, :pp, times_curr)
-    push_quartiles!(gcq1_methods, gcmed_methods, gcq3_methods,
-      gcmin_methods, gcmax_methods, :pp, gctimes_curr)
+    push_time_stats!(:pp, times_curr, gctimes_curr, kept)
     save_stats_maxcol(np_outputs[:pp], nps_samples, μ, dope_label)
     save_stats_maxcol(pw_outputs[:pp], pws_samples, μ, dope_label)
     save_stats_maxcol(pc_outputs[:pp], pcs_samples, μ, dope_label)
@@ -622,7 +615,7 @@ for magic_count in magic_counts
   # Seven columns per method: mean, std. err., then q1/median/q3/min/max
   # (ordered for gnuplot `with candlesticks`, whiskers at the extrema)
   initialize_output(output,
-    "[n (doped triples per sample), then per method: mean time (s), std. err., q1, median, q3, min, max; NaN = method not run at that n]",
+    "[n (doped triples per sample), then per method: mean time (s), std. err., q1, median, q3, min, max; samples stopped on Pmax excluded; NaN = method not run at that n, or all its samples stopped]",
     param_info)
   save_columns(output, magic_counts,
     (col for m in methods for col in (times_methods[m], stds_methods[m],
@@ -630,7 +623,7 @@ for magic_count in magic_counts
       timemin_methods[m], timemax_methods[m]))...)
 
   initialize_output(gctime_output,
-    "[n (doped triples per sample), then per method: mean GC time (s), std. err., q1, median, q3, min, max; NaN = method not run at that n]",
+    "[n (doped triples per sample), then per method: mean GC time (s), std. err., q1, median, q3, min, max; samples stopped on Pmax excluded; NaN = method not run at that n, or all its samples stopped]",
     param_info)
   save_columns(gctime_output, magic_counts,
     (col for m in methods for col in (gctimes_methods[m], gcstds_methods[m],
