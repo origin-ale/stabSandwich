@@ -27,7 +27,7 @@ params = @parameters begin
   # Each sample dopes exactly n of the (N-1)·N/2 triples, drawn uniformly without
   # replacement (at N=46, 1035 triples: n = 10, 20, 40 are about the old p = 0.01,
   # 0.02, 0.04)
-  magic_counts = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45]
+  magic_counts = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80]
 
   samples = 25
   # Base RNG seed: sample i draws its initial state from seed rng_seed + i (100
@@ -37,6 +37,13 @@ params = @parameters begin
 
   ϕ = π/4
   θ = π/4
+
+  # Per method, the largest doping count n it is run for (counts above it are skipped:
+  # NaN in the time columns, no block in the method's per-n files)
+  campspp_nmax = maximum(magic_counts; init = 0)
+  camps_nmax = maximum(magic_counts; init = 0)
+  mps_nmax = maximum(magic_counts; init = 0)
+  pp_nmax = maximum(magic_counts; init = 0)
 
   # CAMPS-PP (sandwich, ie. s-)
   campspp_χ = 64 # s-CAMPS bond dimension that triggers s-PP
@@ -100,6 +107,17 @@ let ntriples = length(last(xxz_circuit(ϕ, θ, N/2, N))) ÷ 3  # XXZ triples in 
 end
 samples >= 1 || error("Need at least 1 sample, got $samples")
 
+nmax_methods = Dict(:campspp => campspp_nmax, :camps => camps_nmax,
+  :mps => mps_nmax, :pp => pp_nmax)
+for m in methods
+  nmax = nmax_methods[m]
+  nmax isa Integer || error("$(m)_nmax must be an integer, got $nmax")
+  nmax >= first(magic_counts) ||
+    error("$(m)_nmax = $nmax is below every doping count ($magic_counts): $m would never run")
+end
+# Whether method `m` is run at doping count `n`
+runs_at(m, n) = m in methods && n <= nmax_methods[m]
+
 param_info = param_header(params; exclude = (:outdir,))
 
 if magic_mode == :xy
@@ -138,6 +156,12 @@ gcmed_methods = Dict(m => Real[] for m in methods)
 gcq3_methods = Dict(m => Real[] for m in methods)
 gcmin_methods = Dict(m => Real[] for m in methods)
 gcmax_methods = Dict(m => Real[] for m in methods)
+
+# Every per-n summary column above; a method skipped at some n gets NaN in each,
+# so the columns of comptime_prob_tm.txt and gctime_prob_tm.txt stay aligned
+summary_columns = (times_methods, stds_methods, gctimes_methods, gcstds_methods,
+  timeq1_methods, timemed_methods, timeq3_methods, timemin_methods, timemax_methods,
+  gcq1_methods, gcmed_methods, gcq3_methods, gcmin_methods, gcmax_methods)
 
 """ Push the quartiles and extrema of `vals` onto the matching per-method
 columns. """
@@ -301,6 +325,12 @@ for magic_count in magic_counts
   dope_label = "n" => magic_count
   evs_campspp = evs_camps = evs_mps = evs_pp = nothing
 
+  for m in methods
+    runs_at(m, magic_count) && continue
+    log_message("n=$magic_count: skipping $m (above $(m)_nmax = $(nmax_methods[m]))")
+    foreach(d -> push!(d[m], NaN), summary_columns)
+  end
+
   # Doping masks are fixed by the sample seed *and* the count n (exactly n triples,
   # uniform without replacement), so they are identical across methods for a given
   # sample yet independent across counts (no nesting). Index 0 is the warm-up sample.
@@ -319,7 +349,7 @@ for magic_count in magic_counts
     dope_label)
 
   # == CAMPS-PP ===============================================================
-  if :campspp in methods
+  if runs_at(:campspp, magic_count)
     prog = ProgressLog("n=$magic_count CAMPS-PP sample", samples; frac = 0)
 
     ψ_wu, tm_wu, gates, phases = init_camps(N, onebitinds_wu, mask_wu)
@@ -403,7 +433,7 @@ for magic_count in magic_counts
   end
 
   # == CAMPS ==================================================================
-  if :camps in methods
+  if runs_at(:camps, magic_count)
     prog = ProgressLog("n=$magic_count CAMPS sample", samples; frac = 0)
 
     ψ_wu, tm_wu, gates, phases = init_camps(N, onebitinds_wu, mask_wu)
@@ -460,7 +490,7 @@ for magic_count in magic_counts
   end
 
   # == MPS ==================================================================
-  if :mps in methods
+  if runs_at(:mps, magic_count)
     prog = ProgressLog("n=$magic_count MPS sample", samples; frac = 0)
 
     ψ_wu, tm_wu, gates, phases = init_mps(N, onebitinds_wu, mask_wu)
@@ -507,7 +537,7 @@ for magic_count in magic_counts
   end
 
   # == PP ====================================================================
-  if :pp in methods
+  if runs_at(:pp, magic_count)
     prog = ProgressLog("n=$magic_count PP sample", samples; frac = 0)
 
     obi_wu, tm_wu, gates, phases = init_pp(N, onebitinds_wu, mask_wu)
@@ -592,7 +622,7 @@ for magic_count in magic_counts
   # Seven columns per method: mean, std. err., then q1/median/q3/min/max
   # (ordered for gnuplot `with candlesticks`, whiskers at the extrema)
   initialize_output(output,
-    "[n (doped triples per sample), then per method: mean time (s), std. err., q1, median, q3, min, max]",
+    "[n (doped triples per sample), then per method: mean time (s), std. err., q1, median, q3, min, max; NaN = method not run at that n]",
     param_info)
   save_columns(output, magic_counts,
     (col for m in methods for col in (times_methods[m], stds_methods[m],
@@ -600,7 +630,7 @@ for magic_count in magic_counts
       timemin_methods[m], timemax_methods[m]))...)
 
   initialize_output(gctime_output,
-    "[n (doped triples per sample), then per method: mean GC time (s), std. err., q1, median, q3, min, max]",
+    "[n (doped triples per sample), then per method: mean GC time (s), std. err., q1, median, q3, min, max; NaN = method not run at that n]",
     param_info)
   save_columns(gctime_output, magic_counts,
     (col for m in methods for col in (gctimes_methods[m], gcstds_methods[m],
