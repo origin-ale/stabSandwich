@@ -8,7 +8,7 @@
 # Plots go to output/plots/RUN-ID/. The threshold suffix of the run's
 # evs_prob_tm_<method>_<suffix>.txt files is passed on; the computation-time
 # scripts find each method's column from the run's `methods` themselves and
-# plot whichever of CAMPS-PP and PP the run has. Scripts for a method the run
+# plot whichever of CAMPS-PP, CAMPS and PP the run has. Scripts for a method the run
 # didn't include are skipped. A script that fails doesn't stop the others; the
 # exit status is non-zero if any failed.
 set -uo pipefail
@@ -65,12 +65,17 @@ if has pp; then
 else
   skipped+=("boxplot_resources_prob_tm_pp, plot_resources_prob_tm_pp, plot_resources_peaks_pp, plot_comptime_peaks_pp (no pp)")
 fi
-# Computation time: whichever of the two methods the run has
-if has campspp || has pp; then
+if has camps; then
+  plot boxplot_resources_prob_tm_camps
+else
+  skipped+=("boxplot_resources_prob_tm_camps (no camps)")
+fi
+# Computation time: whichever of CAMPS-PP, CAMPS and PP the run has
+if has campspp || has camps || has pp; then
   plot plot_comptime_prob_tm
   plot plot_comptime_prob_tm_box
 else
-  skipped+=("plot_comptime_prob_tm, plot_comptime_prob_tm_box (neither campspp nor pp)")
+  skipped+=("plot_comptime_prob_tm, plot_comptime_prob_tm_box (none of campspp, camps, pp)")
 fi
 # Expectation values: a comparison, so both
 if has campspp && has pp; then

@@ -10,30 +10,21 @@
 # This is the distribution behind plot_comptime_prob_tm.plt, which shows only
 # the mean and its standard error.
 #
-# dir_campspp, dir_pp  directories holding each method's files
-#                      (default for both: the newest fetched run's copy of
-#                      output/Comptime_prob_tm, i.e. one run with methods=campspp,pp;
-#                      run=<id> picks another, see run.plt)
+# Methods: CAMPS-PP, CAMPS and PP, side by side at each n; a method the run
+# didn't include is left out.
+# dir_campspp, dir_camps, dir_pp  directories holding each method's files
+#     (default for all: the newest fetched run's copy of output/Comptime_prob_tm;
+#     run=<id> picks another, see run.plt). Once any is given, only the methods
+#     given one are plotted.
+# j_campspp, j_camps, j_pp  each method's 0-based position in its file's
+#     `methods`; -1 leaves the method out (default: read from the file's
+#     methods= header). See comptime_methods.plt.
 # Plots go to output/plots/<run id> (<id1>+<id2> for dirs from two runs).
-# j_campspp, j_pp      each method's 0-based position in its file's `methods`;
-#                      -1 leaves the method out (default: read from the file's
-#                      methods= header, -1 if the run didn't include the method,
-#                      0 for old files without the header, one method per file)
 # Old data (one method per run):
-#   gnuplot -e "dir_campspp='output/old/carlos_indep'; dir_pp='output/old/carlos_indep_pp'" plotting/plot_comptime_prob_tm_box.plt
+#   gnuplot -e "dir_campspp='output/old/carlos_indep'; dir_camps='output/old/carlos_indep_camps'; dir_pp='output/old/carlos_indep_pp'" plotting/plot_comptime_prob_tm_box.plt
 datadir = "output/Comptime_prob_tm"
 load "plotting/run.plt"
-if (!exists("dir_campspp")) { dir_campspp = rundir }
-if (!exists("dir_pp")) { dir_pp = rundir }
-if (!exists("j_campspp")) { j_campspp = method_pos(dir_campspp.'/comptime_prob_tm.txt', 'campspp') }
-if (!exists("j_pp")) { j_pp = method_pos(dir_pp.'/comptime_prob_tm.txt', 'pp') }
-# The methods to plot (a method the run didn't include is left out)
-mlist = (j_campspp >= 0 ? "campspp " : "").(j_pp >= 0 ? "pp" : "")
-if (words(mlist) == 0) {
-  print "plot_comptime_prob_tm_box.plt: neither campspp nor pp in the run's methods"
-  exit status 1
-}
-plotdir = plot_dir(dir_campspp." ".dir_pp)
+load "plotting/comptime_methods.plt"
 # x axis: n (doped triples per sample) for count-mode runs, p for p-based data
 xlab(f) = (system(sprintf("grep -ac 'magic_counts=' '%s'", f)) + 0 > 0) ? "Doped triples per sample" : "Magic probability"
 
@@ -54,13 +45,14 @@ set style fill solid 0.25 border lc rgb "black"
 col(j, q) = 2 + 7*j + q
 Q1 = 2; MED = 3; Q3 = 4; MIN = 5; MAX = 6; MEAN = 0
 
-# Per-method helpers: file `f` ("comptime" or "gctime") of method m, its column
-# offset, colours and label.
-fileof(m, f) = ((m eq "campspp") ? dir_campspp : dir_pp).'/'.f.'_prob_tm.txt'
-jof(m) = (m eq "campspp") ? j_campspp : j_pp
-boxc(m) = (m eq "campspp") ? "#4269d0" : "#efb118"
-darkc(m) = (m eq "campspp") ? "#1b3a8c" : "#9c7016"
-label(m) = (m eq "campspp") ? "CAMPS-PP" : "PP"
+# Per-method helpers: file `f` ("comptime" or "gctime") of method m, its
+# colours, label and truncation threshold (jof(m), its column offset, comes
+# from comptime_methods.plt).
+fileof(m, f) = dirof(m).'/'.f.'_prob_tm.txt'
+boxc(m) = pick(m, "#4269d0", "#3ca951", "#efb118")
+darkc(m) = pick(m, "#1b3a8c", "#1d6b30", "#9c7016")
+label(m) = pick(m, "CAMPS-PP", "CAMPS", "PP")
+thlof(m) = pick(m, "10^{-10}", "10^{-12}", "10^{-10}")
 first_file = fileof(word(mlist, 1), "comptime")
 set xlabel xlab(first_file)
 
@@ -76,18 +68,25 @@ if (system(sprintf("grep -ac 'magic_counts=' '%s'", first_file)) + 0 > 0) {
   dx = 0.18*xstep
 }
 set boxwidth bw absolute
-# Sideways offset of method m: none when it is the only one plotted. A lone
-# method's end boxes then sit on the autoscaled x edges, cut in half, so pad
-# the range by a box width (the offset pair already clears them).
-off(m) = (words(mlist) < 2) ? 0 : ((m eq "campspp") ? -dx : dx)
-if (words(mlist) < 2) { set autoscale xfix; set offsets bw, bw, 0, 0 }
+# Sideways offset of each method, centred on the tick: none for a lone method,
+# ±dx for two, and for three a spacing of 1.25 box widths (two methods'
+# 2*dx = 1.5 box widths would push the outer boxes into the next n's). A lone
+# method's end boxes sit on the autoscaled x edges, cut in half, so pad the
+# range by a box width (offset boxes already clear them).
+nm = words(mlist)
+sp = (nm == 3) ? 1.25*bw : 2*dx
+do for [i = 1:nm] {
+  eval sprintf("off_%s = %.17g", word(mlist, i), (nm < 2) ? 0 : (i - (nm + 1)/2.0)*sp)
+}
+off(m) = value("off_".m)
+if (nm < 2) { set autoscale xfix; set offsets bw, bw, 0, 0 }
 
 # == Wall-clock time ====================================================================
 set output plotdir."/CompTimes_prob_tm_box.png"
 
 plot for [m in mlist] fileof(m, "comptime") \
        using ($1+off(m)):col(jof(m),Q1):col(jof(m),MIN):col(jof(m),MAX):col(jof(m),Q3) \
-       with candlesticks whiskerbars 0.5 lc rgb boxc(m) title label(m).", thl 10^{-10}", \
+       with candlesticks whiskerbars 0.5 lc rgb boxc(m) title label(m).", thl ".thlof(m), \
      for [m in mlist] fileof(m, "comptime") \
        using ($1+off(m)):col(jof(m),MED):col(jof(m),MED):col(jof(m),MED):col(jof(m),MED) \
        with candlesticks lw 3 lc rgb darkc(m) notitle, \
@@ -119,7 +118,7 @@ if (gc_hi == 0) {
 
   plot for [m in mlist] fileof(m, "gctime") \
          using ($1+off(m)):col(jof(m),Q1):col(jof(m),MIN):col(jof(m),MAX):col(jof(m),Q3) \
-         with candlesticks whiskerbars 0.5 lc rgb boxc(m) title label(m).", thl 10^{-10}", \
+         with candlesticks whiskerbars 0.5 lc rgb boxc(m) title label(m).", thl ".thlof(m), \
        for [m in mlist] fileof(m, "gctime") \
          using ($1+off(m)):col(jof(m),MED):col(jof(m),MED):col(jof(m),MED):col(jof(m),MED) \
          with candlesticks lw 3 lc rgb darkc(m) notitle
