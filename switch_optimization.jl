@@ -49,35 +49,46 @@ obs_string = "Z₁"
 mkpath(outdir)
 out_full = joinpath(outdir, "M$(M)_switch_optimization_full_$(N).txt")
 out_avgs = joinpath(outdir, "M$(M)_switch_optimization_avgs_$(N).txt")
+# Same layout as out_full: the compile time (s) included in each timed sample
+out_compile = joinpath(outdir, "M$(M)_switch_optimization_compile_$(N).txt")
 param_info = [param_header(params; exclude = (:outdir, :switchpoints));
   "t" => string(t);
   "switchpoints" => join(switchpoints, ",");
   "obs" => obs_string]
 obsname = "⟨$obs_string⟩ computation time (s)"
+compilename = "compile time (s) inside the timed ⟨$obs_string⟩ computation"
 initialize_output(out_full, "$obsname, $Nsamples samples", param_info)
 initialize_output(out_avgs, "$obsname averages", param_info)
+initialize_output(out_compile, "$compilename, $Nsamples samples", param_info)
 
 log_message("Characterizing computation time of ⟨$obs_string⟩ on $(N)×$(t) random \
 rotation circuit with CAMPS-PP. Switch points: $switchpoints. Nsamples = $Nsamples, \
 $nthr threads.")
 prog = ProgressLog("sample", length(switchpoints) * Nsamples; frac = 0)
 
-times = []
+times = Vector{Float64}[]
+compile_times = Vector{Float64}[]
 rotations_precomp, phases_precomp = rotation_circuit(2, N)
 _ = @timed circuit_sandwich(rotations_precomp, phases_precomp, observable, 1)
 
 for (ic, c) in enumerate(switchpoints)
   times_c = Float64[]
+  compile_c = Float64[]
   for i in 1:Nsamples
     rotations, phases = rotation_circuit(t, N)
-    ev, tc, _ = @timed circuit_sandwich(rotations, phases, observable, c)
-    push!(times_c, tc)
+    st = @timed circuit_sandwich(rotations, phases, observable, c)
+    push!(times_c, st.time)
+    push!(compile_c, st.compile_time)
     log_progress!(prog, (ic - 1) * Nsamples + i, "c" => c, "sample" => "$i/$Nsamples")
   end
   push!(times, times_c)
+  push!(compile_times, compile_c)
 
   initialize_output(out_full, "$obsname, $Nsamples samples", param_info)
   save_rows(out_full, switchpoints[1:length(times)], times)
+
+  initialize_output(out_compile, "$compilename, $Nsamples samples", param_info)
+  save_rows(out_compile, switchpoints[1:length(compile_times)], compile_times)
 
   times_avg = mean.(times)
   times_err = @. std(times)/sqrt(Nsamples)
