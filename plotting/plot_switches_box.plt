@@ -12,14 +12,22 @@
 #
 # dir  input directory (default: the newest fetched run's copy of output/switch_optimization;
 #      run=<id> picks another, see run.plt). Plots go to output/plots/<run id>.
-# N    system size (default "20")
+# N    system size (default: the one in dir's _full_ files; the largest if there are several)
 # Ms   the M values to plot, space-separated (default: every M with a _full_<N> file in dir)
 # e.g. gnuplot -e "run='20261123-091438-switch_optimization'" plotting/plot_switches_box.plt
 datadir = "output/switch_optimization"
 load "plotting/run.plt"
 if (!exists("dir")) { dir = rundir }
 plotdir = plot_dir(dir)
-if (!exists("N")) { N = "20" }
+if (!exists("N")) {
+  Ns = system(sprintf("ls '%s' | sed -n 's/^M[0-9]*_switch_optimization_full_\\([0-9]*\\)\\.txt$/\\1/p' | sort -nu | paste -sd ' ' -", dir))
+  if (words(Ns) == 0) {
+    print "plot_switches_box.plt: no M*_switch_optimization_full_*.txt in ".dir
+    exit status 1
+  }
+  N = word(Ns, words(Ns))
+  if (words(Ns) > 1) { print "plot_switches_box.plt: ".dir." has N = ".Ns."; plotting N = ".N." (pass N=… for another)" }
+}
 if (!exists("Ms")) {
   Ms = system(sprintf("ls '%s' | sed -n 's/^M\\([0-9]*\\)_switch_optimization_full_%s\\.txt$/\\1/p' | sort -n | paste -sd ' ' -", dir, N))
 }
