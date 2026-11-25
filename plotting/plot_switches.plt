@@ -1,6 +1,10 @@
 # CAMPS-PP computation time against the switch point c, one curve per depth M (or per N, see runs).
 #
 # Input: M<M>_switch_optimization_avgs_<N>.txt as written by switch_optimization.jl.
+# If the run also wrote M<M>_switch_optimization_compile_<N>.txt (the compile time inside
+# each sample), the mean and its standard error are recomputed from the _full_ file's
+# samples with their compile time subtracted (see switch_times.sh), and the y label
+# says so.
 # dir  input directory (default: the newest fetched run's copy of output/switch_optimization;
 #      run=<id> picks another, see run.plt). Plots go to output/plots/<run id>.
 # runs several fetched runs, space-separated run ids, one curve per avgs file in each,
@@ -50,6 +54,16 @@ varN = ndistinct(Nof) > 1
 varM = ndistinct(Mof) > 1 || !varN
 N1 = word(Nof, 1)
 M1 = word(Mof, 1)
+# Per curve: the avgs file itself, or the compile-subtracted averages if there is a
+# compile file
+fullof(f) = f[1:strstrt(f, "_switch_optimization_avgs_") - 1]."_switch_optimization_full_".f[strstrt(f, "_switch_optimization_avgs_") + strlen("_switch_optimization_avgs_"):]
+hascompile(k) = system("plotting/switch_times.sh hascompile '".fullof(word(files, k))."'") + 0
+ncomp = 0
+do for [k = 1:words(files)] { ncomp = ncomp + hascompile(k) }
+if (ncomp > 0 && ncomp < words(files)) {
+  print "plot_switches.plt: only some curves have a compile file; compile time is subtracted for those only"
+}
+src(k) = hascompile(k) ? "< plotting/switch_times.sh avgs '".fullof(word(files, k))."'" : word(files, k)
 label(k) = (varN ? "N=".word(Nof, k) : "").(varN && varM ? ", " : "").(varM ? "M=".word(Mof, k) : "")
 
 set term png size 850, 600 font ",16"
@@ -60,7 +74,7 @@ set title "CAMPS-PP computation times, ".(varN ? "N×(N+".(varM ? "M" : M1).")" 
 set logscale y
 set format y "%.1f"
 set xlabel "c"
-set ylabel "Time (s)"
+set ylabel (ncomp == words(files) ? "Time excl. compilation (s)" : "Time (s)")
 
 if (exists("runs")) {
   set format y "%1g"
@@ -74,6 +88,6 @@ if (exists("runs")) {
   set key bottom
 }
 
-plot for [k = 1:words(files)] word(files, k) using 1:2:3 with yerrorlines title label(k)
+plot for [k = 1:words(files)] src(k) using 1:2:3 with yerrorlines title label(k)
 # Old deep runs (N = 50 and 100, switch at t = 62-c and 112-c):
 #   output/old/carlos_switch/deep_switch_optimization_avgs_{50,100}.txt

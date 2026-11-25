@@ -3,7 +3,9 @@
 #
 # Input: M<M>_switch_optimization_full_<N>.txt as written by switch_optimization.jl:
 #   c  time_1 … time_Nsamples
-# one row per switch point. The box spans the quartiles (Julia's default quantile,
+# one row per switch point. If the run also wrote M<M>_switch_optimization_compile_<N>.txt
+# (the compile time inside each sample), it is subtracted from each sample (see
+# switch_times.sh) and the y label says so. The box spans the quartiles (Julia's default quantile,
 # type 7), the whiskers the extrema over samples, the bar inside is the median and
 # the line the mean; the individual samples are drawn behind the boxes.
 #
@@ -38,13 +40,21 @@ if (nM == 0) {
 }
 
 fullfile(M) = dir.'/M'.M.'_switch_optimization_full_'.N.'.txt'
+# The samples, compile time subtracted when there is a compile file
+samplescmd(M) = "plotting/switch_times.sh samples '".fullfile(M)."'"
+hascompile(M) = system("plotting/switch_times.sh hascompile '".fullfile(M)."'") + 0
+ncomp = 0
+do for [M in Ms] { ncomp = ncomp + hascompile(M) }
+if (ncomp > 0 && ncomp < nM) {
+  print "plot_switches_box.plt: only some M have a compile file; compile time is subtracted for those only"
+}
 
 # Per-row statistics of the samples (columns 2..NF):
 #   1 c  2 mean  3 q1  4 median  5 q3  6 min  7 max
 # macOS awk has no asort, hence the insertion sort (50 samples per row). The awk
 # program is a single-quoted gnuplot string, so no escapes are processed in it.
 statawk = '!/^#/ && NF > 1 { n = NF - 1; s = 0; for (i = 1; i <= n; i++) { v = $(i+1); s += v; j = i - 1; while (j > 0 && x[j] > v) { x[j+1] = x[j]; j-- } x[j+1] = v } print $1, s/n, q(x,n,0.25), q(x,n,0.5), q(x,n,0.75), x[1], x[n] } function q(x, n, p,   h, lo) { h = (n-1)*p; lo = int(h); return (lo + 1 < n) ? x[lo+1] + (h-lo)*(x[lo+2]-x[lo+1]) : x[n] }'
-statcmd(M) = "< awk -v OFMT=%.9g '".statawk."' '".fullfile(M)."'"
+statcmd(M) = "< ".samplescmd(M)." | awk -v OFMT=%.9g '".statawk."'"
 
 # Number of samples per row (columns 2..nsamp+1), from the first data row.
 nsamp(M) = system(sprintf("awk '!/^#/ && NF > 1 { print NF - 1; exit }' '%s'", fullfile(M))) + 0
@@ -61,12 +71,19 @@ if (nM == 1) {
 set logscale y
 set format y "%1g"
 set xlabel "c"
-set ylabel "Time (s)"
+set ylabel (ncomp == nM ? "Time excl. compilation (s)" : "Time (s)")
 # y range from the sample extrema over every plotted M: log autoscaling rounds out to
 # whole decades, which here leaves an empty decade below the fastest samples.
-yext = system(sprintf("cat %s | awk '!/^#/ && NF > 1 { for (i = 2; i <= NF; i++) { if (lo == \"\" || $i < lo) lo = $i; if ($i > hi) hi = $i } } END { print lo, hi }'", \
-  system("for M in ".Ms."; do printf \"'%s' \" \"".dir."/M${M}_switch_optimization_full_".N.".txt\"; done")))
-set yrange [word(yext, 1) / 1.6 : word(yext, 2) * 1.6]
+# Positive values only: a sample left with ~0 after subtracting its compile time has
+# no place on a log axis.
+yext = ""
+do for [M in Ms] { yext = yext." ".system(samplescmd(M)." | awk '{ for (i = 2; i <= NF; i++) if ($i > 0) { if (lo == \"\" || $i < lo) lo = $i; if ($i > hi) hi = $i } } END { print lo, hi }'") }
+ylo = 0; yhi = 0
+do for [i = 1:words(yext):2] {
+  if (ylo == 0 || word(yext, i) + 0 < ylo) { ylo = word(yext, i) + 0 }
+  if (word(yext, i + 1) + 0 > yhi) { yhi = word(yext, i + 1) + 0 }
+}
+set yrange [ylo / 1.6 : yhi * 1.6]
 set grid ytics
 set key top right
 set xtics 1
@@ -84,7 +101,7 @@ darkc(k) = word("#1b3a8c #9c7016 #a8402f #3a7d6d #1f6b2e #6a2fb0", (k - 1) % 6 +
 # Samples: spread across the box width by sample index, so they don't stack in a column.
 jit(k, j, n) = off(k) + (n > 1 ? ((j - 2.0) / (n - 1) - 0.5) * bw * 0.7 : 0)
 
-plot for [k = 1:nM] for [j = 2:nsamp(word(Ms, k)) + 1] fullfile(word(Ms, k)) \
+plot for [k = 1:nM] for [j = 2:nsamp(word(Ms, k)) + 1] "< ".samplescmd(word(Ms, k)) \
        using ($1 + jit(k, j, nsamp(word(Ms, k)))):j with points pt 7 ps 0.35 \
        lc rgb "#b0b0b0" notitle, \
      for [k = 1:nM] statcmd(word(Ms, k)) using ($1 + off(k)):3:6:7:5 \
