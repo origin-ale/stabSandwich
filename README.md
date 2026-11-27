@@ -60,6 +60,7 @@ julia --project=. -t 4 Comptime_prob_tm.jl methods=campspp,pp magic_counts=0,20 
 | Script | Computes |
 |---|---|
 | `Comptime_prob_tm.jl` | Transferred magnetization in doped XXZ Floquet circuits (N = 46): computation time, resources (bond dimension, number and weight of Paulis), expectation values and switch points vs the number of doped gate triples per sample (exactly n, placed uniformly at random), for CAMPS-PP, CAMPS, MPS and PP. |
+| `Comptime_kim.jl` | ⟨Z_j⟩ in the self-dual kicked Ising model near its Clifford point (periodic chain, Néel initial state, deviation ε of the Z field, uniform or per-site random): computation time, stop layers, resources, expectation-value profiles and switch points vs ε, for CAMPS-PP, CAMPS, MPS and PP. Each run (sample, site) goes until its method's budget (`pp_Pmax`, `campspp_Pmax`, `camps_χmax`, `mps_χmax`) or the cap `t_max` (default 2N); see test/CONVENTIONS.md §2 "Kicked Ising". |
 | `TransferredMag_varparams.jl` | CAMPS-PP transferred-magnetization dynamics over a grid of doping counts (exactly n doped gate triples per sample) and domain-wall parameters μ. Samples run in parallel threads (`-t`); each sample has its own seed, so results don't depend on the thread count. |
 | `switch_optimization.jl` | CAMPS-PP computation time on random rotation circuits as a function of the switch point (how many gates are left to PP). |
 | `Comptime_ratios.jl` | Exact CAMPS vs PP computation time on random rotation circuits, vs the aspect ratio t/N at fixed N. |
