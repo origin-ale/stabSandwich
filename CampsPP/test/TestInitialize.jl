@@ -111,4 +111,41 @@ zexp(ψ, j) = real(state_expectation(ψ, single_z(nqubits_state(ψ), j)))
       @test real(state_expectation(computationalcamps(T, N, [1, 2]), O)) ≈ 4 atol = EXACT_ATOL
     end
   end
+
+  # Kicked Ising (CONVENTIONS.md §2): `local_z(N, j)` is the PP sum with the one term 1.0·Z_j.
+  if !kim_defined()
+    @testset "local_z [KIM, not implemented yet]" begin
+      @test_broken kim_defined()
+    end
+  else
+    @testset "local_z: operator, N=$N" for N in (1, 2, 5, 6, 46)
+      for j in unique([1, 2, N ÷ 2 + 1, N - 1, N])
+        1 <= j <= N || continue
+        O = local_z(N, j)
+        @test O isa pp.PauliSum
+        @test O.nqubits == N
+        @test length(O.terms) == 1
+        term, coeff = only(O.terms)
+        @test termstring(term, N) == String([q == j ? 'Z' : 'I' for q in 1:N])
+        @test coeff == 1.0
+      end
+    end
+
+    @testset "local_z: values on basis states, $(stackname(T))" for T in STATE_TYPES
+      # ⟨Z_j⟩ = −1 if j is in |1⟩, +1 otherwise (§1). In each state some neighbours j, j + 1
+      # have different bits, so a `local_z` on the wrong qubit fails the per-j values.
+      N = 6
+      for ones in (kim_neel(N), [1, 3, 5], [3, 4])
+        ψ = computationalcamps(T, N, ones)
+        for j in 1:N
+          @test real(state_expectation(ψ, local_z(N, j))) ≈ (j in ones ? -1.0 : 1.0) atol = EXACT_ATOL
+          @test dense_expect(DR.basis_state(N, ones), local_z(N, j)) ≈ (j in ones ? -1.0 : 1.0)
+        end
+      end
+      ones = kim_neel(N)
+      @test all((j in ones) != (j + 1 in ones) for j in 1:N-1)     # Néel: every j+1 differs
+      @test pp.overlapwithcomputational(local_z(N, 2), ones) ≈ -1
+      @test pp.overlapwithcomputational(local_z(N, 3), ones) ≈ 1
+    end
+  end
 end

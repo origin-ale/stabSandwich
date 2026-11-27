@@ -345,4 +345,159 @@
     @test [gatestring(r, 3) for r in rots] == ["XIZ", "YYI"]
     @test phases == ϕs
   end
+
+  # -- Kicked Ising (CONVENTIONS.md §2 "Kicked Ising"; KIM plan step 2) -------------------
+  # Expected values from the spec (KimSpec.jl builds the circuit from it), hand derivations
+  # and the dense reference. The tests of `kicked_ising_circuit` and `kicked_ising_layerends`
+  # are gated on the KIM names (helpers.jl); the spec circuit's own checks run regardless.
+
+  # The builder's circuit as (strings, phases), for the dense reference
+  function kim_builder_circuit(ε, t, N)
+    local rots, phases = kicked_ising_circuit(ε, t, N)
+    return [gatestring(r, N) for r in rots], phases
+  end
+  kim_sources = Any[("spec circuit", kim_spec_circuit)]
+  kim_defined() && push!(kim_sources, ("kicked_ising_circuit", kim_builder_circuit))
+
+  if !kim_defined()
+    @testset "kicked_ising_circuit [KIM, not implemented yet]" begin
+      @test_broken kim_defined()
+    end
+  else
+    @testset "kicked_ising_circuit structure, N=$N" for N in (1, 2, 3, 5, 6)
+      t = 3
+      L = kim_spec_L(N)
+      @test L == Dict(1 => 2, 2 => 5, 3 => 9, 5 => 15, 6 => 18)[N]    # §2: 2N + B
+      bonds = kim_spec_bonds(N)
+      @test length(bonds) == (N >= 3 ? N : N - 1)
+      # Distinct ε_j on every qubit, so ε taken from the wrong qubit shows
+      εv = [0.1j - 0.037 for j in 1:N]
+      rots, phases = kicked_ising_circuit(εv, t, N)
+      @test length(rots) == L * t
+      @test length(phases) == L * t
+      @test phases isa AbstractVector{Float64}
+
+      # Gate i of layer l at position (l − 1)·L + i: ZZ on the bonds (bricklayer order, then
+      # [1, N]), then Z_1…Z_N, then Y_1…Y_N; angles −π/4, −(π/2 + ε_j)/2, −π/4.
+      want = [[(:ZZ, b, -π/4) for b in bonds];
+              [(:Z, [j], -(π/2 + εv[j]) / 2) for j in 1:N];
+              [(:Y, [j], -π/4) for j in 1:N]]
+      @test length(want) == L
+      ok_syms = true; ok_inds = true; ok_phases = true
+      for l in 1:t, (i, (sym, qs, ϕ)) in enumerate(want)
+        g = (l - 1) * L + i
+        ok_syms &= collect(rots[g].symbols) == (sym == :ZZ ? [:Z, :Z] : [sym])
+        ok_inds &= collect(rots[g].qinds) == qs
+        ok_phases &= isapprox(phases[g], ϕ; atol = 1e-14)
+      end
+      @test ok_syms
+      @test ok_inds
+      @test ok_phases
+      # The wrap bond is the last ZZ gate of each layer, listed as [1, N], for N ≥ 3 only;
+      # N = 2 has exactly one ZZ gate per layer, N = 1 none
+      @test count(r -> collect(r.symbols) == [:Z, :Z], rots[1:L]) == (N >= 3 ? N : N - 1)
+      N >= 3 && @test collect(rots[N].qinds) == [1, N]
+      # The non-Clifford angles are exactly the Z ones (one per qubit per layer)
+      @test count(ϕ -> !isapprox(ϕ, -π/4; atol = 1e-12), phases) == N * t
+
+      # The number form equals the vector form with fill(ε, N)
+      for ε in (0.0, 0.3, -0.11)
+        r1, p1 = kicked_ising_circuit(ε, t, N)
+        r2, p2 = kicked_ising_circuit(fill(ε, N), t, N)
+        @test [gatestring(r, N) for r in r1] == [gatestring(r, N) for r in r2]
+        @test [collect(r.qinds) for r in r1] == [collect(r.qinds) for r in r2]
+        @test p1 == p2
+      end
+      # The builder's circuit is the spec circuit, gate by gate
+      strings, ph = kim_builder_circuit(εv, t, N)
+      spec_strings, spec_ph = kim_spec_circuit(εv, t, N)
+      @test strings == spec_strings
+      @test maxabsdiff(ph, spec_ph) <= 1e-14
+
+      # Any other vector length is an ArgumentError
+      @test_throws ArgumentError kicked_ising_circuit(fill(0.1, N - 1), t, N)
+      @test_throws ArgumentError kicked_ising_circuit(fill(0.1, N + 1), t, N)
+
+      # Layer ends L·l, L from the spec formula (not from the builder)
+      @test kicked_ising_layerends(N, t) == [L * l for l in 1:t]
+    end
+
+    @testset "kicked_ising_circuit at N=46: 138 gates per layer" begin
+      @test kicked_ising_layerends(46, 23) == collect(138:138:3174)
+      rots, phases = kicked_ising_circuit(0.0, 23, 46)
+      @test length(rots) == length(phases) == 3174
+      @test collect(rots[46].qinds) == [1, 46]           # the wrap bond closes the ZZ block
+      @test collect(rots[47].symbols) == [:Z] && collect(rots[138].symbols) == [:Y]
+    end
+  end
+
+  # Measured (dense, 2026-11-26; N = 4…14, checked by an independent review): from the Néel
+  # state, ⟨Z_j⟩ = 0 after layers 1 … ⌈N/2⌉ for every ε ≠ 0 (also per-site ε, also from
+  # |0…0⟩); it first differs from 0 at layer ⌈N/2⌉ + 1, once the light cone has wrapped
+  # around the ring (on the open chain: one layer later for even N, the same layer for odd
+  # N). At ε = 0 it can stay 0 much longer (N = 6: to layer 11). Two ingredients: the layer
+  # is dual-unitary for any Z field (ZZ and the Y kick at π/4; ε only shifts the field), and
+  # Z-basis product states are solvable initial states (from a random product state, or
+  # with another ZZ angle, ⟨Z_j⟩ is not 0 at layer 1–2). So the KIM tests run t ≥ ⌈N/2⌉ + 1
+  # layers with ε ≠ 0, or their ⟨Z_j⟩ checks would compare zeros.
+  @testset "KIM shift-by-two invariance (dense, Néel), $name" for (name, circuit) in kim_sources
+    # §2: with uniform ε the layer is invariant under j ↦ j mod N + 1 and, for even N, the
+    # Néel state under a shift by two, so ⟨Z_j⟩ = ⟨Z_{j+2 mod N}⟩ at every layer.
+    t = 6
+    for N in (4, 6), ε in (0.1, 0.3)
+      prof = kim_dense_profile(circuit(ε, t, N)..., N, kim_spec_L(N))
+      @test size(prof) == (t + 1, N)
+      shift2 = [mod1(j + 2, N) for j in 1:N]
+      @test maximum(abs.(prof .- prof[:, shift2])) <= EXACT_ATOL
+      # Not vacuous: the profile is not 0 after t = 0, and odd and even qubits differ at
+      # some layer t ≥ 1 (so a profile uniform over the qubits, e.g. from |0…0⟩, is not
+      # what passes here)
+      @test maximum(abs, prof[2:end, :]) > 0.05
+      @test maximum(abs.(prof[2:end, 1] .- prof[2:end, 2])) > 0.05
+    end
+  end
+
+  @testset "KIM shift-by-two invariance needs the wrap bond (negative check)" begin
+    # The open chain (the spec layer without (1, N)) is not shift invariant, so the check
+    # above sees a dropped wrap bond.
+    t = 6
+    for N in (4, 6), ε in (0.1, 0.3)
+      open_ = kim_spec_circuit(ε, t, N; wrap = false)
+      prof = kim_dense_profile(open_..., N, kim_spec_L(N) - 1)
+      shift2 = [mod1(j + 2, N) for j in 1:N]
+      @test maximum(abs.(prof .- prof[:, shift2])) > 0.01
+      # … and the wrap bond changes the profile
+      @test maximum(abs.(prof .- kim_dense_profile(ε, t, N))) > 0.01
+    end
+  end
+
+  @testset "KIM hand pins (dense), $name" for (name, circuit) in kim_sources
+    # After layer 1 from the Néel state: ZZ and Z are diagonal, so the state is still the
+    # basis state up to a phase; R_Y(π/2) = exp(−iπ/4·Y) then takes each Bloch vector
+    # (0, 0, ±1) to (±1, 0, 0). So ⟨Z_j⟩ = 0 for every j, any N and any ε, and ⟨X_j⟩ = +1 on
+    # odd j (|0⟩) and −1 on even j (|1⟩); |0…0⟩ or |1010…⟩ would give other signs.
+    for N in 1:6, ε in (0.0, 0.1, -0.3, [0.05j - 0.2 for j in 1:N])
+      strings, phases = circuit(ε, 1, N)
+      ψ = DR.run_circuit(DR.basis_state(N, kim_neel(N)), strings, phases)
+      b = [DR.bloch(ψ, j) for j in 1:N]
+      @test all(abs(b[j][3]) <= EXACT_ATOL for j in 1:N)
+      @test all(isapprox(b[j][1], isodd(j) ? 1.0 : -1.0; atol = EXACT_ATOL) for j in 1:N)
+    end
+
+    # N = 1 (no bond; Néel = |0⟩): a layer is R_Z(π/2 + ε) then R_Y(π/2) on the Bloch
+    # vector. From (0, 0, 1): R_Z leaves it, R_Y gives (1, 0, 0), ⟨Z⟩ = 0. Layer 2: R_Z by
+    # α = π/2 + ε gives (cos α, sin α, 0) = (−sin ε, cos ε, 0), and R_Y(π/2), z ↦ z cos − x sin,
+    # gives z = sin ε. From |1⟩ every vector flips: −1, 0, −sin ε. These pin the reference
+    # and N = 1, not the signs of the angles: with the Z phase flipped, layer 2 still gives
+    # sin ε, and at N = 6 the ⟨Z_j⟩ profile is the same under a flipped ZZ, Z or Y sign, an X
+    # kick or Z after Y. The structure test (symbols and phases at each position) and the
+    # ⟨X_j⟩ pin above catch those.
+    for ε in (0.0, 0.1, -0.3)
+      strings, phases = circuit(ε, 2, 1)
+      @test length(strings) == 4
+      @test maxabsdiff(kim_dense_profile(strings, phases, 1, 2)[:, 1], [1, 0, sin(ε)]) <= EXACT_ATOL
+      @test maxabsdiff(kim_dense_profile(strings, phases, 1, 2; ones = [1])[:, 1],
+                       [-1, 0, -sin(ε)]) <= EXACT_ATOL
+    end
+  end
 end

@@ -147,3 +147,101 @@ end
     @test maxabsdiff(evs, ref) <= EXACT_ATOL
   end
 end
+
+# -- Kicked Ising at its Clifford point, N = 46 (CONVENTIONS.md §2 "Kicked Ising") ----------
+# ε = 0: every gate is Clifford. Reference: the spec circuit (KimSpec.jl) on the stabilizer
+# reference, from the Néel state. ⟨Z_j⟩ itself is ±1 at t = 0 and 0 after layers 1 … 4 (the
+# zero window of TestCircuits.jl; at ε = 0 and N = 46 it lasts beyond layer 30), so a second
+# observable adds, for each layer l, two reference generators of the state after layer l
+# (⟨·⟩ = 1 there, 0 at the other layers here) with weights 0.5^l and 0.5^l/3: its values are
+# not 0, and they depend on the circuit. It is built from the spec (Z_j as a PP string), not
+# from `local_z`, so the reference checks run before the KIM code exists. (A flipped ZZ sign
+# is invisible to it, as to any physical check here; the structure tests in TestCircuits.jl
+# catch that.) This is also the value check of the Clifford point for the KIM drivers: at
+# N = 6 and ε = 0, ⟨Z_j⟩ is 0 at every layer the driver tests record (TestTimeEvolution.jl).
+@testset "KIM at ε = 0, N = 46 vs stabilizer reference" begin
+  N, t = 46, 4
+  L = kim_spec_L(N)
+  M = L * t
+  le = [L * l for l in 1:t]
+  ones = kim_neel(N)
+
+  # Reference generators after each layer of the spec circuit (`wrap = false`: open chain)
+  function kim_snaps(; wrap = true)
+    # (`local`: names of the enclosing scope would otherwise be shared by this closure)
+    local strings, ϕs = kim_spec_circuit(0.0, t, N; wrap)
+    local Lw = length(strings) ÷ t
+    local gens = SR.basis_generators(N, ones)
+    local out = []
+    for l in 1:t
+      local r = (l - 1) * Lw + 1:l * Lw
+      gens = SR.run_generators(gens, strop.(strings[r]), ϕs[r])
+      push!(out, gens)
+    end
+    return out
+  end
+  snaps = kim_snaps()
+  open_snaps = kim_snaps(wrap = false)
+  ref_of(O, gs) = [stab_expect(SR.basis_generators(N, ones), O); [stab_expect(g, O) for g in gs]]
+  spec_z(j) = pp.PauliSum(N) + pp.PauliString(N, [:Z], [j], 1.0)
+
+  sites = (1, 2, 23, 46)
+  observables = Dict(map(sites) do j
+    Oaug = spec_z(j)
+    for l in 1:t
+      # a generator from around the chain, and generator 1, whose qubit sits on the wrap
+      # bond (with t = 4 layers, generators far from (1, N) cannot see it)
+      Oaug += pp_term(snaps[l][mod1(j + 7l, N)], 0.5^l)
+      Oaug += pp_term(snaps[l][1], 0.5^l / 3)
+    end
+    j => (Oaug, ref_of(spec_z(j), snaps), ref_of(Oaug, snaps))
+  end)
+
+  @testset "references, j = $j" for j in sites
+    Oaug, refz, refaug = observables[j]
+    @test refz == [j in ones ? -1.0 : 1.0; zeros(t)]          # the zero window
+    @test all(abs.(refaug[2:end]) .> 0.05)
+    # Negative: the open chain (wrap bond dropped) changes the values (by 0.5²/3 at layer 2)
+    @test maxabsdiff(refaug, ref_of(Oaug, open_snaps)) > 0.05
+  end
+
+  if !kim_defined()
+    @test_broken kim_defined()
+  else
+    gates, phases = kicked_ising_circuit(0.0, t, N)
+    @test length(gates) == M
+    for j in sites
+      Oaug, refz, refaug = observables[j]
+      Oz = local_z(N, j)
+
+      @testset "pauliprop_circuit_dynamics, j = $j" begin
+        thl_pp, Nmax_pp = 1e-10, 10^6
+        for (O, ref) in ((Oz, refz), (Oaug, refaug))
+          s, evs, nterms = pauliprop_circuit_dynamics(ones, gates, phases, thl_pp, Nmax_pp, O;
+            layer_ends = le, track = true)
+          @test s == M
+          @test maxabsdiff(evs, ref) <= EXACT_ATOL
+          # Each Clifford rotation maps a string to one string, distinct strings to distinct
+          # strings; the cos(π/2) ≈ 6e-17 branches fall below thl_pp. So local_z stays 1
+          # term, and the sum keeps its size.
+          @test all(==(length(O)), nterms)
+        end
+      end
+
+      @testset "campspp_circuit_dynamics, j = $j, $(stackname(T))" for T in STATE_TYPES
+        χ_campspp, thl_campspp, Nmax_campspp = 64, 1e-10, 10^6
+        for (O, ref) in ((Oz, refz), (Oaug, refaug))
+          evs, s, bds, _, _, _, s_switch, k_switch = campspp_circuit_dynamics(
+            computationalcamps(T, N, ones), χ_campspp, thl_campspp, Nmax_campspp, gates, phases, O;
+            layer_ends = le, track = true)
+          @test s == M
+          @test maxabsdiff(evs, ref) <= EXACT_ATOL
+          # Frame-dependent: every gate goes to the frame, so bond dimension 1 and k = 0
+          # throughout, and CAMPS-PP never switches to PP
+          @test s_switch == M && k_switch == 0
+          @test all(==(1), bds)
+        end
+      end
+    end
+  end
+end

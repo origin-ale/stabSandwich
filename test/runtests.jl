@@ -7,7 +7,8 @@ using Pkg
 const ROOT = dirname(@__DIR__)
 const PACKAGES = ["CampsPP"]   # DisentangleCAMPS was merged into CampsPP
 # Run in a child process each, in the root environment, with 2 threads (setup_threads)
-const ROOT_TESTS = ["TestScriptSetup.jl", "TestThreadedScript.jl", "TestDopingScripts.jl"]
+const ROOT_TESTS = ["TestScriptSetup.jl", "TestThreadedScript.jl", "TestDopingScripts.jl",
+                    "TestKimScript.jl"]
 
 failed = String[]
 for pkg in PACKAGES

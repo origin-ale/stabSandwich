@@ -125,6 +125,46 @@ function src_reconstruction(T, N, ones, gates, phases, thl, rec, crit, strat; ma
   return out, drift
 end
 
+"""
+Does `campssrc_circuit_dynamics` and `mps_circuit_dynamics` take the `χmax` keyword (budget
+revision)? Until both do, the χmax tests are gated.
+"""
+function accepts_χmax()
+  O = transferredmagnetization(2, Int[])
+  g, ϕ = [pp.PauliRotation([:X], [1])], [0.1]
+  try
+    campssrc_circuit_dynamics(computationalcamps(2, Int[]), g, ϕ, 1e-11, O; χmax = nothing)
+    mps_circuit_dynamics(basis_mps(2, Int[]), g, ϕ, 1e-15, O, nothing; χmax = nothing)
+    return true
+  catch e
+    e isa MethodError || rethrow()
+    return false
+  end
+end
+
+"""
+campssrc rebuilt gate by gate with the public API (as `src_reconstruction`), for the χmax
+tests: per record point, the bond dimension just before the layer-end disentangler, after
+it, and the peak over the gates since the previous record point (that record point's gate
+included, before its disentangler).
+"""
+function src_trace(T, N, ones, gates, phases, thl, rec, crit, strat)
+  ψ = computationalcamps(T, N, ones)
+  out = NamedTuple{(:before, :after, :peak), NTuple{3, Int}}[]
+  peak = 0
+  for (i, (g, ϕ)) in enumerate(zip(gates, phases))
+    apply!(ψ, PauliOperator(getpauli(g, N)), ϕ, thl)
+    peak = max(peak, bonddim(ψ))
+    if i in rec
+      before = bonddim(ψ)
+      layer_end_disentangle!(ψ, crit, strat, N)
+      push!(out, (before = before, after = bonddim(ψ), peak = peak))
+      peak = 0
+    end
+  end
+  return out
+end
+
 @testset "TimeEvolution" begin
   @testset "the doped configuration is really affected by the doping" begin
     cfg = small_configs()[1]
@@ -584,6 +624,276 @@ end
       s, evs = pauliprop_circuit_dynamics(ones, gates, phases, 1e-10, 10^6, O; layer_ends = le)
       @test s == length(gates)
       @test maxabsdiff(evs, exact) <= EXACT_ATOL
+    end
+  end
+
+  # -- Kicked Ising: every driver against the dense reference (KIM plan step 2) -----------
+  # N = 6, t = 6, from the Néel state, observable local_z(N, j) for every j; untruncated
+  # (thresholds 0, or ≤ 1e-12 where a threshold drives other logic), so exact to 1e-10
+  # (§6). The reference is the spec circuit (KimSpec.jl) on the dense simulator; the
+  # drivers get `kicked_ising_circuit`. ε: 0 (Clifford), a seeded uniform value, and a
+  # seeded per-site vector with one Clifford site (ε_3 = 0). Non-zero ε are ≥ 2e-3 in size,
+  # so the Z angles are ≥ 1e-3 from every multiple of π/4 (§2, tests' angles).
+  # t = 6, not 4: ⟨Z_j⟩ is 0 after layers 1 … N/2 = 3 for any ε (TestCircuits.jl), so the
+  # comparison sees the circuit at layers 4–6 only.
+  # At ε = 0 every recorded ⟨Z_j⟩ after t = 0 is 0 (the zero window lasts to layer 11 at
+  # N = 6), and so is ⟨Z_j⟩ from many wrong Clifford circuits: that configuration checks the
+  # frame (no switch, k = 0), not values. The Clifford point's values are checked at N = 46
+  # with a sensitive observable (TestCliffordLargeN.jl).
+  kim_N, kim_t = 6, 6
+  kim_εs = let εv = 0.5 .* (2 .* rand(Xoshiro(32), kim_N) .- 1)
+    εv[3] = 0.0
+    [("ε = 0 (Clifford)", 0.0), ("uniform ε", 0.1 + 0.4 * rand(Xoshiro(31))), ("per-site ε", εv)]
+  end
+  kim_profiles = Dict(name => kim_dense_profile(ε, kim_t, kim_N) for (name, ε) in kim_εs)   # (t + 1) × N
+
+  @testset "KIM driver references, N=6: $name" for (name, ε) in kim_εs
+    N, t = kim_N, kim_t
+    prof = kim_profiles[name]
+    @test all(e -> e == 0 || abs(e) >= 2e-3, ε)
+    @test prof[1, :] == [j in kim_neel(N) ? -1.0 : 1.0 for j in 1:N]
+    if ε != 0
+      # The reference is not 0 after t = 0, sees ε, and ε on the wrong qubit (per-site case)
+      @test maximum(abs, prof[2:end, :]) > 0.05
+      @test maximum(abs.(prof .- kim_dense_profile(0.0, t, N))) > 0.05
+      ε isa AbstractVector &&
+        @test maximum(abs.(prof .- kim_dense_profile(circshift(ε, 1), t, N))) > 1e-3
+    end
+  end
+
+  if !kim_defined()
+    @testset "KIM drivers vs dense [not implemented yet]" begin
+      @test_broken kim_defined()
+    end
+  else
+    kim_switched = Bool[]                          # CAMPS-PP at χ = 4 switched mid-circuit
+
+    @testset "KIM drivers vs dense, N=6: $name" for (name, ε) in kim_εs
+      N, t = kim_N, kim_t
+      ones = kim_neel(N)
+      gates, phases = kicked_ising_circuit(ε, t, N)
+      M = length(gates)
+      layer_ends = [kim_spec_L(N) * l for l in 1:t]
+      prof = kim_profiles[name]
+
+      @testset "j = $j" for j in 1:N
+        O = local_z(N, j)
+        ref = prof[:, j]
+
+        @testset "campspp_circuit_dynamics, χ = $χ_campspp, $(stackname(T))" for T in STATE_TYPES,
+            χ_campspp in (4, 10^6)
+          thl_campspp, Nmax_campspp = 0.0, typemax(Int)
+          evs, s, _, _, _, _, s_switch, k_switch = campspp_circuit_dynamics(
+            computationalcamps(T, N, ones), χ_campspp, thl_campspp, Nmax_campspp, gates, phases, O;
+            layer_ends, track = true)
+          @test s == M
+          @test maxabsdiff(evs, ref) <= EXACT_ATOL
+          # Frame-dependent: at ε = 0 every gate is Clifford, so the bond dimension stays 1
+          # and k = 0: no switch at any χ > 1
+          ε == 0 && @test s_switch == M && k_switch == 0
+          χ_campspp == 10^6 && @test s_switch == M
+          χ_campspp == 4 && push!(kim_switched, 0 < s_switch < M)
+        end
+
+        @testset "camps_circuit_dynamics, $(stackname(T))" for T in STATE_TYPES
+          χ_camps = 10^6
+          _, _, s, evs = camps_circuit_dynamics(computationalcamps(T, N, ones), gates, phases,
+                                                 χ_camps, O; layer_ends)
+          @test s == M
+          @test maxabsdiff(evs, ref) <= EXACT_ATOL
+        end
+
+        @testset "campssrc_circuit_dynamics ($crit, $strat), $(stackname(T))" for T in STATE_TYPES,
+            (crit, strat) in [(:chi3, :snake), (:entangle, :brickwork)]
+          thl_camps = 1e-12
+          _, s, evs = campssrc_circuit_dynamics(computationalcamps(T, N, ones), gates, phases,
+            thl_camps, O; criterion = crit, strategy = strat, layer_ends)
+          @test s == M
+          @test maxabsdiff(evs, ref) <= EXACT_ATOL
+        end
+
+        @testset "mps_circuit_dynamics" begin
+          thl_mps = 1e-15
+          _, evs = mps_circuit_dynamics(basis_mps(N, ones), gates, phases, thl_mps, O, nothing;
+                                        layer_ends)
+          @test maxabsdiff(evs, ref) <= EXACT_ATOL
+        end
+
+        @testset "pauliprop_circuit_dynamics" begin
+          thl_pp, Nmax_pp = 0.0, typemax(Int)
+          s, evs = pauliprop_circuit_dynamics(ones, gates, phases, thl_pp, Nmax_pp, O; layer_ends)
+          @test s == M
+          @test maxabsdiff(evs, ref) <= EXACT_ATOL
+        end
+      end
+    end
+
+    @testset "KIM: CAMPS-PP at χ = 4 does switch mid-circuit" begin
+      @test count(kim_switched) >= 2              # so both sides of the switch are checked
+    end
+  end
+
+  # -- Budget revision: the `χmax` keyword (CONVENTIONS.md §2 "Recording") -----------------
+  # `campssrc_circuit_dynamics` and `mps_circuit_dynamics` take `χmax`. With `nothing` (the
+  # default) a run goes to the end; with an integer it stops after the first record point
+  # whose bond dimension (largest link dimension; campssrc: after the layer-end disentangler)
+  # is ≥ χmax, and that value is still recorded. A larger bond dimension between record points
+  # doesn't stop a run.
+  #
+  # Expected values: the same driver without χmax (its unchanged, tested behaviour), cut at
+  # the record point predicted from bond dimensions taken from other sources: for campssrc,
+  # the unstopped run's `track` output, checked against the public-API rebuild `src_trace`
+  # (which also gives the bond dimension before the disentangler and the peaks between record
+  # points); for MPS, `maxlinkdim` of the states of unstopped runs on the first l layers. χmax
+  # takes every recorded value, so a `>` rule, a check before the disentangler or a check
+  # after every gate predicts a different stop somewhere (non-vacuity counted below).
+  if !accepts_χmax()
+    @testset "χmax keyword [budget revision, not implemented yet]" begin
+      @test_broken accepts_χmax()
+    end
+  else
+    χ_cfgs = Any[]
+    for cfg in small_configs()[1:2]
+      push!(χ_cfgs, (cfg.name, cfg.N, cfg.ones, cfg.gates, cfg.phases,
+                     test_observable(cfg.N, cfg.ones), cfg.layer_ends))
+    end
+    if kim_defined()
+      for (name, ε) in kim_εs[2:3]
+        g, ϕ = kicked_ising_circuit(ε, kim_t, kim_N)
+        push!(χ_cfgs, ("KIM N=6, $name", kim_N, kim_neel(kim_N), g, ϕ, local_z(kim_N, 1),
+                       [kim_spec_L(kim_N) * l for l in 1:kim_t]))
+      end
+    else
+      @testset "χmax on KIM circuits [KIM, not implemented yet]" begin
+        @test_broken kim_defined()
+      end
+    end
+    # A circuit with a bond-dimension peak between record points only: two magic qubits,
+    # then XX on them and its inverse. The state after the pair is a product state again.
+    peak_gates = [pp.PauliRotation([:X], [1]), pp.PauliRotation([:X], [2]),
+                  pp.PauliRotation([:X, :X], [1, 2]), pp.PauliRotation([:X, :X], [1, 2])]
+    push!(χ_cfgs, ("mid-layer peak, N=3", 3, Int[], repeat(peak_gates, 2),
+                   repeat([0.37, 0.29, 0.41, -0.41], 2), transferredmagnetization(3, Int[]),
+                   [2, 4, 6, 8]))
+
+    # Non-vacuity: does some χmax tell the spec's stop from a wrong rule's?
+    seen = Dict(k => false for k in ("stops early", "≥ vs >", "after vs before disentangler",
+                                     "record points vs every gate", "mps stops early",
+                                     "mps ≥ vs >", "mps mid-layer peak"))
+    # First record point with value ≥ χ (nothing: none)
+    first_ge(vals, χ) = findfirst(>=(χ), vals)
+
+    @testset "χmax, campssrc ($crit, $strat): $name, $(stackname(T))" for T in STATE_TYPES,
+        (crit, strat) in [(:chi3, :snake), (:entangle, :brickwork)],
+        (name, N, ones, gates, phases, O, rec) in χ_cfgs
+      M = length(gates)
+      thl_camps = 1e-11                           # ≥ 1e-11: the disentangler runs (§2)
+      ψ0 = computationalcamps(T, N, ones)
+      ψf, sf, evsf, bdsf = campssrc_circuit_dynamics(ψ0, gates, phases, thl_camps, O;
+        criterion = crit, strategy = strat, layer_ends = rec, track = true)
+      @test sf == M
+      # χmax = nothing is the call without the keyword
+      ψn, sn, evsn, bdsn = campssrc_circuit_dynamics(ψ0, gates, phases, thl_camps, O;
+        criterion = crit, strategy = strat, layer_ends = rec, track = true, χmax = nothing)
+      @test sn == sf && evsn == evsf && bdsn == bdsf && frame_dagger(ψn) == frame_dagger(ψf)
+
+      tr = src_trace(T, N, ones, gates, phases, thl_camps, rec, crit, strat)
+      after = [r.after for r in tr]
+      @test bdsf == [1; after]                    # track output = the rebuild, after the disentangler
+      before = [r.before for r in tr]
+      peaks = [r.peak for r in tr]
+      name == "mid-layer peak, N=3" && @test maximum(peaks) > maximum(after)   # the premise
+
+      for χ in sort(unique([2; after; before; peaks; maximum(after) + 1]))
+        χ >= 2 || continue
+        l = first_ge(after, χ)
+        ψs, ss, evss, bdss = campssrc_circuit_dynamics(ψ0, gates, phases, thl_camps, O;
+          criterion = crit, strategy = strat, layer_ends = rec, track = true, χmax = χ)
+        if l === nothing                          # never reached: the whole circuit
+          @test ss == M && evss == evsf && bdss == bdsf
+        else
+          @test ss == rec[l]
+          @test length(evss) == l + 1 && maxabsdiff(evss, evsf[1:l+1]) <= 1e-12
+          @test bdss == bdsf[1:l+1]
+          @test bonddim(ψs) == after[l]
+          l < length(rec) && (seen["stops early"] = true)
+        end
+        first_ge(after .- 1, χ) != l && (seen["≥ vs >"] = true)    # > χ ⟺ ≥ χ + 1
+        first_ge(before, χ) != l && (seen["after vs before disentangler"] = true)
+        first_ge(peaks, χ) != l && (seen["record points vs every gate"] = true)
+      end
+    end
+
+    @testset "χmax, mps_circuit_dynamics: $name" for (name, N, ones, gates, phases, O, rec) in χ_cfgs
+      M = length(gates)
+      thl_mps = 1e-15
+      mrun(g, ϕ, le; kw...) = mps_circuit_dynamics(basis_mps(N, ones), g, ϕ, thl_mps, O, nothing;
+                                                   layer_ends = le, kw...)
+      ψf, evsf = mrun(gates, phases, rec)
+      ψn, evsn = mrun(gates, phases, rec; χmax = nothing)
+      @test evsn == evsf && maxlinkdim(ψn) == maxlinkdim(ψf)
+      # Bond dimension at record point l: the state of the unstopped run on gates 1 … rec[l]
+      bd = [maxlinkdim(first(mrun(gates[1:rec[l]], phases[1:rec[l]], rec[1:l]))) for l in eachindex(rec)]
+      if name == "mid-layer peak, N=3"
+        # Premise: after gate 3 (XX) the bond dimension is 2, at every record point 1
+        @test maxlinkdim(first(mrun(gates[1:3], phases[1:3], [3]))) == 2
+        @test all(==(1), bd)
+        ψs, evss = mrun(gates, phases, rec; χmax = 2)
+        @test evss == evsf                        # the peak alone doesn't stop
+        seen["mps mid-layer peak"] = true
+      end
+      for χ in sort(unique([2; bd; maximum(bd) + 1]))
+        l = first_ge(bd, χ)
+        ψs, evss = mrun(gates, phases, rec; χmax = χ)
+        if l === nothing
+          @test evss == evsf
+        else
+          @test length(evss) == l + 1 && maxabsdiff(evss, evsf[1:l+1]) <= 1e-12
+          @test maxlinkdim(ψs) == bd[l]
+          l < length(rec) && (seen["mps stops early"] = true)
+        end
+        first_ge(bd .- 1, χ) != l && (seen["mps ≥ vs >"] = true)
+      end
+    end
+
+    @testset "χmax: the output file's stop line" begin
+      # The stop line names the bond-dimension reason, at the stop gate; without χmax, the end
+      # of the circuit (the wording around the reason is the drivers' own, not pinned)
+      name, N, ones, gates, phases, O, rec = χ_cfgs[1]
+      M = length(gates)
+      ψ0 = computationalcamps(N, ones)
+      tr = src_trace(mt.QubitCAMPS, N, ones, gates, phases, 1e-11, rec, :chi3, :snake)
+      after = [r.after for r in tr]
+      # the smallest χmax ≥ 2 that stops before the last record point
+      χ = minimum(filter(c -> c >= 2 && something(findfirst(>=(c), after), length(rec)) < length(rec), after))
+      l = findfirst(>=(χ), after)
+      stoplines(path) = filter(l -> occursin("stopped at gate", l), readlines(path))
+      mktempdir() do dir
+        p1, p2 = joinpath(dir, "src_stop.txt"), joinpath(dir, "src_end.txt")
+        campssrc_circuit_dynamics(ψ0, gates, phases, 1e-11, O, p1; layer_ends = rec, χmax = χ)
+        campssrc_circuit_dynamics(ψ0, gates, phases, 1e-11, O, p2; layer_ends = rec)
+        @test length(stoplines(p1)) == 1 && occursin("stopped at gate $(rec[l]) ", only(stoplines(p1))) &&
+              occursin("bond dim", only(stoplines(p1)))
+        @test length(stoplines(p2)) == 1 && occursin("stopped at gate $M ", only(stoplines(p2))) &&
+              occursin("end of circuit", only(stoplines(p2)))
+
+        bd = [maxlinkdim(first(mps_circuit_dynamics(basis_mps(N, ones), gates[1:rec[k]], phases[1:rec[k]],
+                1e-15, O, nothing; layer_ends = rec[1:k]))) for k in eachindex(rec)]
+        χm = minimum(filter(c -> c >= 2 && something(findfirst(>=(c), bd), length(rec)) < length(rec), bd))
+        lm = findfirst(>=(χm), bd)
+        p3, p4 = joinpath(dir, "mps_stop.txt"), joinpath(dir, "mps_end.txt")
+        mps_circuit_dynamics(basis_mps(N, ones), gates, phases, 1e-15, O, p3; layer_ends = rec, χmax = χm)
+        mps_circuit_dynamics(basis_mps(N, ones), gates, phases, 1e-15, O, p4; layer_ends = rec)
+        @test lm < length(rec)                    # it does stop early
+        @test length(stoplines(p3)) == 1 && occursin("stopped at gate $(rec[lm]) ", only(stoplines(p3))) &&
+              occursin("bond dim", only(stoplines(p3)))
+        @test length(stoplines(p4)) == 1 && occursin("stopped at gate $M ", only(stoplines(p4))) &&
+              occursin("end of circuit", only(stoplines(p4)))
+      end
+    end
+
+    @testset "χmax: the configurations tell the rules apart ($k)" for k in sort(collect(keys(seen)))
+      @test seen[k]
     end
   end
 end
