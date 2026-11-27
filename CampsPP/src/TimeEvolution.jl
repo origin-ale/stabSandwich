@@ -350,7 +350,7 @@ track = false)
   return ψ, k, i, evs_camps
 end
 
-"""```campssrc_circuit_dynamics(ψ, gates, phases, thl, obs[, output]; criterion = :entangle, strategy = :brickwork, showprogress = false, layer_ends = nothing, track = false)```
+"""```campssrc_circuit_dynamics(ψ, gates, phases, thl, obs[, output]; criterion = :entangle, strategy = :brickwork, showprogress = false, layer_ends = nothing, track = false, χmax = nothing)```
 
 CAMPS with SVD truncation instead of disentangling ("CAMPS (SVD)" in the progress lines).
 Evolve a copy of the CAMPS ψ through the whole circuit with the truncating `apply!(ψ, P, ϕ, thl)`.
@@ -358,7 +358,10 @@ Evolve a copy of the CAMPS ψ through the whole circuit with the truncating `app
 or every gate if it is `nothing`), and also appended to the file `output` if one is given. At each
 record point the layer-end disentangler (`criterion`, `strategy`, at most N sweeps, `min_diff = 6`)
 runs until the run is flagged as truncated, i.e. once norm² < (1 − thl)·norm²(t = 0); after that it
-no longer runs. Returns `(ψ, i, evs)`, plus the bond dimension at each record point if `track`.
+no longer runs. With an integer `χmax`, the run stops after the first record point at which the bond
+dimension (measured after the layer-end disentangler) is ≥ `χmax`; that value is still recorded. With
+the default `nothing` it runs to the end of the circuit. Returns `(ψ, i, evs)`, plus the bond
+dimension at each record point if `track`; `i` is the last gate applied.
 
 !!! warning
     For thl ≲ 1e-13 the truncation flag is unreliable: the rounding drift of the norm (about
@@ -375,11 +378,12 @@ criterion = :entangle,
 strategy = :brickwork,
 showprogress = false,
 layer_ends = nothing,
-track = false)
+track = false,
+χmax = nothing)
   return campssrc_circuit_dynamics(
     ψ_ext, gates, phases, thl, obs, nothing;
     criterion = criterion, strategy = strategy,
-    showprogress = showprogress, layer_ends = layer_ends, track = track)
+    showprogress = showprogress, layer_ends = layer_ends, track = track, χmax = χmax)
 end
 
 function campssrc_circuit_dynamics(
@@ -393,7 +397,8 @@ criterion = :entangle,
 strategy = :brickwork,
 showprogress = false,
 layer_ends = nothing,
-track = false)
+track = false,
+χmax = nothing)
 
   ψ = deepcopy(ψ_ext)
   N = nqubits_state(ψ)
@@ -412,6 +417,7 @@ track = false)
   # (see the docstring warning).
   norm0_sq = norm(ψ)^2
   truncated = false
+  stopped = false
 
   append_expectation!(evs_camps, output, ψ, obs_mt, 0)
   track && push!(bonddims, DisentangleCAMPS.bonddim(ψ))
@@ -433,15 +439,21 @@ track = false)
       truncated || layer_disentangle!(ψ, layer_de)
       track && push!(bonddims, DisentangleCAMPS.bonddim(ψ))
       layer += 1
+      # Budget stop: only at record points, after the disentangler
+      if !isnothing(χmax) && DisentangleCAMPS.bonddim(ψ) >= χmax
+        stopped = true
+      end
     end
 
     showprogress && log_progress!(progress, i, "bond dim." => DisentangleCAMPS.bonddim(ψ))
+    stopped && break
   end
 
   showprogress && log_done!(progress, i, "bond dim." => DisentangleCAMPS.bonddim(ψ))
   if !isnothing(output)
     open(output, "a") do f
-      println(f, "# CAMPS (SVD) stopped at gate $i (end of circuit)\n\n")
+      reason = stopped ? "(bond dim. ≥ $χmax)" : "(end of circuit)"
+      println(f, "# CAMPS (SVD) stopped at gate $i ", reason, "\n\n")
     end
   end
 
@@ -628,13 +640,15 @@ track = false)
   return i, evs_pp
 end
 
-"""```mps_circuit_dynamics(ψ, gates, phases, thl, obs, output; showprogress = false, layer_ends = nothing)```
+"""```mps_circuit_dynamics(ψ, gates, phases, thl, obs, output; showprogress = false, layer_ends = nothing, χmax = nothing)```
 
 Plain MPS evolution of a copy of the ITensors MPS ψ: each gate exp(iϕP) is applied as an \
 MPO (```MagicTensors.apply!```, ITensorMPS densitymatrix algorithm) with SVD cutoff \
 ```thl```, and the state is renormalised after every gate. Records ⟨obs⟩ as described at \
 the top of this section (in TimeEvolution.jl); ```output``` is required, pass \
-```nothing``` for no file. Always runs to the end of the circuit. Returns \
+```nothing``` for no file. With the default ```χmax = nothing``` it runs to the end of the \
+circuit; with an integer ```χmax``` it stops after the first record point at which \
+```maxlinkdim(ψ)``` is ≥ ```χmax``` (that value is still recorded). Returns \
 ```(ψ, evs)```."""
 function mps_circuit_dynamics(
   ψ_ext::MPS,
@@ -644,7 +658,8 @@ function mps_circuit_dynamics(
   obs::pp.PauliSum,
   output;
   showprogress = false,
-  layer_ends = nothing
+  layer_ends = nothing,
+  χmax = nothing
 )
   ψ = deepcopy(ψ_ext)                              
   N = length(ψ)
@@ -652,6 +667,7 @@ function mps_circuit_dynamics(
   i = 0
   layer = 0
   evs = []
+  stopped = false
   progress = ProgressLog("MPS gate", M; enabled = showprogress, indent = 2)
   obs_mt = mt.QubitPauliSum(obs)
 
@@ -668,6 +684,10 @@ function mps_circuit_dynamics(
     if isnothing(layer_ends) || i == layer_ends[layer] # Works because || short circuits
       append_expectation!(evs, output, ψ, obs_mt, layer)
       layer += 1
+      # Budget stop: only at record points
+      if !isnothing(χmax) && maxlinkdim(ψ) >= χmax
+        stopped = true
+      end
     end
     # Entropies only for the progress display, and only when a line is due.
     # mt.entanglement_entropy works on a copy, so the gauge of ψ (and hence what the next
@@ -675,6 +695,7 @@ function mps_circuit_dynamics(
     if showprogress && isdue(progress, i)
       log_progress!(progress, i, mps_progress_values(ψ)...)
     end
+    stopped && break
   end
 
   # Entropies cost an SVD sweep: only when the final line is not printed yet
@@ -683,7 +704,7 @@ function mps_circuit_dynamics(
   end
   if !isnothing(output)
     open(output, "a") do f
-      reason = "end of circuit"
+      reason = stopped ? "(bond dim. ≥ $χmax)" : "(end of circuit)"
       println(f, "# MPS stopped at gate $i ", reason, "\n\n")
     end
   end

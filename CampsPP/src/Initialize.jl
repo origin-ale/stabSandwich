@@ -91,6 +91,15 @@ function transferredmagnetization(N, init_ones)
   return obs
 end
 
+""" ```local_z(N, j)```
+
+The PP sum with the single term 1.0·Z_j on N qubits (the kicked Ising observable)."""
+function local_z(N, j)
+  obs = pp.PauliSum(N)
+  obs += pp.PauliString(N, [:Z], [j], 1.0)
+  return obs
+end
+
 # == Circuits ===========================================================================
 
 """ ```layerends(N, t, circbuilder)```
@@ -103,4 +112,12 @@ function layerends(N, t, circbuilder)
   layer_depth = length(circbuilder(0,0,1,N)[1])
   layer_ends = collect(layer_depth:layer_depth:t*layer_depth)
   return layer_ends
+end
+""" ```kicked_ising_layerends(N, t)```
+
+The gate index at which each of the t layers of ```kicked_ising_circuit(ε, t, N)``` ends, \
+```[L, 2L, …, tL]```, with L the gates per layer (3N for N ≥ 3, 5 at N = 2, 2 at N = 1)."""
+function kicked_ising_layerends(N, t)
+  L = length(kicked_ising_circuit(0.0, 1, N)[1])
+  return collect(L:L:t*L)
 end

@@ -35,8 +35,11 @@ end
 
 Block header of the ```save_*``` writers: ```label = "n" => n``` gives \
 ```# n = <n>, μ = <μ>``` (count mode); the T11 replay passes ```"p" => p```, giving \
-```# p = <p>, μ = <μ>```. In the writers' docstrings, ```# n = …``` stands for either."""
+```# p = <p>, μ = <μ>```. With ```μ = nothing``` (models without a μ, e.g. \
+```"ε" => ε``` for the kicked Ising model) the header is ```# <k> = <v>```. In the \
+writers' docstrings, ```# n = …``` stands for any of these."""
 label_header(label::Pair{<:AbstractString}, μ) = "# $(label.first) = $(label.second), μ = $μ"
+label_header(label::Pair{<:AbstractString}, ::Nothing) = "# $(label.first) = $(label.second)"
 
 """ ```save_full_samples(output_full, μ, label, evs)```
 

@@ -40,6 +40,7 @@ export xy_magic
 export z_magic
 export rotation_circuit
 export xxz_circuit
+export kicked_ising_circuit
 
 include("TimeEvolution.jl")
 export camps_circuit_dynamics
@@ -55,5 +56,7 @@ export domainwallstate
 export computationalcamps
 export transferredmagnetization
 export layerends
+export kicked_ising_layerends
+export local_z
 
 end

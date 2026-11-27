@@ -161,6 +161,43 @@ function xxz(ϕ, θ, qinds)
   return rots, phases
 end
 
+# == Kicked Ising ======================================================================
+
+""" ```kicked_ising_circuit(ε, t, N)```
+
+Generate t layers of the N-qubit self-dual kicked Ising circuit near its Clifford point, \
+with periodic boundary conditions (test/CONVENTIONS.md §2 "Kicked Ising"). Each layer is \
+(ZZ, −π/4) on every bond (the bonds of ```bricklayer_qinds(N)```, then the wrap bond \
+```[1, N]``` for N ≥ 3 only), then (Z_j, −(π/2 + ε_j)/2) on j = 1…N, then (Y_j, −π/4) on \
+j = 1…N, i.e. rotations by θ = π/2, π/2 + ε_j, π/2. ε is a real number (the same on every \
+qubit) or a real vector of length N (ε_j on qubit j; another length is an \
+```ArgumentError```); the layers are identical. Returns ```(rotations, phases)```, \
+with ```Float64``` phases in circuit order."""
+kicked_ising_circuit(ε::Real, t::Integer, N::Integer) =
+  kicked_ising_circuit(fill(ε, N), t, N)
+
+function kicked_ising_circuit(εs::AbstractVector{<:Real}, t::Integer, N::Integer)
+  length(εs) == N || throw(ArgumentError(
+    "kicked_ising_circuit: ε must be a number or a vector of length N = $N, got length $(length(εs))"))
+  bonds = bricklayer_qinds(N)
+  N >= 3 && push!(bonds, [1, N])
+  layer_rots = pp.PauliRotation[]
+  layer_phases = Float64[]
+  for b in bonds
+    push!(layer_rots, pp.PauliRotation([:Z, :Z], b))
+    push!(layer_phases, -π/4)
+  end
+  for j in 1:N
+    push!(layer_rots, pp.PauliRotation([:Z], [j]))
+    push!(layer_phases, -(π/2 + εs[j]) / 2)
+  end
+  for j in 1:N
+    push!(layer_rots, pp.PauliRotation([:Y], [j]))
+    push!(layer_phases, -π/4)
+  end
+  return repeat(layer_rots, t), repeat(layer_phases, t)
+end
+
 # == Utility ===================================================================
 
 """ ```bricklayer_qinds(N)```
