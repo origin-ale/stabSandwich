@@ -58,11 +58,9 @@ spec_bonds(N) = vcat([[i, i + 1] for i in 1:2:N-1], [[i, i + 1] for i in 2:2:N-1
 spec_layer_ends(N, t) = [3 * (N - 1) * l for l in 1:t]
 
 # Kicked Ising (CONVENTIONS.md §2 "Kicked Ising"): the circuit and its dense profile from the
-# spec, in KimSpec.jl. The tests of the KIM code were written before the code (KIM plan,
-# step 2) and are gated on its names; until they exist each KIM testset records one
-# @test_broken. (KIM plan step 4 removes the gates.)
+# spec, in KimSpec.jl. (The KIM tests were written before the code, KIM plan step 2, and their
+# gates were removed in step 4.)
 include(joinpath(@__DIR__, "KimSpec.jl"))
-kim_defined() = all(n -> isdefined(CampsPP, n), (:kicked_ising_circuit, :kicked_ising_layerends, :local_z))
 
 "Is `v` non-increasing, up to rounding at the level of `tol`?"
 nonincreasing(v; tol = 1e-10) = all(v[i+1] <= v[i] + tol for i in 1:length(v)-1)

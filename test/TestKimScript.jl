@@ -25,11 +25,16 @@
 #        budget; the full files end at l and equal dense up to l;
 #      - negative check: some run's value at l equals the budget, so a `>` rule would stop it
 #        later.
-#   3. `eps_mode = :random`, samples = 2, CAMPS-PP and PP, εs = 0.1, 0.3, sites 2, 4, 5:
+#   2b. CAMPS-PP, CAMPS and MPS at ε = 0.3 with the cap lowered to the last layer tc at which
+#      each of them has a run with a new largest value, and that value as budget: that run
+#      reaches its budget exactly on the cap and must report (tc, 1).
+#   3. `eps_mode = :random`, samples = 2, all four methods, εs = 0.1, 0.3, sites 5, 2, 4 (not
+#      sorted, so a script that sorts them or runs them sorted fails):
 #      - the u of each (sample, ε) in eps_kim.txt is
 #        2 .* rand(MersenneTwister(hash((rng_seed + i, ε))), N) .- 1, and the u at the two ε
 #        differ (independent draws, not one pattern scaled by ε);
-#      - CAMPS-PP (exact, budget not binding) gives the dense ⟨Z_j⟩ with ε_j = ε·u_j;
+#      - CAMPS-PP, CAMPS and MPS (exact, budgets not binding) give the dense ⟨Z_j⟩ with
+#        ε_j = ε·u_j;
 #      - PP runs with pp_thl = 1e-4 and a binding pp_Pmax, so the samples of a site stop at
 #        different layers (at pp_thl = 1e-14 the number of strings does not depend on u): the
 #        stop layers are those predicted from `pauliprop_circuit_dynamics` with the same
@@ -37,12 +42,16 @@
 #        (NaN mean if none, NaN error below two), up to the deepest layer recorded at that ε.
 #      Some ε block mixes runs stopped on the budget and runs on the cap, so layers_kim.txt is
 #      checked over both kinds.
-#   4. A budget of an unselected method is not refused (`methods=pp` with the other budgets 1).
+#   4. Budgets and thresholds of unselected methods are not refused (`methods=pp` with the
+#      other budgets 1 and campspp_thl = 0; `methods=mps` with pp_thl = 0, pp_Pmax = 1,
+#      campspp_thl < 0, campspp_Pmax = 1).
 #   5. Refused before any output file or directory is written: `:uniform` with samples = 2,
-#      pp_thl = 0, campspp_thl = 0, εs not strictly increasing (0.3,0 and 0,0), a site outside
-#      1:N (0 and N + 1), a repeated site, an unknown method, an unknown eps_mode, t_max = 0,
-#      pp_Pmax = 1, campspp_Pmax = 1, camps_χmax = 1, mps_χmax = 1.5. A refusal must exit
-#      nonzero, name the offending parameter on stderr, and leave `outdir` absent.
+#      `:random` with samples = 0, pp_thl = 0, campspp_thl = 0, εs empty or not strictly
+#      increasing (0.3,0 and 0,0), sites empty, outside 1:N (0 and N + 1) or repeated, methods
+#      unknown, empty or repeated, an unknown eps_mode, t_max = 0, pp_Pmax = 1,
+#      campspp_Pmax = 1, camps_χmax = 1, mps_χmax = 1 (an integer, so the script's own check
+#      refuses it, not the integer parsing). A refusal must exit nonzero, name the offending
+#      parameter on stderr, and leave `outdir` absent.
 #
 # Exact regime (§6, 1e-10), runs 1–2: N = 6; campspp_χ = 4, so CAMPS-PP switches to PP
 # mid-circuit; mps_thl = 1e-15; pp_thl = campspp_thl = 1e-14 (they must be > 0: PP takes the
@@ -55,6 +64,10 @@
 # ε = 0 block stays 0 after t = 0 to the cap (it checks the initial state, the cap and the
 # bookkeeping). With uniform ε, sites 4 and 6 have equal values (shift by two), so a 4 ↔ 6
 # mix-up shows only in the random run, whose sites 2, 4 include a same-parity pair.
+#
+# Not checked (the spec leaves them open): the threshold tag in the evs_kim_* names (only
+# that the full and profile files share it), the PW/PC, non-full and `_peak` resource files,
+# campspp_switch_kim.txt and the cross-check between methods.
 #
 # Output layouts the spec leaves open, as assumed here (KIM plan step 3: "via the existing
 # writers"):
@@ -73,7 +86,9 @@
 #   - block labels are recognised as `# <ε|eps|n|p|μ> = …` lines, so other comment lines of
 #     the form `# x = …` don't count as labels.
 #
-#   julia --project=. -t 2 test/TestKimScript.jl   (also run by test/runtests.jl)
+# Tiers (KIM plan step 4): the helper and reference checks run in the fast tier; the script
+# runs (testset "Comptime_kim.jl (KIM)", about 6 min) only in the slow tier.
+#   STABSANDWICH_SLOW=1 julia --project=. -t 2 test/TestKimScript.jl   (or test/runtests.jl)
 #
 # STABSANDWICH_SCRIPT_DIR (default: the repository root) points the runs at another copy of
 # the script; used for the scratch mutants of KIM plan step 4, not by the suite.
@@ -92,9 +107,8 @@ const DR = DenseReference
 include(joinpath(ROOT, "CampsPP", "test", "KimSpec.jl"))
 
 # The drivers, for the references of the stops that the script's files don't give (MPS bond
-# dimensions; PP string counts of the random run). Loaded only when the script exists.
-const HAVE_SCRIPT = isfile(joinpath(SCRIPT_DIR, SCRIPT))
-HAVE_SCRIPT && @eval using CampsPP, ITensors, ITensorMPS
+# dimensions; PP string counts of the random run).
+using CampsPP, ITensors, ITensorMPS
 
 "Run `script` in SCRIPT_DIR with `args` in a child process; returns (exit code, stdout, stderr)."
 function run_script(script, args...; threads = 1)
@@ -214,18 +228,18 @@ const ATOL = 1e-10
 const EXACT = ["mps_thl=1e-15", "pp_thl=1e-14", "campspp_thl=1e-14"]
 const HUGE = ["pp_Pmax=1000000000", "campspp_Pmax=1000000000", "camps_χmax=1000000", "mps_χmax=1000000"]
 const UNIFORM_εS, UNIFORM_SITES = [0.0, 0.3], [1, 4, 6]
-const RANDOM_εS, RANDOM_SITES = [0.1, 0.3], [2, 4, 5]
+const RANDOM_εS, RANDOM_SITES = [0.1, 0.3], [5, 2, 4]    # not sorted, on purpose
 const RANDOM_PP_THL = 1e-4
 
 """
-Checks on output directory `dir`: labels, runs table, stop layers (against `stops(m, ε, r)`,
-an expected `(l, s)` or `nothing`), per-run ⟨Z_j⟩ against the dense value `dense(i, ε, j)`
+Checks on output directory `dir` of a run with cap `tmax`: labels, runs table, stop layers
+(against `stops(m, ε, r)`, an expected `(l, s)` or `nothing`), per-run ⟨Z_j⟩ against the dense value `dense(i, ε, j)`
 (t_max + 1 values) for the methods in `dense_methods`, profile means and errors over the runs
 that recorded each layer, summary tables. Returns `(checks, stoplayers)`: a Dict of named
 Bools, and `Dict((m, ε) => [(r, l, s), …])` as read.
 """
-function check_run(dir; methods, εs, sites, samples, dense, stops, dense_methods = methods)
-  tmax = KIM_TMAX
+function check_run(dir; methods, εs, sites, samples, dense, stops, dense_methods = methods,
+                   tmax = KIM_TMAX)
   r = Dict{String, Bool}()
   εstr = string.(εs)
   read_stops = Dict{Tuple{String, Float64}, Vector{NTuple{3, Int}}}()
@@ -270,6 +284,9 @@ function check_run(dir; methods, εs, sites, samples, dense, stops, dense_method
     prof = onefile(dir, Regex("^evs_kim_$(m)_[^_]+\\.txt\$"))
     r["$m: one full file, one profile file"] = full !== nothing && prof !== nothing
     (full === nothing || prof === nothing) && continue
+    # The threshold tag (left open by the spec) is the same in both names
+    r["$m: full and profile files have the same tag"] =
+      basename(full) == replace(basename(prof), r"\.txt$" => "_full.txt")
     fr = full_runs(full)
     r["$m: full file parses, one block per ε, every run"] = fr !== nothing &&
       [b[1] for b in fr] == εstr && all(length(b[2]) == R for b in fr)
@@ -386,208 +403,251 @@ end
   @test maximum(abs, p[2:end, :]) > 0.05
   @test maximum(abs.(p[2:end, 1] .- p[2:end, 2])) > 0.05
   # Random run: another sample's u, or the other ε's u (a u shared across ε), gives other
-  # values at the sites run; so do sites 2 and 4 (a same-parity swap)
+  # values at the sites run; so do sites 2 and 4 (a same-parity swap) and sites 5 and 2 (a
+  # script that runs the sites sorted puts 2 first)
   prof(i, ε; uε = ε) = kim_dense_profile(ε .* spec_u(i, uε, N), t, N)[:, RANDOM_SITES]
+  col(j) = findfirst(==(j), RANDOM_SITES)
+  @test !issorted(RANDOM_SITES)
   @test all(maxabsdiff(prof(1, ε), prof(2, ε)) > 1e-3 for ε in RANDOM_εS)
   @test all(maxabsdiff(prof(i, 0.3), prof(i, 0.3; uε = 0.1)) > 1e-3 for i in 1:2)
-  @test all(maxabsdiff(prof(i, ε)[:, 1], prof(i, ε)[:, 2]) > 1e-3 for i in 1:2, ε in RANDOM_εS)
+  @test all(maxabsdiff(prof(i, ε)[:, col(2)], prof(i, ε)[:, col(4)]) > 1e-3 for i in 1:2, ε in RANDOM_εS)
+  @test all(maxabsdiff(prof(i, ε)[:, col(5)], prof(i, ε)[:, col(2)]) > 1e-3 for i in 1:2, ε in RANDOM_εS)
 end
 
+if get(ENV, "STABSANDWICH_SLOW", "") != ""
 @testset "Comptime_kim.jl (KIM)" begin
-  if !HAVE_SCRIPT
-    @test_broken HAVE_SCRIPT
-  else
-    N, tmax = KIM_N, KIM_TMAX
-    L = kim_spec_L(N)
-    le = [L * l for l in 1:tmax]
-    neel = kim_neel(N)
-    # MPS bond dimension after layers 1 … t_max (unstopped runs on the first l layers)
-    function mps_bonddims(εv)
-      g, ϕ = kicked_ising_circuit(εv, tmax, N)
-      Dict(l => maxlinkdim(first(mps_circuit_dynamics(
-                  MPS(ComplexF64, siteinds("Qubit", N), [j in neel ? "1" : "0" for j in 1:N]),
-                  g[1:L*l], ϕ[1:L*l], 1e-15, local_z(N, 1), nothing; layer_ends = [L * l])))
-           for l in 1:tmax)
-    end
-    # PP string counts after layers 0 … t_max, at `thl`, of the run (εv, site j)
-    function pp_counts(εv, j, thl)
-      g, ϕ = kicked_ising_circuit(εv, tmax, N)
-      _, evs, nt = pauliprop_circuit_dynamics(neel, g, ϕ, thl, typemax(Int), local_z(N, j);
-        layer_ends = le, track = true)
-      @assert length(nt) == length(evs) == tmax + 1
-      Dict(l => nt[l + 1] for l in 0:tmax)
-    end
+  N, tmax = KIM_N, KIM_TMAX
+  L = kim_spec_L(N)
+  le = [L * l for l in 1:tmax]
+  neel = kim_neel(N)
+  # MPS bond dimension after layers 1 … t_max (unstopped runs on the first l layers)
+  function mps_bonddims(εv)
+    g, ϕ = kicked_ising_circuit(εv, tmax, N)
+    Dict(l => maxlinkdim(first(mps_circuit_dynamics(
+                MPS(ComplexF64, siteinds("Qubit", N), [j in neel ? "1" : "0" for j in 1:N]),
+                g[1:L*l], ϕ[1:L*l], 1e-15, local_z(N, 1), nothing; layer_ends = [L * l])))
+         for l in 1:tmax)
+  end
+  # PP string counts after layers 0 … t_max, at `thl`, of the run (εv, site j)
+  function pp_counts(εv, j, thl)
+    g, ϕ = kicked_ising_circuit(εv, tmax, N)
+    _, evs, nt = pauliprop_circuit_dynamics(neel, g, ϕ, thl, typemax(Int), local_z(N, j);
+      layer_ends = le, track = true)
+    @assert length(nt) == length(evs) == tmax + 1
+    Dict(l => nt[l + 1] for l in 0:tmax)
+  end
 
-    mktempdir() do dir
-      uniform_args = ["N=$N", "t_max=$tmax", "methods=$(join(METHODS_ALL, ','))",
-        "εs=$(join(UNIFORM_εS, ','))", "sites=$(join(UNIFORM_SITES, ','))", "campspp_χ=4", EXACT...]
-      uprofiles = Dict(ε => kim_dense_profile(ε, tmax, N) for ε in UNIFORM_εS)
-      udense = (i, ε, j) -> uprofiles[ε][:, j]
-      out1 = joinpath(dir, "uniform")
+  mktempdir() do dir
+    uniform_args = ["N=$N", "t_max=$tmax", "methods=$(join(METHODS_ALL, ','))",
+      "εs=$(join(UNIFORM_εS, ','))", "sites=$(join(UNIFORM_SITES, ','))", "campspp_χ=4", EXACT...]
+    uprofiles = Dict(ε => kim_dense_profile(ε, tmax, N) for ε in UNIFORM_εS)
+    udense = (i, ε, j) -> uprofiles[ε][:, j]
+    out1 = joinpath(dir, "uniform")
 
-      @testset "1. uniform ε, budgets not binding" begin
-        code, stdout_, err = run_script(SCRIPT, uniform_args..., HUGE..., "outdir=$out1")
-        @test code == 0
-        if code == 0
-          checks, _ = check_run(out1; methods = METHODS_ALL, εs = UNIFORM_εS, sites = UNIFORM_SITES,
-            samples = 1, dense = udense, stops = (m, ε, r) -> (tmax, 0))
-          test_checks(checks)
-          @test !isfile(joinpath(out1, "eps_kim.txt"))       # :random only
-        else
-          @info "Comptime_kim.jl (uniform) failed" stdout_ err
-        end
+    @testset "1. uniform ε, budgets not binding" begin
+      code, stdout_, err = run_script(SCRIPT, uniform_args..., HUGE..., "outdir=$out1")
+      @test code == 0
+      if code == 0
+        checks, _ = check_run(out1; methods = METHODS_ALL, εs = UNIFORM_εS, sites = UNIFORM_SITES,
+          samples = 1, dense = udense, stops = (m, ε, r) -> (tmax, 0))
+        test_checks(checks)
+        @test !isfile(joinpath(out1, "eps_kim.txt"))       # :random only
+      else
+        @info "Comptime_kim.jl (uniform) failed" stdout_ err
       end
+    end
 
-      @testset "2. uniform ε, budgets that bind" begin
-        # References per (method, ε, run): value at each layer, from run 1's resource files
-        # (PP, CAMPS-PP: strings; CAMPS: bond dimension) and from the MPS driver
-        res_file = Dict("pp" => "resources_kim_NP_full_pp.txt",
-                        "campspp" => "resources_kim_NP_full_campspp.txt",
-                        "camps" => "resources_kim_bd_full_camps.txt")
-        ref = Dict{Tuple{String, Float64, Int}, Dict{Int, Int}}()
-        R = length(UNIFORM_SITES)
-        ok_files = isdir(out1) && all(begin
-            fr = full_runs(joinpath(out1, f))
-            fr !== nothing && [b[1] for b in fr] == string.(UNIFORM_εS) && all(length(b[2]) == R for b in fr)
-          end for f in values(res_file))
-        @test ok_files
-        if ok_files
-          for (m, f) in res_file, ((_, rs), ε) in zip(full_runs(joinpath(out1, f)), UNIFORM_εS)
-            for (rr, layers, vals) in rs
-              ref[(m, ε, rr)] = Dict(l => round(Int, v) for (l, v) in zip(layers, vals))
-            end
-          end
-          for ε in UNIFORM_εS
-            bd = mps_bonddims(fill(ε, N))
-            for rr in 1:R
-              ref[("mps", ε, rr)] = bd
-            end
-          end
-          # Budget per method: the smallest over the ε = 0.3 runs of the largest value before
-          # the cap, so every ε = 0.3 run reaches it before t_max. PP instead gets the smallest
-          # value at layer t_max, so some run reaches its budget exactly on the cap, where the
-          # spec wants s = 1 (a script that sets s = (l < t_max) fails there).
-          budget = Dict(m => minimum(maximum(v for (l, v) in ref[(m, 0.3, rr)] if 1 <= l <= tmax - 1)
-                                     for rr in 1:R) for m in METHODS_ALL)
-          budget["pp"] = minimum(ref[("pp", 0.3, rr)][tmax] for rr in 1:R)
-          want(m, ε, rr) = predicted_stop(ref[(m, ε, rr)], budget[m], tmax)
-          @testset "premises" begin
-            @test all(>=(2), values(budget))                       # the script refuses < 2
-            @test all(want(m, 0.3, rr)[1] < tmax && want(m, 0.3, rr)[2] == 1
-                      for m in ("campspp", "camps", "mps"), rr in 1:R)
-            @test all(want("pp", 0.3, rr)[2] == 1 for rr in 1:R)
-            @test any(want("pp", 0.3, rr) == (tmax, 1) for rr in 1:R)    # budget reached on the cap
-            # ε = 0: PP keeps one string, CAMPS-PP never switches, CAMPS stays at bond dim. 1
-            @test all(want(m, 0.0, rr) == (tmax, 0) for m in ("pp", "campspp", "camps"), rr in 1:R)
-            # Negative: a value equal to the budget at the stop layer (a `>` rule stops later)
-            @test all(any(ref[(m, 0.3, rr)][want(m, 0.3, rr)[1]] == budget[m] for rr in 1:R) for m in METHODS_ALL)
-            # … and the budget does stop some run after its first layer with a value
-            @test all(any(want(m, 0.3, rr)[1] > minimum(l for l in keys(ref[(m, 0.3, rr)]) if l >= 1)
-                          for rr in 1:R) for m in METHODS_ALL)
-          end
-
-          out2 = joinpath(dir, "binding")
-          code, stdout_, err = run_script(SCRIPT, uniform_args...,
-            "pp_Pmax=$(budget["pp"])", "campspp_Pmax=$(budget["campspp"])",
-            "camps_χmax=$(budget["camps"])", "mps_χmax=$(budget["mps"])", "outdir=$out2")
-          @test code == 0
-          if code == 0
-            checks, _ = check_run(out2; methods = METHODS_ALL, εs = UNIFORM_εS, sites = UNIFORM_SITES,
-              samples = 1, dense = udense, stops = want)
-            # The resource values are run 1's up to the stop layer, so each earlier layer is
-            # below the budget
-            for (m, f) in res_file
-              fr = full_runs(joinpath(out2, f))
-              checks["$m: resource values = unstopped run's, up to the stop layer"] = fr !== nothing &&
-                [b[1] for b in fr] == string.(UNIFORM_εS) && all(begin
-                  l = want(m, ε, rr)[1]
-                  Dict(k => round(Int, v) for (k, v) in zip(layers, vals)) ==
-                    filter(kv -> kv[1] <= l, ref[(m, ε, rr)])
-                end for ((_, rs), ε) in zip(fr, UNIFORM_εS) for (rr, layers, vals) in rs)
-            end
-            test_checks(checks)
-          else
-            @info "Comptime_kim.jl (binding budgets) failed" stdout_ err
+    @testset "2. uniform ε, budgets that bind" begin
+      # References per (method, ε, run): value at each layer, from run 1's resource files
+      # (PP, CAMPS-PP: strings; CAMPS: bond dimension) and from the MPS driver
+      res_file = Dict("pp" => "resources_kim_NP_full_pp.txt",
+                      "campspp" => "resources_kim_NP_full_campspp.txt",
+                      "camps" => "resources_kim_bd_full_camps.txt")
+      ref = Dict{Tuple{String, Float64, Int}, Dict{Int, Int}}()
+      R = length(UNIFORM_SITES)
+      ok_files = isdir(out1) && all(begin
+          fr = full_runs(joinpath(out1, f))
+          fr !== nothing && [b[1] for b in fr] == string.(UNIFORM_εS) && all(length(b[2]) == R for b in fr)
+        end for f in values(res_file))
+      @test ok_files
+      if ok_files
+        for (m, f) in res_file, ((_, rs), ε) in zip(full_runs(joinpath(out1, f)), UNIFORM_εS)
+          for (rr, layers, vals) in rs
+            ref[(m, ε, rr)] = Dict(l => round(Int, v) for (l, v) in zip(layers, vals))
           end
         end
-      end
-
-      @testset "3. random ε, samples = 2, ragged profile" begin
-        εs, sites, samples = RANDOM_εS, RANDOM_SITES, 2
-        rprofiles = Dict((i, ε) => kim_dense_profile(ε .* spec_u(i, ε, N), tmax, N)
-                         for i in 1:samples, ε in εs)
-        # PP's stops at pp_thl = 1e-4: string counts from the driver, per (ε, sample, site)
-        counts = Dict((ε, i, j) => pp_counts(ε .* spec_u(i, ε, N), j, RANDOM_PP_THL)
-                      for ε in εs, i in 1:samples, j in sites)
-        stop_of(B, ε, i, j) = predicted_stop(counts[(ε, i, j)], B, tmax)
-        ragged(B) = count(stop_of(B, ε, 1, j)[1] != stop_of(B, ε, 2, j)[1] for ε in εs, j in sites)
-        mixed(B) = any(length(unique(stop_of(B, ε, i, j)[2] for i in 1:samples, j in sites)) == 2 for ε in εs)
-        cands = sort(unique(v for c in values(counts) for (l, v) in c if 1 <= l <= tmax && v >= 2))
-        B = argmax(b -> (mixed(b), ragged(b), -b), cands)
+        for ε in UNIFORM_εS
+          bd = mps_bonddims(fill(ε, N))
+          for rr in 1:R
+            ref[("mps", ε, rr)] = bd
+          end
+        end
+        # Budget per method: the smallest over the ε = 0.3 runs of the largest value before
+        # the cap, so every ε = 0.3 run reaches it before t_max. PP instead gets the smallest
+        # value at layer t_max, so some run reaches its budget exactly on the cap, where the
+        # spec wants s = 1 (a script that sets s = (l < t_max) fails there).
+        budget = Dict(m => minimum(maximum(v for (l, v) in ref[(m, 0.3, rr)] if 1 <= l <= tmax - 1)
+                                   for rr in 1:R) for m in METHODS_ALL)
+        budget["pp"] = minimum(ref[("pp", 0.3, rr)][tmax] for rr in 1:R)
+        want(m, ε, rr) = predicted_stop(ref[(m, ε, rr)], budget[m], tmax)
         @testset "premises" begin
-          @test ragged(B) >= 2              # the samples of a site stop at different layers
-          @test mixed(B)                    # an ε block has budget stops and cap stops
+          @test all(>=(2), values(budget))                       # the script refuses < 2
+          @test all(want(m, 0.3, rr)[1] < tmax && want(m, 0.3, rr)[2] == 1
+                    for m in ("campspp", "camps", "mps"), rr in 1:R)
+          @test all(want("pp", 0.3, rr)[2] == 1 for rr in 1:R)
+          @test any(want("pp", 0.3, rr) == (tmax, 1) for rr in 1:R)    # budget reached on the cap
+          # ε = 0: PP keeps one string, CAMPS-PP never switches, CAMPS stays at bond dim. 1
+          @test all(want(m, 0.0, rr) == (tmax, 0) for m in ("pp", "campspp", "camps"), rr in 1:R)
+          # Negative: a value equal to the budget at the stop layer (a `>` rule stops later)
+          @test all(any(ref[(m, 0.3, rr)][want(m, 0.3, rr)[1]] == budget[m] for rr in 1:R) for m in METHODS_ALL)
+          # … and the budget does stop some run after its first layer with a value
+          @test all(any(want(m, 0.3, rr)[1] > minimum(l for l in keys(ref[(m, 0.3, rr)]) if l >= 1)
+                        for rr in 1:R) for m in METHODS_ALL)
         end
-        want(m, ε, rr) = m == "campspp" ? (tmax, 0) :
-          stop_of(B, ε, cld(rr, length(sites)), sites[mod1(rr, length(sites))])
 
-        out3 = joinpath(dir, "random")
-        code, stdout_, err = run_script(SCRIPT, "N=$N", "t_max=$tmax", "methods=campspp,pp",
-          "eps_mode=random", "samples=$samples", "εs=$(join(εs, ','))", "sites=$(join(sites, ','))",
-          "campspp_thl=1e-14", "pp_thl=$RANDOM_PP_THL", "pp_Pmax=$B", "campspp_Pmax=1000000000",
-          "outdir=$out3")
+        out2 = joinpath(dir, "binding")
+        code, stdout_, err = run_script(SCRIPT, uniform_args...,
+          "pp_Pmax=$(budget["pp"])", "campspp_Pmax=$(budget["campspp"])",
+          "camps_χmax=$(budget["camps"])", "mps_χmax=$(budget["mps"])", "outdir=$out2")
         @test code == 0
         if code == 0
-          checks, _ = check_run(out3; methods = ["campspp", "pp"], εs, sites, samples,
-            dense = (i, ε, j) -> rprofiles[(i, ε)][:, j], stops = want, dense_methods = ["campspp"])
-          table = isfile(joinpath(out3, "eps_kim.txt")) ? eps_table(out3, N) : []
-          checks["eps_kim.txt: one block per ε, u for each sample"] =
-            [b[1] for b in table] == string.(εs) &&
-            all(length(us) == samples && all(!isnothing, us) for (_, us) in table)
-          if checks["eps_kim.txt: one block per ε, u for each sample"]
-            checks["eps_kim.txt: u = 2 .* rand(MersenneTwister(hash((rng_seed + i, ε))), N) .- 1"] =
-              all(maxabsdiff(us[i], spec_u(i, ε, N)) <= 1e-15 for ((_, us), ε) in zip(table, εs)
-                  for i in 1:samples)
-            checks["eps_kim.txt: u differ across ε (independent draws)"] =
-              all(maxabsdiff(table[1][2][i], table[2][2][i]) > 0.1 for i in 1:samples)
-            checks["eps_kim.txt: u differ across samples"] =
-              all(maxabsdiff(us[1], us[2]) > 0.1 for (_, us) in table)
+          checks, _ = check_run(out2; methods = METHODS_ALL, εs = UNIFORM_εS, sites = UNIFORM_SITES,
+            samples = 1, dense = udense, stops = want)
+          # The resource values are run 1's up to the stop layer, so each earlier layer is
+          # below the budget
+          for (m, f) in res_file
+            fr = full_runs(joinpath(out2, f))
+            checks["$m: resource values = unstopped run's, up to the stop layer"] = fr !== nothing &&
+              [b[1] for b in fr] == string.(UNIFORM_εS) && all(begin
+                l = want(m, ε, rr)[1]
+                Dict(k => round(Int, v) for (k, v) in zip(layers, vals)) ==
+                  filter(kv -> kv[1] <= l, ref[(m, ε, rr)])
+              end for ((_, rs), ε) in zip(fr, UNIFORM_εS) for (rr, layers, vals) in rs)
           end
           test_checks(checks)
         else
-          @info "Comptime_kim.jl (random) failed" stdout_ err
+          @info "Comptime_kim.jl (binding budgets) failed" stdout_ err
+        end
+
+        # 2b. CAMPS-PP, CAMPS and MPS reach their budgets exactly on the cap, so s = 1 at
+        # l = t_max for them too (run 2 checks that for PP only). The cap tc is the last layer
+        # at which each of the three has some ε = 0.3 run with a new largest value (≥ 2); that
+        # value is its budget. Same settings as run 1 up to tc, so run 1's values apply.
+        @testset "2b. budgets reached on the cap" begin
+          cap_ms = ["campspp", "camps", "mps"]
+          newmax(v, l) = haskey(v, l) && v[l] >= 2 && all(v[k] < v[l] for k in keys(v) if 1 <= k < l)
+          tcs = [l for l in 2:tmax if all(any(newmax(ref[(m, 0.3, rr)], l) for rr in 1:R) for m in cap_ms)]
+          @test !isempty(tcs)                                      # premise
+          if !isempty(tcs)
+            tc = maximum(tcs)
+            bcap = Dict(m => minimum(ref[(m, 0.3, rr)][tc] for rr in 1:R if newmax(ref[(m, 0.3, rr)], tc))
+                        for m in cap_ms)
+            wantc(m, ε, rr) = predicted_stop(filter(kv -> kv[1] <= tc, ref[(m, ε, rr)]), bcap[m], tc)
+            # Premise: for each method some run reaches its budget at tc (a script with
+            # s = (l < t_max) reports s = 0 there)
+            @test all(any(wantc(m, 0.3, rr) == (tc, 1) for rr in 1:R) for m in cap_ms)
+            out2b = joinpath(dir, "on_cap")
+            code, stdout_, err = run_script(SCRIPT, "N=$N", "t_max=$tc", "methods=$(join(cap_ms, ','))",
+              "εs=0.3", "sites=$(join(UNIFORM_SITES, ','))", "campspp_χ=4", EXACT...,
+              "campspp_Pmax=$(bcap["campspp"])", "camps_χmax=$(bcap["camps"])",
+              "mps_χmax=$(bcap["mps"])", "outdir=$out2b")
+            @test code == 0
+            if code == 0
+              checks, _ = check_run(out2b; methods = cap_ms, εs = [0.3], sites = UNIFORM_SITES,
+                samples = 1, dense = udense, stops = wantc, tmax = tc)
+              test_checks(checks)
+            else
+              @info "Comptime_kim.jl (budgets on the cap) failed" stdout_ err
+            end
+          end
         end
       end
+    end
 
-      @testset "4. a budget of an unselected method is not refused" begin
-        out4 = joinpath(dir, "unselected")
-        code, stdout_, err = run_script(SCRIPT, "N=$N", "t_max=1", "methods=pp", "εs=0.1",
-          "sites=1", "pp_thl=1e-14", "campspp_Pmax=1", "camps_χmax=1", "mps_χmax=1", "outdir=$out4")
-        ok = code == 0 && isfile(joinpath(out4, "layers_kim_pp.txt"))
-        ok || @info "Comptime_kim.jl (unselected budgets) failed" stdout_ err
-        @test ok
+    @testset "3. random ε, samples = 2, ragged profile" begin
+      εs, sites, samples = RANDOM_εS, RANDOM_SITES, 2
+      rprofiles = Dict((i, ε) => kim_dense_profile(ε .* spec_u(i, ε, N), tmax, N)
+                       for i in 1:samples, ε in εs)
+      # PP's stops at pp_thl = 1e-4: string counts from the driver, per (ε, sample, site)
+      counts = Dict((ε, i, j) => pp_counts(ε .* spec_u(i, ε, N), j, RANDOM_PP_THL)
+                    for ε in εs, i in 1:samples, j in sites)
+      stop_of(B, ε, i, j) = predicted_stop(counts[(ε, i, j)], B, tmax)
+      ragged(B) = count(stop_of(B, ε, 1, j)[1] != stop_of(B, ε, 2, j)[1] for ε in εs, j in sites)
+      mixed(B) = any(length(unique(stop_of(B, ε, i, j)[2] for i in 1:samples, j in sites)) == 2 for ε in εs)
+      cands = sort(unique(v for c in values(counts) for (l, v) in c if 1 <= l <= tmax && v >= 2))
+      B = argmax(b -> (mixed(b), ragged(b), -b), cands)
+      @testset "premises" begin
+        @test ragged(B) >= 2              # the samples of a site stop at different layers
+        @test mixed(B)                    # an ε block has budget stops and cap stops
       end
+      want(m, ε, rr) = m != "pp" ? (tmax, 0) :
+        stop_of(B, ε, cld(rr, length(sites)), sites[mod1(rr, length(sites))])
 
-      @testset "5. refused before any output: $name" for (k, (name, pattern, args)) in enumerate([
-          ("uniform with samples = 2", r"samples", ["eps_mode=uniform", "samples=2"]),
-          ("pp_thl = 0", r"(?<!campspp_)pp_thl", ["methods=pp", "pp_thl=0"]),
-          ("campspp_thl = 0", r"campspp_thl", ["methods=campspp", "campspp_thl=0"]),
-          ("εs = 0.3, 0", r"ε", ["εs=0.3,0"]),
-          ("εs = 0, 0", r"ε", ["εs=0,0"]),
-          ("site 0", r"site", ["sites=0,2"]),
-          ("site N + 1", r"site", ["sites=2,$(N + 1)"]),
-          ("repeated site", r"site", ["sites=2,2"]),
-          ("unknown method", r"[Mm]ethod", ["methods=campspp,foo"]),
-          ("unknown eps_mode", r"eps_mode", ["eps_mode=gaussian"]),
-          ("t_max = 0", r"t_max", ["t_max=0"]),
-          ("pp_Pmax = 1", r"(?<!campspp_)pp_Pmax", ["methods=pp", "pp_Pmax=1"]),
-          ("campspp_Pmax = 1", r"campspp_Pmax", ["methods=campspp", "campspp_Pmax=1"]),
-          ("camps_χmax = 1", r"camps_χmax", ["methods=camps", "camps_χmax=1"]),
-          ("mps_χmax = 1.5", r"mps_χmax", ["methods=mps", "mps_χmax=1.5"])])
-        # A neutral directory name, so a script that echoes its outdir cannot match `pattern`
-        test_refused(joinpath(dir, "refused_$k"), pattern, "N=$N",
-                     (any(startswith("t_max="), args) ? () : ("t_max=2",))..., args...)
+      out3 = joinpath(dir, "random")
+      code, stdout_, err = run_script(SCRIPT, "N=$N", "t_max=$tmax", "methods=$(join(METHODS_ALL, ','))",
+        "eps_mode=random", "samples=$samples", "εs=$(join(εs, ','))", "sites=$(join(sites, ','))",
+        "campspp_χ=4", "campspp_thl=1e-14", "mps_thl=1e-15", "pp_thl=$RANDOM_PP_THL", "pp_Pmax=$B",
+        "campspp_Pmax=1000000000", "camps_χmax=1000000", "mps_χmax=1000000", "outdir=$out3")
+      @test code == 0
+      if code == 0
+        checks, _ = check_run(out3; methods = METHODS_ALL, εs, sites, samples,
+          dense = (i, ε, j) -> rprofiles[(i, ε)][:, j], stops = want,
+          dense_methods = ["campspp", "camps", "mps"])
+        table = isfile(joinpath(out3, "eps_kim.txt")) ? eps_table(out3, N) : []
+        checks["eps_kim.txt: one block per ε, u for each sample"] =
+          [b[1] for b in table] == string.(εs) &&
+          all(length(us) == samples && all(!isnothing, us) for (_, us) in table)
+        if checks["eps_kim.txt: one block per ε, u for each sample"]
+          checks["eps_kim.txt: u = 2 .* rand(MersenneTwister(hash((rng_seed + i, ε))), N) .- 1"] =
+            all(maxabsdiff(us[i], spec_u(i, ε, N)) <= 1e-15 for ((_, us), ε) in zip(table, εs)
+                for i in 1:samples)
+          checks["eps_kim.txt: u differ across ε (independent draws)"] =
+            all(maxabsdiff(table[1][2][i], table[2][2][i]) > 0.1 for i in 1:samples)
+          checks["eps_kim.txt: u differ across samples"] =
+            all(maxabsdiff(us[1], us[2]) > 0.1 for (_, us) in table)
+        end
+        test_checks(checks)
+      else
+        @info "Comptime_kim.jl (random) failed" stdout_ err
       end
+    end
+
+    @testset "4. settings of an unselected method are not refused: $m" for (k, (m, args)) in enumerate([
+        ("pp", ["pp_thl=1e-14", "campspp_thl=0", "campspp_Pmax=1", "camps_χmax=1", "mps_χmax=1"]),
+        ("mps", ["mps_thl=1e-15", "pp_thl=0", "pp_Pmax=1", "campspp_thl=-1", "campspp_Pmax=1"])])
+      out4 = joinpath(dir, "unselected_$k")
+      code, stdout_, err = run_script(SCRIPT, "N=$N", "t_max=1", "methods=$m", "εs=0.1",
+        "sites=1", args..., "outdir=$out4")
+      ok = code == 0 && isfile(joinpath(out4, "layers_kim_$m.txt"))
+      ok || @info "Comptime_kim.jl (unselected settings) failed" stdout_ err
+      @test ok
+    end
+
+    @testset "5. refused before any output: $name" for (k, (name, pattern, args)) in enumerate([
+        ("uniform with samples = 2", r"samples", ["eps_mode=uniform", "samples=2"]),
+        ("pp_thl = 0", r"(?<!campspp_)pp_thl", ["methods=pp", "pp_thl=0"]),
+        ("campspp_thl = 0", r"campspp_thl", ["methods=campspp", "campspp_thl=0"]),
+        ("εs = 0.3, 0", r"ε", ["εs=0.3,0"]),
+        ("εs = 0, 0", r"ε", ["εs=0,0"]),
+        ("site 0", r"site", ["sites=0,2"]),
+        ("site N + 1", r"site", ["sites=2,$(N + 1)"]),
+        ("repeated site", r"site", ["sites=2,2"]),
+        ("unknown method", r"[Mm]ethod", ["methods=campspp,foo"]),
+        ("empty methods", r"[Mm]ethod", ["methods="]),
+        ("repeated method", r"[Mm]ethod", ["methods=pp,pp"]),
+        ("samples = 0 (random)", r"samples", ["eps_mode=random", "samples=0"]),
+        ("empty εs", r"ε", ["εs="]),
+        ("empty sites", r"site", ["sites="]),
+        ("unknown eps_mode", r"eps_mode", ["eps_mode=gaussian"]),
+        ("t_max = 0", r"t_max", ["t_max=0"]),
+        ("pp_Pmax = 1", r"(?<!campspp_)pp_Pmax", ["methods=pp", "pp_Pmax=1"]),
+        ("campspp_Pmax = 1", r"campspp_Pmax", ["methods=campspp", "campspp_Pmax=1"]),
+        ("camps_χmax = 1", r"camps_χmax", ["methods=camps", "camps_χmax=1"]),
+        ("mps_χmax = 1", r"mps_χmax", ["methods=mps", "mps_χmax=1"])])
+      # A neutral directory name, so a script that echoes its outdir cannot match `pattern`
+      test_refused(joinpath(dir, "refused_$k"), pattern, "N=$N",
+                   (any(startswith("t_max="), args) ? () : ("t_max=2",))..., args...)
     end
   end
+end
 end

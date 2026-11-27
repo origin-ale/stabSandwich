@@ -314,52 +314,46 @@ const HEADER = ["# N=46  ", "# Cycle obs", "", ""]
     # `# <k> = <v>`, and each writer called with μ = nothing writes that header. The same
     # data as the count-mode testset above; only the header line differs. The μ forms above
     # are unchanged.
-    if !kim_defined()
-      @testset "labels without μ [KIM, not implemented yet]" begin
-        @test_broken kim_defined()
-      end
-    else
-      @testset "labels without μ (KIM)" begin
-        @test CampsPP.label_header("ε" => 0.1, nothing) == "# ε = 0.1"
-        @test CampsPP.label_header("ε" => 0.0, nothing) == "# ε = 0.0"
-        @test CampsPP.label_header("n" => 3, nothing) == "# n = 3"
-        @test CampsPP.label_header("n" => 3, 0.6) == "# n = 3, μ = 0.6"    # with μ: unchanged
+    @testset "labels without μ (KIM)" begin
+      @test CampsPP.label_header("ε" => 0.1, nothing) == "# ε = 0.1"
+      @test CampsPP.label_header("ε" => 0.0, nothing) == "# ε = 0.0"
+      @test CampsPP.label_header("n" => 3, nothing) == "# n = 3"
+      @test CampsPP.label_header("n" => 3, 0.6) == "# n = 3, μ = 0.6"    # with μ: unchanged
 
-        path = file("full_eps.txt")
-        save_full_samples(path, nothing, "ε" => 0.1, stack_samples([[1.0, 0.5], [0.75]]))
-        save_full_samples(path, nothing, "ε" => 0.3, stack_samples([[2.0]]))
-        @test matches_golden(path, ["# ε = 0.1";
-          "# sample 1"; "0\t1.0"; "1\t0.5"; ""; "# sample 2"; "0\t0.75"; ""; "";
-          "# ε = 0.3"; "# sample 1"; "0\t2.0"; ""; ""])
+      path = file("full_eps.txt")
+      save_full_samples(path, nothing, "ε" => 0.1, stack_samples([[1.0, 0.5], [0.75]]))
+      save_full_samples(path, nothing, "ε" => 0.3, stack_samples([[2.0]]))
+      @test matches_golden(path, ["# ε = 0.1";
+        "# sample 1"; "0\t1.0"; "1\t0.5"; ""; "# sample 2"; "0\t0.75"; ""; "";
+        "# ε = 0.3"; "# sample 1"; "0\t2.0"; ""; ""])
 
-        path = file("persample_eps.txt")
-        save_per_sample(path, nothing, "ε" => 0.1, [1.5, 2.25], [0.0, 0.125])
-        @test matches_golden(path, ["# ε = 0.1"; "1 1.5 0.0"; "2 2.25 0.125"; ""; ""])
+      path = file("persample_eps.txt")
+      save_per_sample(path, nothing, "ε" => 0.1, [1.5, 2.25], [0.0, 0.125])
+      @test matches_golden(path, ["# ε = 0.1"; "1 1.5 0.0"; "2 2.25 0.125"; ""; ""])
 
-        path = file("peaks_eps.txt")
-        save_peaks(path, [[1, 2], [5]], nothing, "ε" => 0.1)
-        @test matches_golden(path, ["# ε = 0.1"; "1 2"; "2 5"; ""; ""])
+      path = file("peaks_eps.txt")
+      save_peaks(path, [[1, 2], [5]], nothing, "ε" => 0.1)
+      @test matches_golden(path, ["# ε = 0.1"; "1 2"; "2 5"; ""; ""])
 
-        path = file("stats_eps.txt")
-        save_stats(path, stack_samples([[0.5, 0.5]]), nothing, "ε" => 0.1)
-        @test matches_golden(path, ["# ε = 0.1"; "0 0.5 NaN"; "1 0.5 NaN"; ""; ""])
+      path = file("stats_eps.txt")
+      save_stats(path, stack_samples([[0.5, 0.5]]), nothing, "ε" => 0.1)
+      @test matches_golden(path, ["# ε = 0.1"; "0 0.5 NaN"; "1 0.5 NaN"; ""; ""])
 
-        path = file("maxcol_eps.txt")
-        save_stats_maxcol(path, [[1.0, 2.0], [2.0, 1.0]], nothing, "ε" => 0.1)
-        @test matches_golden(path, ["# ε = 0.1, max sample = 1";
-          "0 1.5 0.5 1.0 2 1.25 1.5 1.75 1.0 2.0";
-          "1 1.5 0.5 2.0 2 1.25 1.5 1.75 1.0 2.0";
-          ""; ""])
+      path = file("maxcol_eps.txt")
+      save_stats_maxcol(path, [[1.0, 2.0], [2.0, 1.0]], nothing, "ε" => 0.1)
+      @test matches_golden(path, ["# ε = 0.1, max sample = 1";
+        "0 1.5 0.5 1.0 2 1.25 1.5 1.75 1.0 2.0";
+        "1 1.5 0.5 2.0 2 1.25 1.5 1.75 1.0 2.0";
+        ""; ""])
 
-        path = file("doped_eps.txt")
-        gates = [pp.PauliRotation([:X, :X], [1, 2]), pp.PauliRotation([:Y, :Y], [1, 2]),
-                 pp.PauliRotation([:Z, :Z], [1, 2])]
-        save_doped_gates(path, gates, [[1, 2], Int[]], [3], nothing, "ε" => 0.1)
-        @test matches_golden(path, ["# ε = 0.1";
-          "# sample 1: 2 doped gates"; "1 1 XX 1 2"; "2 1 YY 1 2"; "";
-          "# sample 2: 0 doped gates"; "";
-          ""])
-      end
+      path = file("doped_eps.txt")
+      gates = [pp.PauliRotation([:X, :X], [1, 2]), pp.PauliRotation([:Y, :Y], [1, 2]),
+               pp.PauliRotation([:Z, :Z], [1, 2])]
+      save_doped_gates(path, gates, [[1, 2], Int[]], [3], nothing, "ε" => 0.1)
+      @test matches_golden(path, ["# ε = 0.1";
+        "# sample 1: 2 doped gates"; "1 1 XX 1 2"; "2 1 YY 1 2"; "";
+        "# sample 2: 0 doped gates"; "";
+        ""])
     end
 
     @testset "save_rows" begin

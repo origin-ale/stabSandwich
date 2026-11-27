@@ -205,42 +205,38 @@ end
     @test maxabsdiff(refaug, ref_of(Oaug, open_snaps)) > 0.05
   end
 
-  if !kim_defined()
-    @test_broken kim_defined()
-  else
-    gates, phases = kicked_ising_circuit(0.0, t, N)
-    @test length(gates) == M
-    for j in sites
-      Oaug, refz, refaug = observables[j]
-      Oz = local_z(N, j)
+  gates, phases = kicked_ising_circuit(0.0, t, N)
+  @test length(gates) == M
+  for j in sites
+    Oaug, refz, refaug = observables[j]
+    Oz = local_z(N, j)
 
-      @testset "pauliprop_circuit_dynamics, j = $j" begin
-        thl_pp, Nmax_pp = 1e-10, 10^6
-        for (O, ref) in ((Oz, refz), (Oaug, refaug))
-          s, evs, nterms = pauliprop_circuit_dynamics(ones, gates, phases, thl_pp, Nmax_pp, O;
-            layer_ends = le, track = true)
-          @test s == M
-          @test maxabsdiff(evs, ref) <= EXACT_ATOL
-          # Each Clifford rotation maps a string to one string, distinct strings to distinct
-          # strings; the cos(π/2) ≈ 6e-17 branches fall below thl_pp. So local_z stays 1
-          # term, and the sum keeps its size.
-          @test all(==(length(O)), nterms)
-        end
+    @testset "pauliprop_circuit_dynamics, j = $j" begin
+      thl_pp, Nmax_pp = 1e-10, 10^6
+      for (O, ref) in ((Oz, refz), (Oaug, refaug))
+        s, evs, nterms = pauliprop_circuit_dynamics(ones, gates, phases, thl_pp, Nmax_pp, O;
+          layer_ends = le, track = true)
+        @test s == M
+        @test maxabsdiff(evs, ref) <= EXACT_ATOL
+        # Each Clifford rotation maps a string to one string, distinct strings to distinct
+        # strings; the cos(π/2) ≈ 6e-17 branches fall below thl_pp. So local_z stays 1
+        # term, and the sum keeps its size.
+        @test all(==(length(O)), nterms)
       end
+    end
 
-      @testset "campspp_circuit_dynamics, j = $j, $(stackname(T))" for T in STATE_TYPES
-        χ_campspp, thl_campspp, Nmax_campspp = 64, 1e-10, 10^6
-        for (O, ref) in ((Oz, refz), (Oaug, refaug))
-          evs, s, bds, _, _, _, s_switch, k_switch = campspp_circuit_dynamics(
-            computationalcamps(T, N, ones), χ_campspp, thl_campspp, Nmax_campspp, gates, phases, O;
-            layer_ends = le, track = true)
-          @test s == M
-          @test maxabsdiff(evs, ref) <= EXACT_ATOL
-          # Frame-dependent: every gate goes to the frame, so bond dimension 1 and k = 0
-          # throughout, and CAMPS-PP never switches to PP
-          @test s_switch == M && k_switch == 0
-          @test all(==(1), bds)
-        end
+    @testset "campspp_circuit_dynamics, j = $j, $(stackname(T))" for T in STATE_TYPES
+      χ_campspp, thl_campspp, Nmax_campspp = 64, 1e-10, 10^6
+      for (O, ref) in ((Oz, refz), (Oaug, refaug))
+        evs, s, bds, _, _, _, s_switch, k_switch = campspp_circuit_dynamics(
+          computationalcamps(T, N, ones), χ_campspp, thl_campspp, Nmax_campspp, gates, phases, O;
+          layer_ends = le, track = true)
+        @test s == M
+        @test maxabsdiff(evs, ref) <= EXACT_ATOL
+        # Frame-dependent: every gate goes to the frame, so bond dimension 1 and k = 0
+        # throughout, and CAMPS-PP never switches to PP
+        @test s_switch == M && k_switch == 0
+        @test all(==(1), bds)
       end
     end
   end

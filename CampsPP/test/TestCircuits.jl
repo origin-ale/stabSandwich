@@ -348,87 +348,80 @@
 
   # -- Kicked Ising (CONVENTIONS.md §2 "Kicked Ising"; KIM plan step 2) -------------------
   # Expected values from the spec (KimSpec.jl builds the circuit from it), hand derivations
-  # and the dense reference. The tests of `kicked_ising_circuit` and `kicked_ising_layerends`
-  # are gated on the KIM names (helpers.jl); the spec circuit's own checks run regardless.
+  # and the dense reference. The spec circuit's own checks run alongside those of
+  # `kicked_ising_circuit` and `kicked_ising_layerends`.
 
   # The builder's circuit as (strings, phases), for the dense reference
   function kim_builder_circuit(ε, t, N)
     local rots, phases = kicked_ising_circuit(ε, t, N)
     return [gatestring(r, N) for r in rots], phases
   end
-  kim_sources = Any[("spec circuit", kim_spec_circuit)]
-  kim_defined() && push!(kim_sources, ("kicked_ising_circuit", kim_builder_circuit))
+  kim_sources = Any[("spec circuit", kim_spec_circuit), ("kicked_ising_circuit", kim_builder_circuit)]
 
-  if !kim_defined()
-    @testset "kicked_ising_circuit [KIM, not implemented yet]" begin
-      @test_broken kim_defined()
+  @testset "kicked_ising_circuit structure, N=$N" for N in (1, 2, 3, 5, 6)
+    t = 3
+    L = kim_spec_L(N)
+    @test L == Dict(1 => 2, 2 => 5, 3 => 9, 5 => 15, 6 => 18)[N]    # §2: 2N + B
+    bonds = kim_spec_bonds(N)
+    @test length(bonds) == (N >= 3 ? N : N - 1)
+    # Distinct ε_j on every qubit, so ε taken from the wrong qubit shows
+    εv = [0.1j - 0.037 for j in 1:N]
+    rots, phases = kicked_ising_circuit(εv, t, N)
+    @test length(rots) == L * t
+    @test length(phases) == L * t
+    @test phases isa AbstractVector{Float64}
+
+    # Gate i of layer l at position (l − 1)·L + i: ZZ on the bonds (bricklayer order, then
+    # [1, N]), then Z_1…Z_N, then Y_1…Y_N; angles −π/4, −(π/2 + ε_j)/2, −π/4.
+    want = [[(:ZZ, b, -π/4) for b in bonds];
+            [(:Z, [j], -(π/2 + εv[j]) / 2) for j in 1:N];
+            [(:Y, [j], -π/4) for j in 1:N]]
+    @test length(want) == L
+    ok_syms = true; ok_inds = true; ok_phases = true
+    for l in 1:t, (i, (sym, qs, ϕ)) in enumerate(want)
+      g = (l - 1) * L + i
+      ok_syms &= collect(rots[g].symbols) == (sym == :ZZ ? [:Z, :Z] : [sym])
+      ok_inds &= collect(rots[g].qinds) == qs
+      ok_phases &= isapprox(phases[g], ϕ; atol = 1e-14)
     end
-  else
-    @testset "kicked_ising_circuit structure, N=$N" for N in (1, 2, 3, 5, 6)
-      t = 3
-      L = kim_spec_L(N)
-      @test L == Dict(1 => 2, 2 => 5, 3 => 9, 5 => 15, 6 => 18)[N]    # §2: 2N + B
-      bonds = kim_spec_bonds(N)
-      @test length(bonds) == (N >= 3 ? N : N - 1)
-      # Distinct ε_j on every qubit, so ε taken from the wrong qubit shows
-      εv = [0.1j - 0.037 for j in 1:N]
-      rots, phases = kicked_ising_circuit(εv, t, N)
-      @test length(rots) == L * t
-      @test length(phases) == L * t
-      @test phases isa AbstractVector{Float64}
+    @test ok_syms
+    @test ok_inds
+    @test ok_phases
+    # The wrap bond is the last ZZ gate of each layer, listed as [1, N], for N ≥ 3 only;
+    # N = 2 has exactly one ZZ gate per layer, N = 1 none
+    @test count(r -> collect(r.symbols) == [:Z, :Z], rots[1:L]) == (N >= 3 ? N : N - 1)
+    N >= 3 && @test collect(rots[N].qinds) == [1, N]
+    # The non-Clifford angles are exactly the Z ones (one per qubit per layer)
+    @test count(ϕ -> !isapprox(ϕ, -π/4; atol = 1e-12), phases) == N * t
 
-      # Gate i of layer l at position (l − 1)·L + i: ZZ on the bonds (bricklayer order, then
-      # [1, N]), then Z_1…Z_N, then Y_1…Y_N; angles −π/4, −(π/2 + ε_j)/2, −π/4.
-      want = [[(:ZZ, b, -π/4) for b in bonds];
-              [(:Z, [j], -(π/2 + εv[j]) / 2) for j in 1:N];
-              [(:Y, [j], -π/4) for j in 1:N]]
-      @test length(want) == L
-      ok_syms = true; ok_inds = true; ok_phases = true
-      for l in 1:t, (i, (sym, qs, ϕ)) in enumerate(want)
-        g = (l - 1) * L + i
-        ok_syms &= collect(rots[g].symbols) == (sym == :ZZ ? [:Z, :Z] : [sym])
-        ok_inds &= collect(rots[g].qinds) == qs
-        ok_phases &= isapprox(phases[g], ϕ; atol = 1e-14)
-      end
-      @test ok_syms
-      @test ok_inds
-      @test ok_phases
-      # The wrap bond is the last ZZ gate of each layer, listed as [1, N], for N ≥ 3 only;
-      # N = 2 has exactly one ZZ gate per layer, N = 1 none
-      @test count(r -> collect(r.symbols) == [:Z, :Z], rots[1:L]) == (N >= 3 ? N : N - 1)
-      N >= 3 && @test collect(rots[N].qinds) == [1, N]
-      # The non-Clifford angles are exactly the Z ones (one per qubit per layer)
-      @test count(ϕ -> !isapprox(ϕ, -π/4; atol = 1e-12), phases) == N * t
-
-      # The number form equals the vector form with fill(ε, N)
-      for ε in (0.0, 0.3, -0.11)
-        r1, p1 = kicked_ising_circuit(ε, t, N)
-        r2, p2 = kicked_ising_circuit(fill(ε, N), t, N)
-        @test [gatestring(r, N) for r in r1] == [gatestring(r, N) for r in r2]
-        @test [collect(r.qinds) for r in r1] == [collect(r.qinds) for r in r2]
-        @test p1 == p2
-      end
-      # The builder's circuit is the spec circuit, gate by gate
-      strings, ph = kim_builder_circuit(εv, t, N)
-      spec_strings, spec_ph = kim_spec_circuit(εv, t, N)
-      @test strings == spec_strings
-      @test maxabsdiff(ph, spec_ph) <= 1e-14
-
-      # Any other vector length is an ArgumentError
-      @test_throws ArgumentError kicked_ising_circuit(fill(0.1, N - 1), t, N)
-      @test_throws ArgumentError kicked_ising_circuit(fill(0.1, N + 1), t, N)
-
-      # Layer ends L·l, L from the spec formula (not from the builder)
-      @test kicked_ising_layerends(N, t) == [L * l for l in 1:t]
+    # The number form equals the vector form with fill(ε, N)
+    for ε in (0.0, 0.3, -0.11)
+      r1, p1 = kicked_ising_circuit(ε, t, N)
+      r2, p2 = kicked_ising_circuit(fill(ε, N), t, N)
+      @test [gatestring(r, N) for r in r1] == [gatestring(r, N) for r in r2]
+      @test [collect(r.qinds) for r in r1] == [collect(r.qinds) for r in r2]
+      @test p1 == p2
     end
+    # The builder's circuit is the spec circuit, gate by gate
+    strings, ph = kim_builder_circuit(εv, t, N)
+    spec_strings, spec_ph = kim_spec_circuit(εv, t, N)
+    @test strings == spec_strings
+    @test maxabsdiff(ph, spec_ph) <= 1e-14
 
-    @testset "kicked_ising_circuit at N=46: 138 gates per layer" begin
-      @test kicked_ising_layerends(46, 23) == collect(138:138:3174)
-      rots, phases = kicked_ising_circuit(0.0, 23, 46)
-      @test length(rots) == length(phases) == 3174
-      @test collect(rots[46].qinds) == [1, 46]           # the wrap bond closes the ZZ block
-      @test collect(rots[47].symbols) == [:Z] && collect(rots[138].symbols) == [:Y]
-    end
+    # Any other vector length is an ArgumentError
+    @test_throws ArgumentError kicked_ising_circuit(fill(0.1, N - 1), t, N)
+    @test_throws ArgumentError kicked_ising_circuit(fill(0.1, N + 1), t, N)
+
+    # Layer ends L·l, L from the spec formula (not from the builder)
+    @test kicked_ising_layerends(N, t) == [L * l for l in 1:t]
+  end
+
+  @testset "kicked_ising_circuit at N=46: 138 gates per layer" begin
+    @test kicked_ising_layerends(46, 23) == collect(138:138:3174)
+    rots, phases = kicked_ising_circuit(0.0, 23, 46)
+    @test length(rots) == length(phases) == 3174
+    @test collect(rots[46].qinds) == [1, 46]           # the wrap bond closes the ZZ block
+    @test collect(rots[47].symbols) == [:Z] && collect(rots[138].symbols) == [:Y]
   end
 
   # Measured (dense, 2026-11-26; N = 4…14, checked by an independent review): from the Néel
