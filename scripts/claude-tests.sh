@@ -16,5 +16,7 @@ bin=$(ls -d "$HOME"/.vscode/extensions/anthropic.claude-code-*/resources/native-
 [ -n "$bin" ] || bin=$(command -v claude || true)
 [ -n "$bin" ] || { echo "No claude binary found (VS Code extension or PATH)" >&2; exit 1; }
 
+# Tells the staged-plan skill (~/.claude/skills/staged-plan) this is the test session.
+export STAGED_PLAN_ROLE=test
 echo "Test session: $bin --settings $settings" >&2
 exec "$bin" --settings "$settings" "$@"
